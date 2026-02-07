@@ -12,11 +12,11 @@ Last updated: 2026-02-07
 
 ## P1 (major promised features)
 
-- [ ] **Fail-fast config validation for signing mode should require PFX path when `signing.enabled=true`**  
-  Impact: Current config accepts cert/key-only settings in some cases, but runtime signing still requires PFX, causing per-ticket permanent failures instead of startup validation failure.  
+- [x] **Fail-fast config validation now requires PFX path when `signing.enabled=true`**  
+  Impact addressed: prevents cert/key-only misconfiguration from reaching runtime signing path and failing per ticket.  
   Promise source: `docs/06-signing-and-timestamp.md` (“current implementation requires PKCS#12/PFX”).  
-  Target code: `src/zammad_pdf_archiver/config/settings.py`, `src/zammad_pdf_archiver/config/validate.py`  
-  Planned tests: extend `test/unit/test_config.py` with explicit signing-material validation cases.
+  Code: `src/zammad_pdf_archiver/config/settings.py`  
+  Tests: `test/unit/test_config.py::test_load_settings_rejects_signing_enabled_without_pfx_path`, `test/unit/test_config.py::test_load_settings_accepts_signing_enabled_with_pfx_path`
 
 ## P2 (hardening/doc/runtime-environment alignment)
 
