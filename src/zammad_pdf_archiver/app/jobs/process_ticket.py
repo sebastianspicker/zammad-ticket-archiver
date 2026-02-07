@@ -25,6 +25,7 @@ from zammad_pdf_archiver.adapters.zammad.errors import (
     ServerError,
 )
 from zammad_pdf_archiver.app.jobs.retry_policy import classify
+from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.audit import build_audit_record, compute_sha256
 from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
@@ -37,6 +38,7 @@ from zammad_pdf_archiver.domain.state_machine import (
     apply_processing,
     should_process,
 )
+from zammad_pdf_archiver.domain.ticket_id import coerce_ticket_id
 from zammad_pdf_archiver.observability.metrics import (
     failed_total,
     processed_total,
@@ -80,17 +82,10 @@ async def _release_ticket(ticket_id: int) -> None:
 def _extract_ticket_id(payload: dict[str, Any]) -> int | None:
     ticket = payload.get("ticket")
     if isinstance(ticket, dict):
-        ticket_id = ticket.get("id")
+        value = ticket.get("id")
     else:
-        ticket_id = payload.get("ticket_id")
-
-    if ticket_id is None:
-        return None
-
-    try:
-        return int(ticket_id)
-    except (TypeError, ValueError):
-        return None
+        value = payload.get("ticket_id")
+    return coerce_ticket_id(value)
 
 
 def _ticket_custom_fields(ticket: Any) -> dict[str, Any]:
@@ -244,6 +239,7 @@ def _error_note_html(
 def _concise_exc_message(exc: BaseException) -> str:
     text = f"{exc.__class__.__name__}: {exc}"
     text = text.strip()
+    text = scrub_secrets_in_text(text)
     return text[:500] if len(text) > 500 else text
 
 
@@ -526,7 +522,13 @@ async def process_ticket(
                     try:
                         await client.remove_tag(ticket_id, PROCESSING_TAG)
                     except Exception:
-                        pass
+                        log.exception(
+                            "process_ticket.processing_tag_cleanup_failed",
+                            ticket_id=ticket_id,
+                            request_id=request_id,
+                            delivery_id=delivery_id,
+                            classification=classification_label,
+                        )
                 finally:
                     if observe_total:
                         total_seconds.observe(perf_counter() - total_start)

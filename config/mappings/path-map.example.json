@@ -1,0 +1,9 @@
+{
+  "_comment": "Example: map/normalise archive_path inputs to your desired prefixes.",
+  "rules": [
+    {
+      "match_prefix": "ACME/",
+      "replace_with": "customers/ACME/"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+[Unit]
+Description=Zammad PDF Archiver (Docker Compose)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Environment file (see infra/systemd/zammad-archiver.env)
+EnvironmentFile=/etc/zammad-archiver/zammad-archiver.env
+
+# Directory that contains docker-compose.yml
+WorkingDirectory=/opt/zammad-ticket-archiver
+
+# Use the same env file for:
+# - compose interpolation (via --env-file)
+# - container environment (via env_file: ${ARCHIVER_ENV_FILE} in docker-compose.yml)
+ExecStart=/usr/bin/docker compose --env-file ${ARCHIVER_ENV_FILE} -f docker-compose.yml up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file ${ARCHIVER_ENV_FILE} -f docker-compose.yml down
+
+TimeoutStartSec=0
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

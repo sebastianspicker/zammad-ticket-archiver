@@ -1,0 +1,6 @@
+{
+  "_comment": "Example: map Zammad user identifiers to storage user/owner components (optional policy layer).",
+  "mapping": {
+    "zammad.user@example.local": "archive-user"
+  }
+}

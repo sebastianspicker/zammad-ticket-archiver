@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "zammad-pdf-archiver config",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "Schema matching src/config/settings.py (runtime validation is done by Pydantic).",
+  "properties": {
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "webhook_shared_secret": { "type": ["string", "null"] }
+      }
+    },
+    "zammad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_url", "api_token"],
+      "properties": {
+        "base_url": { "type": "string", "format": "uri" },
+        "api_token": { "type": "string" },
+        "webhook_hmac_secret": { "type": ["string", "null"] },
+        "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "verify_tls": { "type": "boolean" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trigger_tag": { "type": "string" },
+        "require_tag": { "type": "boolean" },
+        "acknowledge_on_success": { "type": "boolean" },
+        "delivery_id_ttl_seconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "archive_path": { "type": "string" },
+        "archive_user_mode": { "type": "string" }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root"],
+      "properties": {
+        "root": { "type": "string" },
+        "atomic_write": { "type": "boolean" },
+        "fsync": { "type": "boolean" },
+        "path_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allow_prefixes": { "type": "array", "items": { "type": "string" } },
+            "sanitize": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "replace_whitespace": { "type": "string" },
+                "strip_control_chars": { "type": "boolean" }
+              }
+            },
+            "filename_pattern": { "type": "string" }
+          }
+        }
+      }
+    },
+    "pdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "template_variant": { "type": "string" },
+        "locale": { "type": "string" },
+        "timezone": { "type": "string" },
+        "max_articles": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "pfx_path": { "type": ["string", "null"] },
+        "pfx_password": { "type": ["string", "null"] },
+        "pades": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cert_path": { "type": ["string", "null"] },
+            "key_path": { "type": ["string", "null"] },
+            "key_password": { "type": ["string", "null"] },
+            "reason": { "type": "string" },
+            "location": { "type": "string" }
+          }
+        },
+        "timestamp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "rfc3161": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "tsa_url": { "type": ["string", "null"], "format": "uri" },
+                "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
+                "ca_bundle_path": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "log_level": { "type": "string" },
+        "log_format": { "type": ["string", "null"] },
+        "json_logs": { "type": "boolean" },
+        "metrics_enabled": { "type": "boolean" }
+      }
+    },
+    "hardening": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rate_limit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "rps": { "type": "number", "minimum": 0 },
+            "burst": { "type": "integer", "minimum": 1 },
+            "include_metrics": { "type": "boolean" }
+          }
+        },
+        "body_size_limit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_bytes": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "webhook": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allow_unsigned": { "type": "boolean" },
+            "require_delivery_id": { "type": "boolean" }
+          }
+        },
+        "transport": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "trust_env": { "type": "boolean" },
+            "allow_insecure_http": { "type": "boolean" },
+            "allow_insecure_tls": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  },
+  "required": ["zammad", "storage"]
+}

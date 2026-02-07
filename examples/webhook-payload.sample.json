@@ -1,0 +1,21 @@
+{
+  "_comment": "Sample webhook payload. Service primarily needs ticket.id or ticket_id.",
+  "event": "ticket.updated",
+  "ticket": {
+    "id": 12345,
+    "number": "12345",
+    "title": "Example ticket",
+    "tags": ["pdf:sign"],
+    "custom_fields": {
+      "archive_path": "Support > Customers > ACME > 2026",
+      "archive_user_mode": "owner"
+    }
+  },
+  "user": {
+    "id": 777,
+    "login": "agent@example.local",
+    "email": "agent@example.local",
+    "firstname": "Agent",
+    "lastname": "User"
+  }
+}

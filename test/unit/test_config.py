@@ -17,6 +17,7 @@ def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "WEBHOOK_SHARED_SECRET",
         "WEBHOOK_HMAC_SECRET",
         "HARDENING_WEBHOOK_ALLOW_UNSIGNED",
+        "HARDENING_TRANSPORT_ALLOW_LOCAL_UPSTREAMS",
         "ZAMMAD_BASE_URL",
         "ZAMMAD_URL",
         "ZAMMAD_API_TOKEN",
@@ -218,6 +219,38 @@ def test_validate_settings_rejects_insecure_tls_by_default() -> None:
         validate_settings(settings)
 
     assert "zammad.verify_tls" in str(exc.value)
+
+
+def test_validate_settings_rejects_loopback_upstream_by_default() -> None:
+    settings = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://127.0.0.1", "api_token": "test-token"},
+            "storage": {"root": "/mnt/archive"},
+            "hardening": {"webhook": {"allow_unsigned": True}},
+        }
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_settings(settings)
+
+    msg = str(exc.value)
+    assert "zammad.base_url" in msg
+    assert "allow_local_upstreams" in msg
+
+
+def test_validate_settings_allows_loopback_upstream_when_explicitly_enabled() -> None:
+    settings = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://127.0.0.1", "api_token": "test-token"},
+            "storage": {"root": "/mnt/archive"},
+            "hardening": {
+                "webhook": {"allow_unsigned": True},
+                "transport": {"allow_local_upstreams": True},
+            },
+        }
+    )
+
+    validate_settings(settings)
 
 
 def test_load_settings_rejects_signing_enabled_without_pfx_path(

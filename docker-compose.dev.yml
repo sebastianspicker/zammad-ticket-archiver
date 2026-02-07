@@ -1,0 +1,17 @@
+services:
+  zammad-pdf-archiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      SERVER_HOST: "${SERVER_HOST:-0.0.0.0}"
+      SERVER_PORT: "${SERVER_PORT:-8080}"
+      STORAGE_ROOT: "${STORAGE_ROOT:-/mnt/archive}"
+    volumes:
+      - ./:/app
+    command: ["bash", "-lc", "PYTHONPATH=/app/src python -m main"]

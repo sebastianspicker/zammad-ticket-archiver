@@ -162,3 +162,145 @@ Repo: `zammad-pdf-archiver`
   - `test/unit/test_logger_config.py::test_human_logging_does_not_emit_format_exc_info_warning`
 - Status: Fixed
 - Commit: `8d32208`
+
+### 8) P0 - Human exception logs leaked secrets in traceback output
+
+- Symptom summary:
+  - In human log mode, `logger.exception(...)` emitted raw credential values from exception text
+    (and rich traceback context), violating log-redaction expectations.
+- Reproduction steps:
+  1. Run
+     `pytest -q test/unit/test_logger_config.py::test_human_logging_redacts_secrets_in_exception_traceback`.
+  2. Before fix: assertion fails because output contains `topsecret` and `abc123`.
+- Root cause analysis:
+  - `src/zammad_pdf_archiver/observability/logger.py:77` configured `ConsoleRenderer` with its default
+    rich traceback formatter, which renders raw `exc_info` details.
+  - Human mode intentionally omitted `format_exc_info`, so `_scrub_event_dict` never received a stringified
+    exception payload to redact.
+- Fix summary:
+  - Added `_redacted_exception_formatter` in
+    `src/zammad_pdf_archiver/observability/logger.py:40` that renders traceback text via
+    `structlog.dev.plain_traceback(...)` and applies `scrub_secrets_in_text(...)`.
+  - Wired this formatter into human `ConsoleRenderer` at
+    `src/zammad_pdf_archiver/observability/logger.py:77`.
+- Regression tests added:
+  - `test/unit/test_logger_config.py::test_human_logging_redacts_secrets_in_exception_traceback`
+  - `test/unit/test_logger_config.py::test_json_logging_redacts_secrets_in_exception_traceback`
+- Status: Fixed
+- Commit: n/a
+
+### 9) P2 - Test plan documented wrong success tag (`pdf:done`)
+
+- Symptom summary:
+  - Documentation claimed workflow success transitions to `pdf:done`, but implementation and other docs
+    use `pdf:signed`.
+- Reproduction steps:
+  1. Run `grep -RIn "pdf:done" docs`.
+  2. Before fix: `docs/test-plan.md:120` reported `pdf:done`.
+- Root cause analysis:
+  - Stale wording in `docs/test-plan.md:120` diverged from state-machine constants and runtime behavior.
+- Fix summary:
+  - Updated `docs/test-plan.md:120` to `pdf:signed`.
+- Regression test added:
+  - Not applicable (documentation-only change). Alternative validation:
+    `grep -RIn "pdf:done" docs` no longer reports operational docs mismatches.
+- Status: Fixed
+- Commit: n/a
+
+## Final summary (current cycle)
+
+- Open issues: 0 (P0: 0, P1: 0, P2: 0)
+- Final verification:
+  - `ruff check .` ✅
+  - `pytest -q` ✅ (`176 passed`)
+  - `mypy .` ✅
+
+## Additional cycle (2026-02-07, deep pass)
+
+### 10) P2 - Processing-tag cleanup failures were silently swallowed
+
+- Symptom summary:
+  - When the fallback cleanup `remove_tag(..., pdf:processing)` failed in the error path, no log signal
+    was emitted, making stuck processing tags hard to diagnose.
+- Reproduction steps:
+  1. Run
+     `pytest -q test/unit/test_process_ticket_cleanup.py::test_process_ticket_logs_processing_tag_cleanup_failures`.
+  2. Before fix: test failed because only `process_ticket.error` was logged; no cleanup-failure event.
+- Root cause analysis:
+  - `src/zammad_pdf_archiver/app/jobs/process_ticket.py:530` had `except Exception: pass` around final
+    processing-tag cleanup, swallowing actionable failures.
+- Fix summary:
+  - Replaced silent swallow with structured exception logging event
+    `process_ticket.processing_tag_cleanup_failed` at
+    `src/zammad_pdf_archiver/app/jobs/process_ticket.py:531`.
+- Regression test added:
+  - `test/unit/test_process_ticket_cleanup.py::test_process_ticket_logs_processing_tag_cleanup_failures`
+- Status: Fixed
+- Commit: n/a
+
+### 11) P2 - Concurrency test was order-dependent due leaked global idempotency state
+
+- Symptom summary:
+  - `test_process_ticket_serializes_same_ticket_concurrent_runs` could fail when run after tests that
+    reused delivery IDs (`d-1`, `d-2`) because global in-memory replay state was not reset.
+- Reproduction steps:
+  1. Run:
+     `pytest -q test/unit/test_process_ticket_cleanup.py test/unit/test_process_ticket_inflight_idempotency.py test/unit/test_process_ticket_concurrency.py`.
+  2. Before fix: concurrency test failed with both deliveries skipped as already seen.
+- Root cause analysis:
+  - `test/unit/test_process_ticket_concurrency.py` did not clear
+    `process_ticket_module._DELIVERY_ID_SETS` / `_IN_FLIGHT_TICKETS` before running.
+- Fix summary:
+  - Added explicit global-state reset at test start in
+    `test/unit/test_process_ticket_concurrency.py:26`.
+- Regression test added:
+  - Existing test became deterministic with reset:
+    `test/unit/test_process_ticket_concurrency.py::test_process_ticket_serializes_same_ticket_concurrent_runs`
+- Status: Fixed
+- Commit: n/a
+
+## Final summary (latest cycle)
+
+- Open issues: 0 (P0: 0, P1: 0, P2: 0)
+- Final verification:
+  - `ruff check .` ✅
+  - `pytest -q` ✅ (`177 passed`)
+  - `mypy .` ✅
+
+## Additional cycle (2026-02-07, deep pass #2)
+
+### 12) P0 - Non-integer ticket IDs could be coerced to wrong ticket numbers
+
+- Symptom summary:
+  - Webhook payloads with boolean/float ticket IDs were coerced via `int(...)`
+    (`True -> 1`, `False -> 0`, `1.5 -> 1`), risking processing/tagging the wrong ticket.
+- Reproduction steps:
+  1. Run:
+     `pytest -q test/integration/test_ingest.py::test_ingest_does_not_schedule_background_for_boolean_ticket_id test/unit/test_process_ticket_ticket_id.py::test_extract_ticket_id_rejects_non_integer_values`.
+  2. Before fix:
+     - `/ingest` response returned `ticket_id: true` and scheduled background processing.
+     - `_extract_ticket_id` returned numeric IDs for boolean/float inputs.
+- Root cause analysis:
+  - `src/zammad_pdf_archiver/app/jobs/process_ticket.py:82` used permissive `int(ticket_id)` conversion.
+  - `src/zammad_pdf_archiver/app/routes/ingest.py:22` passed through raw payload ticket IDs and queued jobs
+    for any non-`None` value.
+- Fix summary:
+  - Added strict coercion helper in `src/zammad_pdf_archiver/domain/ticket_id.py:6`:
+    accepts only positive integer values (`int` or numeric strings), rejects booleans, floats, zero, and negatives.
+  - Wired helper into:
+    - `src/zammad_pdf_archiver/app/jobs/process_ticket.py:82`
+    - `src/zammad_pdf_archiver/app/routes/ingest.py:22`
+- Regression tests added:
+  - `test/integration/test_ingest.py::test_ingest_does_not_schedule_background_for_boolean_ticket_id`
+  - `test/unit/test_process_ticket_ticket_id.py::test_extract_ticket_id_accepts_integer_values`
+  - `test/unit/test_process_ticket_ticket_id.py::test_extract_ticket_id_rejects_non_integer_values`
+- Status: Fixed
+- Commit: n/a
+
+## Final summary (latest cycle #2)
+
+- Open issues: 0 (P0: 0, P1: 0, P2: 0)
+- Final verification:
+  - `ruff check .` ✅
+  - `pytest -q` ✅ (`193 passed`)
+  - `mypy .` ✅

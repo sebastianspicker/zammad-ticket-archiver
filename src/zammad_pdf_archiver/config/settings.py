@@ -164,6 +164,8 @@ class TransportHardeningSettings(_BaseSection):
     allow_insecure_http: bool = False
     # Allow disabling TLS verification for upstream requests. Strongly discouraged.
     allow_insecure_tls: bool = False
+    # Allow outbound upstreams that target loopback / link-local addresses.
+    allow_local_upstreams: bool = False
 
 
 class HardeningSettings(_BaseSection):
@@ -347,5 +349,9 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("hardening", {}).setdefault("transport", {})["allow_insecure_http"] = value
     if (value := env.get("HARDENING_TRANSPORT_ALLOW_INSECURE_TLS")):
         data.setdefault("hardening", {}).setdefault("transport", {})["allow_insecure_tls"] = value
+    if (value := env.get("HARDENING_TRANSPORT_ALLOW_LOCAL_UPSTREAMS")):
+        data.setdefault("hardening", {}).setdefault("transport", {})["allow_local_upstreams"] = (
+            value
+        )
 
     return data

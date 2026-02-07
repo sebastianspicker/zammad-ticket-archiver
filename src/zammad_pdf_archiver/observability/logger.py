@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 import sys
@@ -8,7 +9,7 @@ from typing import Any
 import structlog
 from structlog.stdlib import ProcessorFormatter
 
-from zammad_pdf_archiver.config.redact import redact_settings_dict
+from zammad_pdf_archiver.config.redact import redact_settings_dict, scrub_secrets_in_text
 
 
 def _scrub_event_dict(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
@@ -34,6 +35,12 @@ def _coerce_log_format(value: str | None) -> str | None:
         return None
     normalized = value.strip().lower()
     return normalized if normalized in {"json", "human"} else None
+
+
+def _redacted_exception_formatter(sio: Any, exc_info: Any) -> None:
+    rendered = io.StringIO()
+    structlog.dev.plain_traceback(rendered, exc_info)
+    sio.write(scrub_secrets_in_text(rendered.getvalue()))
 
 
 def configure_logging(
@@ -67,7 +74,9 @@ def configure_logging(
     if resolved_format == "json":
         renderer = structlog.processors.JSONRenderer()
     else:
-        renderer = structlog.dev.ConsoleRenderer()
+        renderer = structlog.dev.ConsoleRenderer(
+            exception_formatter=_redacted_exception_formatter
+        )
 
     formatter = ProcessorFormatter(
         processor=renderer,

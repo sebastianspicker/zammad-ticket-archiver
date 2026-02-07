@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from zammad_pdf_archiver.app.jobs.process_ticket import _success_note_html
+from zammad_pdf_archiver.app.jobs.process_ticket import _concise_exc_message, _success_note_html
+from zammad_pdf_archiver.config.redact import REDACTED_VALUE
 
 
 def test_success_note_html_escapes_untrusted_values() -> None:
@@ -21,3 +22,14 @@ def test_success_note_html_escapes_untrusted_values() -> None:
     assert "&lt;script&gt;" in html
     assert "&lt;img" in html
     assert "&lt;svg" in html
+
+
+def test_concise_exc_message_redacts_secrets() -> None:
+    msg = _concise_exc_message(
+        RuntimeError("Authorization: Bearer abc123 token=qwerty api_token=topsecret")
+    )
+
+    assert "abc123" not in msg
+    assert "qwerty" not in msg
+    assert "topsecret" not in msg
+    assert REDACTED_VALUE in msg

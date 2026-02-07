@@ -1,0 +1,57 @@
+{
+  "_comment": "Sample normalized snapshot passed to templates.",
+  "ticket": {
+    "id": 12345,
+    "number": "12345",
+    "title": "Login does not work",
+    "created_at": "2026-02-07T07:45:00Z",
+    "updated_at": "2026-02-07T08:10:00Z",
+    "customer": {
+      "id": 77,
+      "login": "customer",
+      "email": "customer@example.local",
+      "name": "ACME"
+    },
+    "owner": {
+      "id": null,
+      "login": "agent",
+      "email": null,
+      "name": null
+    },
+    "tags": ["pdf:sign", "archive:pending"],
+    "custom_fields": {
+      "archive_path": "Support > Customers > ACME",
+      "archive_user_mode": "owner"
+    }
+  },
+  "articles": [
+    {
+      "id": 1,
+      "created_at": "2026-02-07T07:45:00Z",
+      "internal": false,
+      "sender": "customer@example.local",
+      "subject": "Issue: login",
+      "body_html": "<p>Hello support,<br/>I cannot log in since this morning.</p>",
+      "body_text": "Hello support,\nI cannot log in since this morning.",
+      "attachments": []
+    },
+    {
+      "id": 2,
+      "created_at": "2026-02-07T08:05:00Z",
+      "internal": true,
+      "sender": "agent@example.local",
+      "subject": "Internal note",
+      "body_html": "<p>Ticket checked; requested auth logs.</p>",
+      "body_text": "Ticket checked; requested auth logs.",
+      "attachments": [
+        {
+          "article_id": 2,
+          "attachment_id": 10,
+          "filename": "screenshot.png",
+          "size": 53211,
+          "content_type": "image/png"
+        }
+      ]
+    }
+  ]
+}

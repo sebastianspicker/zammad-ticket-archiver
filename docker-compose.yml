@@ -1,0 +1,34 @@
+services:
+  zammad-pdf-archiver:
+    image: zammad-pdf-archiver:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PUBLISH_PORT:-${SERVER_PORT:-8080}}:${SERVER_PORT:-8080}"
+    env_file:
+      - "${ARCHIVER_ENV_FILE:-.env}"
+    environment:
+      # Provide sane defaults even if not set in env_file.
+      SERVER_HOST: "${SERVER_HOST:-0.0.0.0}"
+      SERVER_PORT: "${SERVER_PORT:-8080}"
+      STORAGE_ROOT: "${STORAGE_ROOT:-/mnt/archive}"
+      SIGNING_PFX_PATH: "${SIGNING_PFX_PATH:-/run/secrets/signing.pfx}"
+    volumes:
+      # Config file (optional). If you set CONFIG_PATH=./config/config.yaml, create that file on the host.
+      - ./config:/app/config:ro
+      # Archive storage: the host path is expected to already be mounted (e.g. via CIFS) at STORAGE_ROOT.
+      - "${STORAGE_ROOT:-/mnt/archive}:${STORAGE_ROOT:-/mnt/archive}:rw"
+      # Optional signing material (only when SIGNING_ENABLED=true):
+      # - /etc/zammad-archiver/secrets/signing.pfx:/run/secrets/signing.pfx:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os,urllib.request; p=os.getenv('SERVER_PORT','8080'); urllib.request.urlopen(f'http://127.0.0.1:{p}/healthz', timeout=2).read()\"",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped

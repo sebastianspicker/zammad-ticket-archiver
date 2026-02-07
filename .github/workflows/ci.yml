@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install system deps (WeasyPrint)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcairo2 \
+            libffi-dev \
+            libgdk-pixbuf2.0-0 \
+            libpango-1.0-0 \
+            libpangoft2-1.0-0 \
+            fonts-dejavu-core \
+            shared-mime-info
+
+      - name: Install
+        run: |
+          python -m pip install -U pip
+          python -m pip install ".[dev]"
+
+      - name: Smoke test
+        run: |
+          bash scripts/ci/smoke-test.sh
+
+      - name: Ruff
+        run: |
+          ruff check .
+
+      - name: Mypy
+        run: |
+          mypy . --config-file pyproject.toml
+
+      - name: Pytest (allow none collected)
+        run: |
+          pytest -q || (test $? -eq 5 && echo "No tests collected (bootstrap stage)" && exit 0)
+
+      - name: Build (sdist/wheel)
+        run: |
+          python -m pip install -U build
+          python -m build
+
+      - name: Wheel install (clean venv)
+        run: |
+          python -m venv /tmp/wheel-venv
+          source /tmp/wheel-venv/bin/activate
+          python -m pip install -U pip
+          python -m pip install dist/*.whl
+          python - <<'PY'
+          from zammad_pdf_archiver.app.server import create_app
+          from zammad_pdf_archiver.config.settings import Settings
+
+          settings = Settings.from_mapping(
+              {
+                  "zammad": {"base_url": "https://example.invalid", "api_token": "x"},
+                  "storage": {"root": "/tmp"},
+                  "hardening": {"webhook": {"allow_unsigned": True}},
+              }
+          )
+          app = create_app(settings)
+          assert app.title == "zammad-pdf-archiver"
+          print("wheel-import-ok", app.version)
+          PY
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

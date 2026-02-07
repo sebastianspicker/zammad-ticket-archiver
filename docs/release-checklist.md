@@ -6,6 +6,7 @@ This project uses SemVer and a Keep-a-Changelog style `CHANGELOG.md`.
 
 - You are on the default branch (`main`) with a clean working tree.
 - CI is green for the commit you intend to release.
+- Security workflow (`.github/workflows/security.yml`) is green on `main`.
 - You know the target version (e.g. `0.1.0`) and tag (e.g. `v0.1.0`).
 
 ## 1) Version + changelog
@@ -24,6 +25,8 @@ Run:
 ```bash
 make lint
 make test
+bash scripts/ci/smoke-test.sh
+mypy . --config-file pyproject.toml
 python -m build
 ```
 
@@ -72,6 +75,14 @@ print(urllib.request.urlopen("http://127.0.0.1:8080/healthz", timeout=2).read().
 PY
 ```
 
+### Docker Compose healthcheck smoke test
+
+```bash
+ARCHIVER_ENV_FILE=.env.example STORAGE_ROOT=/tmp/zammad-archive docker compose up -d --build
+docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q zammad-pdf-archiver)"
+ARCHIVER_ENV_FILE=.env.example STORAGE_ROOT=/tmp/zammad-archive docker compose down --remove-orphans
+```
+
 ## 2.1) Deployment safety checks (production environment)
 
 Perform these checks in the target runtime environment before promoting the release:
@@ -107,6 +118,7 @@ git push origin vX.Y.Z
 Expected:
 - `.github/workflows/ci.yml` uploads `dist/` artifacts for the tag build.
 - `.github/workflows/docker.yml` builds a Docker image for the tag (and pushes to GHCR if configured).
+- `.github/workflows/security.yml` continues running on PRs/`main` and on schedule (`pip-audit` policy).
 
 ## 4) GitHub Release
 
