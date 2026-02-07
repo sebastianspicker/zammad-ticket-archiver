@@ -113,7 +113,7 @@ Repo: `zammad-pdf-archiver`
   - `test/integration/test_pdf_rendering.py::test_render_pdf_does_not_emit_pydyf_identifier_deprecation_warning`
   - `test/integration/test_pdf_rendering.py::test_render_pdf_default_template_avoids_ignored_css_warnings`
 - Status: Fixed
-- Commit: `PENDING` (current workspace change)
+- Commit: `1f21136`
 
 ## Additional scan after top-5 closure
 
