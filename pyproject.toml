@@ -78,6 +78,10 @@ python_version = "3.12"
 warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
+exclude = [
+  "^build/",
+  "^dist/",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
