@@ -141,4 +141,24 @@ Repo: `zammad-pdf-archiver`
 - Regression test:
   - `test/unit/test_process_ticket_inflight_idempotency.py::test_skipped_inflight_delivery_id_is_not_poisoned_for_retry`
 - Status: Fixed
+- Commit: `ec2cc26`
+
+### 7) P2 - Human log format emits structlog warning on every exception
+
+- Symptom summary:
+  - Runtime/test logs include `UserWarning: Remove format_exc_info...` whenever `log.exception(...)` is called
+    in human log mode, polluting diagnostics.
+- Reproduction steps:
+  1. Run
+     `pytest -q test/unit/test_logger_config.py::test_human_logging_does_not_emit_format_exc_info_warning`.
+  2. Before fix: assertion fails because warning is captured from structlog processor chain.
+- Root cause analysis:
+  - `src/zammad_pdf_archiver/observability/logger.py` always included
+    `structlog.processors.format_exc_info` even when using `ConsoleRenderer`, which expects raw exception
+    data for pretty rendering and warns when formatted beforehand.
+- Fix:
+  - Apply `format_exc_info` only for JSON log mode; omit it for human/console mode.
+- Regression test:
+  - `test/unit/test_logger_config.py::test_human_logging_does_not_emit_format_exc_info_warning`
+- Status: Fixed
 - Commit: `PENDING` (current workspace change)

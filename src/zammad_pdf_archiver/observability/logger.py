@@ -56,10 +56,12 @@ def configure_logging(
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
         _scrub_event_dict,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
     ]
+
+    if resolved_format == "json":
+        shared_processors.insert(4, structlog.processors.format_exc_info)
 
     renderer: Any
     if resolved_format == "json":
