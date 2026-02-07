@@ -72,7 +72,7 @@ Repo: `zammad-pdf-archiver`
 - Regression test:
   - `test/unit/test_process_ticket_concurrency.py::test_process_ticket_serializes_same_ticket_concurrent_runs`
 - Status: Fixed
-- Commit: `PENDING` (current workspace change)
+- Commit: `da4ec5f`
 
 ### 4) P2 - Excessive third-party INFO logging during PDF generation
 
