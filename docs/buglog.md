@@ -122,4 +122,23 @@ Repo: `zammad-pdf-archiver`
   - `pytest -q -W error`
   - local smoke run with `examples/webhook-payload.sample.json`
 - Result:
-  - No additional reproducible runtime or logic defects found in this pass.
+  - Found and fixed one additional reproducible logic defect (see issue #6 below).
+
+### 6) P1 - In-flight skip could poison delivery-id replay cache
+
+- Symptom summary:
+  - A delivery skipped due `process_ticket.skip_ticket_in_flight` could still be recorded as
+    `seen` in idempotency cache, causing later legitimate retries with the same delivery ID to be skipped.
+- Reproduction steps:
+  1. Run
+     `pytest -q test/unit/test_process_ticket_inflight_idempotency.py::test_skipped_inflight_delivery_id_is_not_poisoned_for_retry`.
+  2. Before fix: retry run logs `process_ticket.skip_delivery_id_seen` and never writes success note.
+- Root cause analysis:
+  - `process_ticket()` added `delivery_id` to `_delivery_ids` cache before acquiring the in-flight ticket guard.
+  - If ticket was already in-flight, function returned early, but delivery ID remained cached.
+- Fix:
+  - Reordered logic: acquire in-flight ticket guard first; only then evaluate/add delivery ID to replay cache.
+- Regression test:
+  - `test/unit/test_process_ticket_inflight_idempotency.py::test_skipped_inflight_delivery_id_is_not_poisoned_for_retry`
+- Status: Fixed
+- Commit: `PENDING` (current workspace change)

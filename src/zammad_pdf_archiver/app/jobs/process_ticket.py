@@ -308,18 +308,6 @@ async def process_ticket(
         trigger_tag = str(settings.workflow.trigger_tag).strip() or TRIGGER_TAG
         require_trigger_tag = bool(settings.workflow.require_tag)
 
-        if delivery_id:
-            seen = _delivery_ids(settings)
-            if seen is not None:
-                if seen.seen(delivery_id):
-                    log.info(
-                        "process_ticket.skip_delivery_id_seen",
-                        ticket_id=ticket_id,
-                        delivery_id=delivery_id,
-                    )
-                    return
-                seen.add(delivery_id)
-
         acquired = await _try_acquire_ticket(ticket_id)
         if not acquired:
             log.info(
@@ -330,6 +318,18 @@ async def process_ticket(
             return
 
         try:
+            if delivery_id:
+                seen = _delivery_ids(settings)
+                if seen is not None:
+                    if seen.seen(delivery_id):
+                        log.info(
+                            "process_ticket.skip_delivery_id_seen",
+                            ticket_id=ticket_id,
+                            delivery_id=delivery_id,
+                        )
+                        return
+                    seen.add(delivery_id)
+
             async with AsyncZammadClient(
                 base_url=str(settings.zammad.base_url),
                 api_token=settings.zammad.api_token.get_secret_value(),
