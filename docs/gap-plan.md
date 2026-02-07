@@ -20,15 +20,15 @@ Last updated: 2026-02-07
 
 ## P2 (hardening/doc/runtime-environment alignment)
 
-- [ ] **CIFS durability semantics remain environment-dependent (documented but not automatically verifiable in CI)**  
-  Impact: No code bug identified; operational validation is still required on real SMB stacks.  
+- [x] **CIFS durability semantics captured as release-time operational verification**  
+  Impact: remains environment-dependent, but now explicitly gated in release steps.  
   Promise source: `docs/07-storage.md`  
-  Plan: keep as operational verification item in release checklist.
+  Documentation update: `docs/release-checklist.md` section `2.1) Deployment safety checks`.
 
-- [ ] **Network-layer protection for `/metrics` remains deployment responsibility**  
-  Impact: code-level behavior is correct (flag-gated endpoint), but protection cannot be enforced from app alone.  
+- [x] **`/metrics` network protection captured as explicit deployment gate**  
+  Impact: app remains config-gated only; network restriction is now mandatory in release checklist.  
   Promise source: `docs/08-operations.md`, `docs/09-security.md`  
-  Plan: verify reverse-proxy/firewall policy in deployment checklist.
+  Documentation update: `docs/release-checklist.md` section `2.1) Deployment safety checks`.
 
 ## Iteration order
 
