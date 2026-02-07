@@ -161,4 +161,4 @@ Repo: `zammad-pdf-archiver`
 - Regression test:
   - `test/unit/test_logger_config.py::test_human_logging_does_not_emit_format_exc_info_warning`
 - Status: Fixed
-- Commit: `PENDING` (current workspace change)
+- Commit: `8d32208`
