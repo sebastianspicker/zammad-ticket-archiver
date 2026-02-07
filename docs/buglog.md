@@ -37,13 +37,20 @@ Repo: `zammad-pdf-archiver`
 ### 2) P1 - Success note HTML uses unescaped interpolated values
 
 - Symptom summary:
-  - Internal success note HTML is assembled with raw `path`/`filename`/`sidecar` strings.
+  - Internal success note HTML was assembled with raw values, allowing HTML injection in ticket notes.
 - Reproduction steps:
-  1. Call `_success_note_html()` with values containing `<` or `&`.
-  2. Output contains raw HTML characters instead of escaped entities.
-- Suspected module(s):
-  - `src/zammad_pdf_archiver/app/jobs/process_ticket.py` (`_success_note_html`)
-- Status: Open
+  1. Run `pytest -q test/unit/test_process_ticket_notes.py::test_success_note_html_escapes_untrusted_values`.
+  2. Before fix: test fails because `<script>`, `<img>`, `<svg>` appear unescaped in generated HTML.
+- Root cause analysis:
+  - `src/zammad_pdf_archiver/app/jobs/process_ticket.py` `_success_note_html()` interpolated
+    `storage_dir`, `filename`, `sidecar_path`, `request_id`, `delivery_id`, and `timestamp_utc` directly
+    into HTML.
+- Fix:
+  - Escape all untrusted string fields in `_success_note_html()` using `html.escape()`.
+- Regression test:
+  - `test/unit/test_process_ticket_notes.py::test_success_note_html_escapes_untrusted_values`
+- Status: Fixed
+- Commit: `PENDING` (current workspace change)
 
 ### 3) P1 - No per-ticket concurrency guard can race tag state transitions
 
@@ -60,13 +67,20 @@ Repo: `zammad-pdf-archiver`
 ### 4) P2 - Excessive third-party INFO logging during PDF generation
 
 - Symptom summary:
-  - Runtime logs are flooded by `fontTools.subset` INFO lines, reducing operational signal.
+  - Runtime logs were flooded by `fontTools.subset` INFO lines, reducing operational signal.
 - Reproduction steps:
   1. Run local smoke flow.
   2. Inspect app log tail; most lines are font subset internals.
-- Suspected module(s):
-  - `src/zammad_pdf_archiver/observability/logger.py`
-- Status: Open
+  3. Run `pytest -q test/unit/test_logger_config.py::test_configure_logging_reduces_fonttools_noise`.
+  4. Before fix: effective level for `fontTools` is `INFO`.
+- Root cause analysis:
+  - `configure_logging()` set root level but left `fontTools` logger inheriting `INFO`.
+- Fix:
+  - Set `fontTools` logger level to `WARNING` in logger configuration.
+- Regression test:
+  - `test/unit/test_logger_config.py::test_configure_logging_reduces_fonttools_noise`
+- Status: Fixed
+- Commit: `PENDING` (current workspace change)
 
 ### 5) P2 - Deprecation warning from pydyf indicates forward-compatibility risk
 
