@@ -32,7 +32,7 @@ Repo: `zammad-pdf-archiver`
 - Regression test:
   - `test/unit/test_hmac_verify_middleware.py::test_read_body_returns_when_client_disconnects`
 - Status: Fixed
-- Commit: `PENDING` (current workspace change)
+- Commit: `495e44f`
 
 ### 2) P1 - Success note HTML uses unescaped interpolated values
 
