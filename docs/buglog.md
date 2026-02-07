@@ -50,7 +50,7 @@ Repo: `zammad-pdf-archiver`
 - Regression test:
   - `test/unit/test_process_ticket_notes.py::test_success_note_html_escapes_untrusted_values`
 - Status: Fixed
-- Commit: `PENDING` (current workspace change)
+- Commit: `b723593`
 
 ### 3) P1 - No per-ticket concurrency guard can race tag state transitions
 
@@ -80,7 +80,7 @@ Repo: `zammad-pdf-archiver`
 - Regression test:
   - `test/unit/test_logger_config.py::test_configure_logging_reduces_fonttools_noise`
 - Status: Fixed
-- Commit: `PENDING` (current workspace change)
+- Commit: `b723593`
 
 ### 5) P2 - Deprecation warning from pydyf indicates forward-compatibility risk
 
