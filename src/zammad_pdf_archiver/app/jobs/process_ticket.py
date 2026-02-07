@@ -46,6 +46,8 @@ from zammad_pdf_archiver.observability.metrics import (
 )
 
 _DELIVERY_ID_SETS: dict[int, InMemoryTTLSet] = {}
+_IN_FLIGHT_TICKETS: set[int] = set()
+_IN_FLIGHT_TICKETS_GUARD = asyncio.Lock()
 _REQUEST_ID_KEY = "_request_id"
 
 log = structlog.get_logger(__name__)
@@ -60,6 +62,19 @@ def _delivery_ids(settings: Settings) -> InMemoryTTLSet | None:
         store = InMemoryTTLSet(ttl_seconds=float(ttl))
         _DELIVERY_ID_SETS[ttl] = store
     return store
+
+
+async def _try_acquire_ticket(ticket_id: int) -> bool:
+    async with _IN_FLIGHT_TICKETS_GUARD:
+        if ticket_id in _IN_FLIGHT_TICKETS:
+            return False
+        _IN_FLIGHT_TICKETS.add(ticket_id)
+        return True
+
+
+async def _release_ticket(ticket_id: int) -> None:
+    async with _IN_FLIGHT_TICKETS_GUARD:
+        _IN_FLIGHT_TICKETS.discard(ticket_id)
 
 
 def _extract_ticket_id(payload: dict[str, Any]) -> int | None:
@@ -305,202 +320,215 @@ async def process_ticket(
                     return
                 seen.add(delivery_id)
 
-        async with AsyncZammadClient(
-            base_url=str(settings.zammad.base_url),
-            api_token=settings.zammad.api_token.get_secret_value(),
-            timeout_seconds=settings.zammad.timeout_seconds,
-            verify_tls=settings.zammad.verify_tls,
-            trust_env=settings.hardening.transport.trust_env,
-        ) as client:
-            observe_total = True
-            total_start = perf_counter()
-            try:
-                ticket = await client.get_ticket(ticket_id)
-                tags = await client.list_tags(ticket_id)
+        acquired = await _try_acquire_ticket(ticket_id)
+        if not acquired:
+            log.info(
+                "process_ticket.skip_ticket_in_flight",
+                ticket_id=ticket_id,
+                delivery_id=delivery_id,
+            )
+            return
 
-                if not should_process(
-                    tags.root,
-                    trigger_tag=trigger_tag,
-                    require_trigger_tag=require_trigger_tag,
-                ):
-                    observe_total = False
-                    log.info(
-                        "process_ticket.skip_should_not_process",
-                        ticket_id=ticket_id,
-                        tags=tags.root,
-                    )
-                    return
-
-                await apply_processing(client, ticket_id, trigger_tag=trigger_tag)
-
-                custom_fields = _ticket_custom_fields(ticket)
-                username = _determine_username(
-                    ticket=ticket,
-                    payload=payload,
-                    custom_fields=custom_fields,
-                    mode_field_name=settings.fields.archive_user_mode,
-                )
-
-                segments = _parse_archive_path_segments(
-                    custom_fields.get(settings.fields.archive_path)
-                )
-                target_dir = build_target_dir(
-                    settings.storage.root,
-                    username,
-                    segments,
-                    allow_prefixes=settings.storage.path_policy.allow_prefixes,
-                )
-
-                now = _now_utc()
-                date_iso = now.date().isoformat()
-                filename = build_filename_from_pattern(
-                    settings.storage.path_policy.filename_pattern,
-                    ticket_number=ticket.number,
-                    timestamp_utc=date_iso,
-                )
-                target_path = target_dir / filename
-
-                snapshot = await build_snapshot(
-                    client,
-                    ticket_id,
-                    ticket=ticket,
-                    tags=tags,
-                )
-                render_start = perf_counter()
-                pdf_bytes = render_pdf(
-                    snapshot,
-                    settings.pdf.template,
-                    max_articles=settings.pdf.max_articles,
-                )
-                render_seconds.observe(perf_counter() - render_start)
-
-                if settings.signing.enabled:
-                    sign_start = perf_counter()
-                    # pyHanko's synchronous signing helper uses asyncio.run() internally.
-                    # Offload to a worker thread to avoid:
-                    # "asyncio.run() cannot be called from a running event loop".
-                    pdf_bytes = await asyncio.to_thread(sign_pdf, pdf_bytes, settings)
-                    sign_seconds.observe(perf_counter() - sign_start)
-
-                sha256_hex = compute_sha256(pdf_bytes)
-                size_bytes = len(pdf_bytes)
-
-                sidecar_path = target_path.with_name(target_path.name + ".json")
-                audit_record = build_audit_record(
-                    ticket_id=ticket.id,
-                    ticket_number=ticket.number,
-                    title=ticket.title,
-                    created_at=now,
-                    storage_path=str(target_path),
-                    sha256=sha256_hex,
-                    signing_settings=settings.signing,
-                )
-                audit_bytes = (
-                    json.dumps(audit_record, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-                ).encode("utf-8")
-
-                writer = (
-                    write_atomic_bytes if settings.storage.atomic_write else write_bytes
-                )
-                writer(
-                    target_path,
-                    pdf_bytes,
-                    fsync=settings.storage.fsync,
-                    storage_root=settings.storage.root,
-                )
-                writer(
-                    sidecar_path,
-                    audit_bytes,
-                    fsync=settings.storage.fsync,
-                    storage_root=settings.storage.root,
-                )
-
-                if settings.workflow.acknowledge_on_success:
-                    await client.create_internal_article(
-                        ticket_id,
-                        "PDF archived (v0.1)",
-                        _success_note_html(
-                            storage_dir=str(target_path.parent),
-                            filename=target_path.name,
-                            sidecar_path=str(sidecar_path),
-                            size_bytes=size_bytes,
-                            sha256_hex=sha256_hex,
-                            request_id=request_id,
-                            delivery_id=delivery_id,
-                            timestamp_utc=_format_timestamp_utc(now),
-                        ),
-                    )
-
-                await apply_done(client, ticket_id, trigger_tag=trigger_tag)
-                processed_total.inc()
-                log.info(
-                    "process_ticket.done",
-                    ticket_id=ticket_id,
-                    storage_path=str(target_path),
-                    request_id=request_id,
-                    delivery_id=delivery_id,
-                )
-            except Exception as exc:
-                failed_total.inc()
-                classified = classify(exc)
-                classification_label = (
-                    "Transient" if isinstance(classified, TransientError) else "Permanent"
-                )
-                msg = _concise_exc_message(exc)
-                action = _action_hint(exc, classified=classified)
-                log.exception(
-                    "process_ticket.error",
-                    ticket_id=ticket_id,
-                    request_id=request_id,
-                    delivery_id=delivery_id,
-                    classification=classification_label,
-                )
-
-                now = _now_utc()
+        try:
+            async with AsyncZammadClient(
+                base_url=str(settings.zammad.base_url),
+                api_token=settings.zammad.api_token.get_secret_value(),
+                timeout_seconds=settings.zammad.timeout_seconds,
+                verify_tls=settings.zammad.verify_tls,
+                trust_env=settings.hardening.transport.trust_env,
+            ) as client:
+                observe_total = True
+                total_start = perf_counter()
                 try:
-                    await client.create_internal_article(
-                        ticket_id,
-                        "PDF archiver error (v0.1)",
-                        _error_note_html(
-                            classification=classification_label,
-                            message=msg,
-                            action=action,
-                            request_id=request_id,
-                            delivery_id=delivery_id,
-                            timestamp_utc=_format_timestamp_utc(now),
-                        ),
-                    )
-                except Exception:
-                    log.exception(
-                        "process_ticket.error_note_failed",
-                        ticket_id=ticket_id,
-                        request_id=request_id,
-                        delivery_id=delivery_id,
-                        classification=classification_label,
+                    ticket = await client.get_ticket(ticket_id)
+                    tags = await client.list_tags(ticket_id)
+
+                    if not should_process(
+                        tags.root,
+                        trigger_tag=trigger_tag,
+                        require_trigger_tag=require_trigger_tag,
+                    ):
+                        observe_total = False
+                        log.info(
+                            "process_ticket.skip_should_not_process",
+                            ticket_id=ticket_id,
+                            tags=tags.root,
+                        )
+                        return
+
+                    await apply_processing(client, ticket_id, trigger_tag=trigger_tag)
+
+                    custom_fields = _ticket_custom_fields(ticket)
+                    username = _determine_username(
+                        ticket=ticket,
+                        payload=payload,
+                        custom_fields=custom_fields,
+                        mode_field_name=settings.fields.archive_user_mode,
                     )
 
-                try:
-                    keep_trigger = isinstance(classified, TransientError)
-                    await apply_error(
+                    segments = _parse_archive_path_segments(
+                        custom_fields.get(settings.fields.archive_path)
+                    )
+                    target_dir = build_target_dir(
+                        settings.storage.root,
+                        username,
+                        segments,
+                        allow_prefixes=settings.storage.path_policy.allow_prefixes,
+                    )
+
+                    now = _now_utc()
+                    date_iso = now.date().isoformat()
+                    filename = build_filename_from_pattern(
+                        settings.storage.path_policy.filename_pattern,
+                        ticket_number=ticket.number,
+                        timestamp_utc=date_iso,
+                    )
+                    target_path = target_dir / filename
+
+                    snapshot = await build_snapshot(
                         client,
                         ticket_id,
-                        keep_trigger=keep_trigger,
-                        trigger_tag=trigger_tag,
+                        ticket=ticket,
+                        tags=tags,
                     )
-                except Exception:
+                    render_start = perf_counter()
+                    pdf_bytes = render_pdf(
+                        snapshot,
+                        settings.pdf.template,
+                        max_articles=settings.pdf.max_articles,
+                    )
+                    render_seconds.observe(perf_counter() - render_start)
+
+                    if settings.signing.enabled:
+                        sign_start = perf_counter()
+                        # pyHanko's synchronous signing helper uses asyncio.run() internally.
+                        # Offload to a worker thread to avoid:
+                        # "asyncio.run() cannot be called from a running event loop".
+                        pdf_bytes = await asyncio.to_thread(sign_pdf, pdf_bytes, settings)
+                        sign_seconds.observe(perf_counter() - sign_start)
+
+                    sha256_hex = compute_sha256(pdf_bytes)
+                    size_bytes = len(pdf_bytes)
+
+                    sidecar_path = target_path.with_name(target_path.name + ".json")
+                    audit_record = build_audit_record(
+                        ticket_id=ticket.id,
+                        ticket_number=ticket.number,
+                        title=ticket.title,
+                        created_at=now,
+                        storage_path=str(target_path),
+                        sha256=sha256_hex,
+                        signing_settings=settings.signing,
+                    )
+                    audit_bytes = (
+                        json.dumps(audit_record, ensure_ascii=False, sort_keys=True, indent=2)
+                        + "\n"
+                    ).encode("utf-8")
+
+                    writer = (
+                        write_atomic_bytes if settings.storage.atomic_write else write_bytes
+                    )
+                    writer(
+                        target_path,
+                        pdf_bytes,
+                        fsync=settings.storage.fsync,
+                        storage_root=settings.storage.root,
+                    )
+                    writer(
+                        sidecar_path,
+                        audit_bytes,
+                        fsync=settings.storage.fsync,
+                        storage_root=settings.storage.root,
+                    )
+
+                    if settings.workflow.acknowledge_on_success:
+                        await client.create_internal_article(
+                            ticket_id,
+                            "PDF archived (v0.1)",
+                            _success_note_html(
+                                storage_dir=str(target_path.parent),
+                                filename=target_path.name,
+                                sidecar_path=str(sidecar_path),
+                                size_bytes=size_bytes,
+                                sha256_hex=sha256_hex,
+                                request_id=request_id,
+                                delivery_id=delivery_id,
+                                timestamp_utc=_format_timestamp_utc(now),
+                            ),
+                        )
+
+                    await apply_done(client, ticket_id, trigger_tag=trigger_tag)
+                    processed_total.inc()
+                    log.info(
+                        "process_ticket.done",
+                        ticket_id=ticket_id,
+                        storage_path=str(target_path),
+                        request_id=request_id,
+                        delivery_id=delivery_id,
+                    )
+                except Exception as exc:
+                    failed_total.inc()
+                    classified = classify(exc)
+                    classification_label = (
+                        "Transient" if isinstance(classified, TransientError) else "Permanent"
+                    )
+                    msg = _concise_exc_message(exc)
+                    action = _action_hint(exc, classified=classified)
                     log.exception(
-                        "process_ticket.apply_error_failed",
+                        "process_ticket.error",
                         ticket_id=ticket_id,
                         request_id=request_id,
                         delivery_id=delivery_id,
                         classification=classification_label,
                     )
 
-                # Best-effort: ensure processing tag is removed.
-                try:
-                    await client.remove_tag(ticket_id, PROCESSING_TAG)
-                except Exception:
-                    pass
-            finally:
-                if observe_total:
-                    total_seconds.observe(perf_counter() - total_start)
+                    now = _now_utc()
+                    try:
+                        await client.create_internal_article(
+                            ticket_id,
+                            "PDF archiver error (v0.1)",
+                            _error_note_html(
+                                classification=classification_label,
+                                message=msg,
+                                action=action,
+                                request_id=request_id,
+                                delivery_id=delivery_id,
+                                timestamp_utc=_format_timestamp_utc(now),
+                            ),
+                        )
+                    except Exception:
+                        log.exception(
+                            "process_ticket.error_note_failed",
+                            ticket_id=ticket_id,
+                            request_id=request_id,
+                            delivery_id=delivery_id,
+                            classification=classification_label,
+                        )
+
+                    try:
+                        keep_trigger = isinstance(classified, TransientError)
+                        await apply_error(
+                            client,
+                            ticket_id,
+                            keep_trigger=keep_trigger,
+                            trigger_tag=trigger_tag,
+                        )
+                    except Exception:
+                        log.exception(
+                            "process_ticket.apply_error_failed",
+                            ticket_id=ticket_id,
+                            request_id=request_id,
+                            delivery_id=delivery_id,
+                            classification=classification_label,
+                        )
+
+                    # Best-effort: ensure processing tag is removed.
+                    try:
+                        await client.remove_tag(ticket_id, PROCESSING_TAG)
+                    except Exception:
+                        pass
+                finally:
+                    if observe_total:
+                        total_seconds.observe(perf_counter() - total_start)
+        finally:
+            await _release_ticket(ticket_id)

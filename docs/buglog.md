@@ -55,14 +55,24 @@ Repo: `zammad-pdf-archiver`
 ### 3) P1 - No per-ticket concurrency guard can race tag state transitions
 
 - Symptom summary:
-  - Two concurrent deliveries for the same ticket (different delivery IDs) can both process and race final tags/notes.
+  - Two concurrent deliveries for the same ticket (different delivery IDs) could both process and
+    write duplicate success notes/files.
 - Reproduction steps:
-  1. Trigger two concurrent `/ingest` calls for the same ticket with distinct delivery IDs.
-  2. Observe both jobs execute and issue overlapping tag transitions.
-- Suspected module(s):
-  - `src/zammad_pdf_archiver/app/jobs/process_ticket.py`
-  - `src/zammad_pdf_archiver/domain/state_machine.py`
-- Status: Open
+  1. Run
+     `pytest -q test/unit/test_process_ticket_concurrency.py::test_process_ticket_serializes_same_ticket_concurrent_runs`.
+  2. Before fix: assertion fails (`_notes_written == 2`), proving concurrent duplicate processing.
+- Root cause analysis:
+  - `process_ticket()` had no per-ticket in-flight guard, so multiple background jobs for the same ticket
+    could enter the pipeline concurrently before tags were transitioned.
+- Fix:
+  - Added in-flight ticket guard in `process_ticket`:
+    - `_IN_FLIGHT_TICKETS` set with async guard lock
+    - `_try_acquire_ticket()` / `_release_ticket()` helpers
+    - concurrent same-ticket runs now skip with `process_ticket.skip_ticket_in_flight`.
+- Regression test:
+  - `test/unit/test_process_ticket_concurrency.py::test_process_ticket_serializes_same_ticket_concurrent_runs`
+- Status: Fixed
+- Commit: `PENDING` (current workspace change)
 
 ### 4) P2 - Excessive third-party INFO logging during PDF generation
 
