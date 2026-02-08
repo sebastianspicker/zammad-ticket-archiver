@@ -46,7 +46,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> Idle
-  Idle --> SignRequested: "Trigger tag added (default: pdf:sign)"
+  Idle --> SignRequested: "Trigger tag added (default: pdf sign)"
   SignRequested --> Processing: "apply_processing()"
   Processing --> Signed: "Success -> apply_done()"
   Processing --> ErrorTransient: "Transient failure -> apply_error(keep_trigger=true)"
