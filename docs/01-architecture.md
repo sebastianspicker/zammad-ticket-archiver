@@ -46,13 +46,13 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> Idle
-  Idle --> SignRequested: "Trigger tag added (default: pdf:sign)"
-  SignRequested --> Processing: "apply_processing()"
-  Processing --> Signed: "Success -> apply_done()"
-  Processing --> ErrorTransient: "Transient failure -> apply_error(keep_trigger=true)"
-  Processing --> ErrorPermanent: "Permanent failure -> apply_error(keep_trigger=false)"
-  ErrorTransient --> SignRequested: "Retry by ticket update/macro"
-  ErrorPermanent --> SignRequested: "Operator fix + re-add trigger"
+  Idle --> SignRequested: Trigger tag added (default pdf-sign)
+  SignRequested --> Processing: apply_processing()
+  Processing --> Signed: Success -> apply_done()
+  Processing --> ErrorTransient: Transient failure -> apply_error(keep_trigger=true)
+  Processing --> ErrorPermanent: Permanent failure -> apply_error(keep_trigger=false)
+  ErrorTransient --> SignRequested: Retry by ticket update/macro
+  ErrorPermanent --> SignRequested: Operator fix plus re-add trigger
 ```
 
 State details:
