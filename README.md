@@ -1,6 +1,6 @@
-# zammad-pdf-archiver
+# zammad-ticket-archiver
 
-`zammad-pdf-archiver` is a FastAPI webhook service that archives Zammad tickets as PDF files on a filesystem target (local path or mounted CIFS/SMB).
+`zammad-ticket-archiver` is a FastAPI webhook service that archives Zammad tickets as PDF files on a filesystem target (local path or mounted CIFS/SMB).
 
 Processing pipeline:
 
