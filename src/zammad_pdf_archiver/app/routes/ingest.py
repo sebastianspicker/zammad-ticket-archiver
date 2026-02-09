@@ -66,6 +66,12 @@ async def ingest(
     ticket_id = _extract_ticket_id(payload)
 
     settings = getattr(request.app.state, "settings", None)
+    if settings is None and ticket_id is not None:
+        log.warning(
+            "ingest.settings_not_configured",
+            ticket_id=ticket_id,
+            message="App settings missing; background processing skipped",
+        )
     if settings is not None and ticket_id is not None:
         delivery_id_raw = request.headers.get(_DELIVERY_ID_HEADER)
         # Normalize empty string to None for consistent handling

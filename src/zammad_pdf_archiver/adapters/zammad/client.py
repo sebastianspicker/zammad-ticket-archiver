@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, NoReturn, TypeVar
 
 import httpx
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from zammad_pdf_archiver.adapters.zammad.errors import (
     AuthError,
@@ -105,7 +105,12 @@ class AsyncZammadClient:
         else:
             tags_value = resp
 
-        tags = TypeAdapter(list[str]).validate_python(tags_value)
+        try:
+            tags = TypeAdapter(list[str]).validate_python(tags_value)
+        except ValidationError as exc:
+            raise ClientError(
+                f"Zammad tags response format unexpected for ticket {ticket_id}: {exc!s}"
+            ) from exc
         return TagList(tags)
 
     async def add_tag(self, ticket_id: int, tag: str) -> None:

@@ -17,6 +17,16 @@ def _too_large() -> JSONResponse:
     return JSONResponse(status_code=413, content={"detail": "request_too_large"})
 
 
+async def _drain_body(receive: Receive) -> None:
+    """Consume the request body so the connection is left in a clean state."""
+    while True:
+        message = await receive()
+        if message.get("type") == "http.disconnect":
+            return
+        if message.get("type") == "http.request" and not message.get("more_body", False):
+            return
+
+
 class BodySizeLimitMiddleware:
     def __init__(self, app: ASGIApp, *, settings: Settings | None) -> None:
         self.app = app
@@ -41,6 +51,7 @@ class BodySizeLimitMiddleware:
         if content_length:
             try:
                 if int(content_length) > self._max_bytes:
+                    await _drain_body(receive)
                     await _too_large()(scope, receive, send)
                     return
             except ValueError:
@@ -52,6 +63,8 @@ class BodySizeLimitMiddleware:
         async def limited_receive() -> Message:
             nonlocal received
             message = await receive()
+            if message.get("type") == "http.disconnect":
+                return message
             if message.get("type") == "http.request":
                 body = message.get("body", b"") or b""
                 received += len(body)
@@ -62,5 +75,6 @@ class BodySizeLimitMiddleware:
         try:
             await self.app(scope, limited_receive, send)
         except _BodyTooLarge:
+            await _drain_body(receive)
             await _too_large()(scope, receive, send)
 

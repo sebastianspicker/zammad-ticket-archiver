@@ -102,7 +102,7 @@ def build_filename_from_pattern(
         raise ValueError(
             f"invalid filename_pattern format: unknown placeholder {exc.args[0]!r}"
         ) from exc
-    except ValueError as exc:
+    except ValueError:
         # Re-raise ValueError as-is (e.g., from format specifier errors)
         raise
     except Exception as exc:

@@ -56,16 +56,24 @@ _REQUEST_ID_KEY = "_request_id"
 log = structlog.get_logger(__name__)
 
 
-async def _delivery_ids(settings: Settings) -> InMemoryTTLSet | None:
+async def _claim_delivery_id(settings: Settings, delivery_id: str) -> bool:
+    """
+    Atomically check and register delivery_id for idempotency.
+    Returns True if this delivery was newly claimed (caller should proceed),
+    False if already seen (caller should skip).
+    """
     ttl = int(settings.workflow.delivery_id_ttl_seconds)
     if ttl <= 0:
-        return None
+        return True
     async with _DELIVERY_ID_SETS_GUARD:
         store = _DELIVERY_ID_SETS.get(ttl)
         if store is None:
             store = InMemoryTTLSet(ttl_seconds=float(ttl))
             _DELIVERY_ID_SETS[ttl] = store
-        return store
+        if store.seen(delivery_id):
+            return False
+        store.add(delivery_id)
+        return True
 
 
 async def _try_acquire_ticket(ticket_id: int) -> bool:
@@ -320,16 +328,13 @@ async def process_ticket(
 
         try:
             if delivery_id:
-                seen = await _delivery_ids(settings)
-                if seen is not None:
-                    if seen.seen(delivery_id):
-                        log.info(
-                            "process_ticket.skip_delivery_id_seen",
-                            ticket_id=ticket_id,
-                            delivery_id=delivery_id,
-                        )
-                        return
-                    seen.add(delivery_id)
+                if not await _claim_delivery_id(settings, delivery_id):
+                    log.info(
+                        "process_ticket.skip_delivery_id_seen",
+                        ticket_id=ticket_id,
+                        delivery_id=delivery_id,
+                    )
+                    return
 
             async with AsyncZammadClient(
                 base_url=str(settings.zammad.base_url),
@@ -458,7 +463,11 @@ async def process_ticket(
                             ),
                         )
 
-                    await apply_done(client, ticket_id, trigger_tag=trigger_tag)
+                    try:
+                        await apply_done(client, ticket_id, trigger_tag=trigger_tag)
+                    except Exception:
+                        await asyncio.sleep(0.3)
+                        await apply_done(client, ticket_id, trigger_tag=trigger_tag)
                     processed_total.inc()
                     log.info(
                         "process_ticket.done",
@@ -508,12 +517,21 @@ async def process_ticket(
 
                     try:
                         keep_trigger = isinstance(classified, TransientError)
-                        await apply_error(
-                            client,
-                            ticket_id,
-                            keep_trigger=keep_trigger,
-                            trigger_tag=trigger_tag,
-                        )
+                        try:
+                            await apply_error(
+                                client,
+                                ticket_id,
+                                keep_trigger=keep_trigger,
+                                trigger_tag=trigger_tag,
+                            )
+                        except Exception:
+                            await asyncio.sleep(0.3)
+                            await apply_error(
+                                client,
+                                ticket_id,
+                                keep_trigger=keep_trigger,
+                                trigger_tag=trigger_tag,
+                            )
                     except Exception:
                         log.exception(
                             "process_ticket.apply_error_failed",

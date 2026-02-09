@@ -39,13 +39,15 @@ class _InMemoryTokenBucketLimiter:
         now = float(self._now())
         async with self._lock:
             if len(self._buckets) > self._max_entries:
-                # Evict oldest buckets (by updated_at) to stay under limit.
-                # Sort by updated_at ascending (oldest first) and remove excess.
+                # Evict oldest buckets (by updated_at). Cap eviction per call to avoid
+                # holding the lock too long under heavy load (P3 latency).
                 sorted_buckets = sorted(
                     self._buckets.items(), key=lambda item: item[1].updated_at
                 )
                 excess_count = len(self._buckets) - self._max_entries + 1
-                for old_key, _ in sorted_buckets[:excess_count]:
+                max_evict_per_call = 2000
+                to_evict = min(excess_count, max_evict_per_call)
+                for old_key, _ in sorted_buckets[:to_evict]:
                     self._buckets.pop(old_key, None)
 
             bucket = self._buckets.get(key)
