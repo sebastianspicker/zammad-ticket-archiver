@@ -45,6 +45,10 @@ class InMemoryTTLSet:
         self._evict_expired_at(self._now())
 
     def _evict_expired_at(self, now: float) -> None:
-        expired = [key for key, expires_at in self._expires_at_by_key.items() if now >= expires_at]
-        for key in expired:
+        # Directly remove expired keys during iteration using list() to avoid
+        # "dictionary changed size during iteration" error.
+        expired_keys = [
+            key for key, expires_at in self._expires_at_by_key.items() if now >= expires_at
+        ]
+        for key in expired_keys:
             self._expires_at_by_key.pop(key, None)

@@ -96,7 +96,17 @@ def write_atomic_bytes(
             if fsync:
                 os.fsync(f.fileno())
 
-        os.replace(tmp_path, target)
+        try:
+            os.replace(tmp_path, target)
+        except Exception:
+            # If replace fails, ensure tmp_path is cleaned up
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink()
+                except (FileNotFoundError, OSError):
+                    pass
+            raise
+
         if fsync:
             _fsync_dir_best_effort(parent)
     except Exception:

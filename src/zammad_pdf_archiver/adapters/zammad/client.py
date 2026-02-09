@@ -177,6 +177,14 @@ class AsyncZammadClient:
         while True:
             try:
                 response = await self._http.request(method, path, params=params, json=json)
+            except httpx.TimeoutException as exc:
+                if retry_count >= self._retry.max_retries:
+                    raise ServerError(
+                        f"Zammad API timeout after {max_attempts} attempts at {path}"
+                    ) from exc
+                await self._sleep(self._retry.backoff_seconds(retry_count))
+                retry_count += 1
+                continue
             except httpx.TransportError as exc:
                 if retry_count >= self._retry.max_retries:
                     raise ServerError(f"Network error after {max_attempts} attempts") from exc

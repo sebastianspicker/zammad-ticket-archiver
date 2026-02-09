@@ -98,8 +98,15 @@ def build_filename_from_pattern(
             timestamp_utc=ts_safe,
             date_utc=ts_safe,
         )
-    except Exception as exc:  # noqa: BLE001
-        raise ValueError("invalid filename_pattern format") from exc
+    except KeyError as exc:
+        raise ValueError(
+            f"invalid filename_pattern format: unknown placeholder {exc.args[0]!r}"
+        ) from exc
+    except ValueError as exc:
+        # Re-raise ValueError as-is (e.g., from format specifier errors)
+        raise
+    except Exception as exc:
+        raise ValueError(f"invalid filename_pattern format: {exc}") from exc
 
     rendered = rendered.strip()
     if not rendered:
