@@ -48,6 +48,7 @@ from zammad_pdf_archiver.observability.metrics import (
 )
 
 _DELIVERY_ID_SETS: dict[int, InMemoryTTLSet] = {}
+_DELIVERY_ID_SETS_GUARD = asyncio.Lock()
 _IN_FLIGHT_TICKETS: set[int] = set()
 _IN_FLIGHT_TICKETS_GUARD = asyncio.Lock()
 _REQUEST_ID_KEY = "_request_id"
@@ -55,15 +56,16 @@ _REQUEST_ID_KEY = "_request_id"
 log = structlog.get_logger(__name__)
 
 
-def _delivery_ids(settings: Settings) -> InMemoryTTLSet | None:
+async def _delivery_ids(settings: Settings) -> InMemoryTTLSet | None:
     ttl = int(settings.workflow.delivery_id_ttl_seconds)
     if ttl <= 0:
         return None
-    store = _DELIVERY_ID_SETS.get(ttl)
-    if store is None:
-        store = InMemoryTTLSet(ttl_seconds=float(ttl))
-        _DELIVERY_ID_SETS[ttl] = store
-    return store
+    async with _DELIVERY_ID_SETS_GUARD:
+        store = _DELIVERY_ID_SETS.get(ttl)
+        if store is None:
+            store = InMemoryTTLSet(ttl_seconds=float(ttl))
+            _DELIVERY_ID_SETS[ttl] = store
+        return store
 
 
 async def _try_acquire_ticket(ticket_id: int) -> bool:
@@ -162,7 +164,10 @@ def _parse_archive_path_segments(value: Any) -> list[str]:
         raise ValueError("custom_fields.archive_path must be a string or list of strings")
 
     if not parts:
-        raise ValueError("custom_fields.archive_path must not be empty")
+        raise ValueError(
+            "custom_fields.archive_path must not be empty after sanitization "
+            "(all segments were empty or whitespace-only)"
+        )
 
     return parts
 
@@ -315,7 +320,7 @@ async def process_ticket(
 
         try:
             if delivery_id:
-                seen = _delivery_ids(settings)
+                seen = await _delivery_ids(settings)
                 if seen is not None:
                     if seen.seen(delivery_id):
                         log.info(
@@ -533,4 +538,12 @@ async def process_ticket(
                     if observe_total:
                         total_seconds.observe(perf_counter() - total_start)
         finally:
-            await _release_ticket(ticket_id)
+            try:
+                await _release_ticket(ticket_id)
+            except Exception:
+                log.exception(
+                    "process_ticket.release_ticket_failed",
+                    ticket_id=ticket_id,
+                    request_id=request_id,
+                    delivery_id=delivery_id,
+                )

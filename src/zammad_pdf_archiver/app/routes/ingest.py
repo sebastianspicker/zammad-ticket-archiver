@@ -33,6 +33,14 @@ async def _run_process_ticket_background(
     settings: Any,
     ticket_id: Any,
 ) -> None:
+    # Early validation: ticket_id should not be None at this point
+    if ticket_id is None:
+        log.warning(
+            "ingest.skip_background_no_ticket_id",
+            delivery_id=delivery_id,
+        )
+        return
+
     bound: dict[str, object] = {"ticket_id": ticket_id}
     if delivery_id:
         bound["delivery_id"] = delivery_id
@@ -59,7 +67,9 @@ async def ingest(
 
     settings = getattr(request.app.state, "settings", None)
     if settings is not None and ticket_id is not None:
-        delivery_id = request.headers.get(_DELIVERY_ID_HEADER)
+        delivery_id_raw = request.headers.get(_DELIVERY_ID_HEADER)
+        # Normalize empty string to None for consistent handling
+        delivery_id = delivery_id_raw if (delivery_id_raw and delivery_id_raw.strip()) else None
         payload_for_job = dict(payload)
         payload_for_job[_REQUEST_ID_KEY] = getattr(request.state, "request_id", None)
         background_tasks.add_task(
