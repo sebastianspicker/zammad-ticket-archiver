@@ -128,7 +128,8 @@ class HmacVerifyMiddleware:
 
         headers = Headers(scope=scope)
 
-        if self._require_delivery_id and not headers.get(_DELIVERY_ID_HEADER):
+        # Require non-empty delivery id (missing or blank header → 400).
+        if self._require_delivery_id and not (headers.get(_DELIVERY_ID_HEADER) or "").strip():
             await _missing_delivery_id()(scope, receive, send)
             return
 

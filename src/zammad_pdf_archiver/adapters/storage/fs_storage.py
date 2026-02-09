@@ -53,6 +53,10 @@ def write_bytes(
 
 
 def _reject_symlinks_under_root(root: Path, target_dir: Path) -> None:
+    """
+    Reject target_dir if it traverses a symlink under root (best-effort).
+    Note: TOCTOU race is possible (symlink created between check and write).
+    """
     root_resolved = Path(root).resolve(strict=False)
     dir_resolved = Path(target_dir).resolve(strict=False)
     ensure_within_root(root_resolved, dir_resolved)
