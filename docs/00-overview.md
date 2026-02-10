@@ -71,7 +71,7 @@ flowchart TD
 - **Archive path**: ticket custom field defining path segments under storage root.
 - **Archive user mode**: strategy that selects the first directory component (`owner`, `current_agent`, `fixed`).
 - **Delivery ID**: `X-Zammad-Delivery` header used for best-effort in-memory deduplication.
-- **HMAC**: webhook signature validation via `X-Hub-Signature: sha1=<hex>`.
+- **HMAC**: webhook signature validation via `X-Hub-Signature: sha1=<hex>` or `sha256=<hex>`.
 - **PAdES**: PDF Advanced Electronic Signatures profile.
 - **RFC3161**: timestamp protocol used by Time Stamping Authorities.
 - **TSA**: Time Stamping Authority endpoint used for timestamp tokens.

@@ -16,7 +16,7 @@ HMAC validation failed while signed mode is active.
 Check:
 - `WEBHOOK_HMAC_SECRET`
 - header `X-Hub-Signature`
-- format `sha1=<hex>`
+- format `sha1=<hex>` or `sha256=<hex>`
 - request body not modified by proxies
 
 See [`api.md`](api.md).
