@@ -36,4 +36,4 @@ Thumbs.db
 
 # Audit and iterative agent / improvement documentation (local use)
 audit/
-ralph-audit/
+.codex/
