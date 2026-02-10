@@ -131,6 +131,25 @@ def test_create_internal_article_success() -> None:
         assert route.called
 
 
+def test_get_attachment_content_success() -> None:
+    """get_attachment_content returns raw bytes from ticket_attachment endpoint (PRD §8.2)."""
+    async def run() -> None:
+        async with AsyncZammadClient(
+            base_url="https://zammad.example",
+            api_token="test-token",
+            sleep=_no_sleep,
+        ) as client:
+            data = await client.get_attachment_content(1, 2, 3)
+            assert data == b"binary content"
+
+    with respx.mock:
+        respx.get(
+            "https://zammad.example/api/v1/ticket_attachment/1/2/3",
+            headers={"Accept": "*/*"},
+        ).mock(return_value=httpx.Response(200, content=b"binary content"))
+        asyncio.run(run())
+
+
 def test_list_articles_success() -> None:
     async def run() -> None:
         async with AsyncZammadClient(
