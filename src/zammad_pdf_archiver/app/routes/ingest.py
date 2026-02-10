@@ -5,18 +5,38 @@ from typing import Annotated, Any
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Body, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.domain.ticket_id import coerce_ticket_id
 
 router = APIRouter()
 
-IngestPayload = Annotated[dict[str, Any], Body(...)]
-
 _DELIVERY_ID_HEADER = "X-Zammad-Delivery"
 _REQUEST_ID_KEY = "_request_id"
 
 log = structlog.get_logger(__name__)
+
+
+class IngestBody(BaseModel):
+    """Minimal webhook payload schema: require resolvable ticket id; allow extra fields."""
+
+    model_config = ConfigDict(extra="allow")
+
+    ticket: dict[str, Any] | None = None
+    ticket_id: int | None = None
+
+    @model_validator(mode="after")
+    def _require_ticket_id(self) -> "IngestBody":
+        tid = self._resolved_ticket_id()
+        if tid is None or tid < 1:
+            raise ValueError("Payload must contain ticket.id or ticket_id (positive integer)")
+        return self
+
+    def _resolved_ticket_id(self) -> int | None:
+        if isinstance(self.ticket, dict):
+            return coerce_ticket_id(self.ticket.get("id"))
+        return coerce_ticket_id(self.ticket_id)
 
 
 def _extract_ticket_id(payload: dict[str, Any]) -> int | None:
@@ -61,9 +81,9 @@ async def _run_process_ticket_background(
 
 @router.post("/ingest", status_code=202)
 async def ingest(
-    request: Request, payload: IngestPayload, background_tasks: BackgroundTasks
+    request: Request, payload: IngestBody, background_tasks: BackgroundTasks
 ) -> JSONResponse:
-    ticket_id = _extract_ticket_id(payload)
+    ticket_id = payload._resolved_ticket_id()
 
     settings = getattr(request.app.state, "settings", None)
     if settings is None and ticket_id is not None:
@@ -76,7 +96,9 @@ async def ingest(
         delivery_id_raw = request.headers.get(_DELIVERY_ID_HEADER)
         # Normalize empty string to None for consistent handling
         delivery_id = delivery_id_raw if (delivery_id_raw and delivery_id_raw.strip()) else None
-        payload_for_job = dict(payload)
+        payload_for_job = payload.model_dump(exclude_none=False)
+        if hasattr(payload, "__pydantic_extra__") and payload.__pydantic_extra__:
+            payload_for_job.update(payload.__pydantic_extra__)
         payload_for_job[_REQUEST_ID_KEY] = getattr(request.state, "request_id", None)
         background_tasks.add_task(
             _run_process_ticket_background,

@@ -48,20 +48,24 @@ def test_ingest_accepts_and_extracts_ticket_id(tmp_path, monkeypatch) -> None:
     assert len(calls) == 1
 
 
-def test_ingest_accepts_without_ticket_id(tmp_path) -> None:
+def test_ingest_rejects_payload_without_ticket_id(tmp_path) -> None:
+    """Schema validation: payload must contain ticket.id or ticket_id (422)."""
     app = create_app(_test_settings(str(tmp_path)))
     client = TestClient(app)
 
     response = client.post("/ingest", json={})
-    assert response.status_code == 202
-    assert response.json() == {"accepted": True, "ticket_id": None}
+    assert response.status_code == 422
 
 
 def test_request_id_header_is_preserved(tmp_path) -> None:
     app = create_app(_test_settings(str(tmp_path)))
     client = TestClient(app)
 
-    response = client.post("/ingest", json={}, headers={"X-Request-Id": "test-req-id"})
+    response = client.post(
+        "/ingest",
+        json={"ticket": {"id": 1}},
+        headers={"X-Request-Id": "test-req-id"},
+    )
     assert response.status_code == 202
     assert response.headers["X-Request-Id"] == "test-req-id"
 
@@ -105,7 +109,8 @@ def test_ingest_rejects_missing_delivery_id_when_required(tmp_path) -> None:
     assert response.headers.get("X-Request-Id")
 
 
-def test_ingest_does_not_schedule_background_for_boolean_ticket_id(tmp_path, monkeypatch) -> None:
+def test_ingest_rejects_invalid_ticket_id_type(tmp_path, monkeypatch) -> None:
+    """Schema validation: ticket.id must be a positive int (422); no background run."""
     calls: list[tuple[str | None, dict[str, Any], Settings]] = []
 
     async def _stub_process_ticket(
@@ -120,6 +125,5 @@ def test_ingest_does_not_schedule_background_for_boolean_ticket_id(tmp_path, mon
     client = TestClient(app)
 
     response = client.post("/ingest", json={"ticket": {"id": True}})
-    assert response.status_code == 202
-    assert response.json() == {"accepted": True, "ticket_id": None}
+    assert response.status_code == 422
     assert calls == []

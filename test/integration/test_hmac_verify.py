@@ -119,7 +119,7 @@ def test_missing_signature_is_rejected_when_secret_configured(tmp_path) -> None:
     app = create_app(_test_settings(str(tmp_path), secret=secret))
     client = TestClient(app)
 
-    response = client.post("/ingest", json={})
+    response = client.post("/ingest", json={"ticket": {"id": 123}})
     assert response.status_code == 403
 
 
@@ -135,7 +135,7 @@ def test_missing_signature_is_allowed_only_when_allow_unsigned_enabled(tmp_path)
     app = create_app(_test_settings_unsigned_ok(str(tmp_path)))
     client = TestClient(app)
 
-    response = client.post("/ingest", json={})
+    response = client.post("/ingest", json={"ticket": {"id": 1}})
     assert response.status_code == 202
 
 
