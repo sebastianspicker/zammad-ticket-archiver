@@ -36,6 +36,7 @@ class AttachmentMeta(_SnapshotModel):
     filename: str | None = None
     size: int | None = None
     content_type: str | None = None
+    content: bytes | None = None  # optional binary (PRD §8.2); set when include_attachment_binary
 
 
 class Article(_SnapshotModel):
