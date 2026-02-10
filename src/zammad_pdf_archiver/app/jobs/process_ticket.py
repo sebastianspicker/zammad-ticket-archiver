@@ -29,7 +29,8 @@ from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.audit import build_audit_record, compute_sha256
 from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
-from zammad_pdf_archiver.domain.idempotency import InMemoryTTLSet
+from zammad_pdf_archiver.domain.idempotency import DeliveryIdStore, InMemoryTTLSet
+from zammad_pdf_archiver.domain.redis_delivery_id import RedisDeliveryIdStore
 from zammad_pdf_archiver.domain.state_machine import (
     PROCESSING_TAG,
     TRIGGER_TAG,
@@ -48,12 +49,33 @@ from zammad_pdf_archiver.observability.metrics import (
 )
 
 _DELIVERY_ID_SETS: dict[int, InMemoryTTLSet] = {}
-_DELIVERY_ID_SETS_GUARD = asyncio.Lock()
+_REDIS_STORES: dict[tuple[str, int], RedisDeliveryIdStore] = {}
+_STORE_GUARD = asyncio.Lock()
 _IN_FLIGHT_TICKETS: set[int] = set()
 _IN_FLIGHT_TICKETS_GUARD = asyncio.Lock()
 _REQUEST_ID_KEY = "_request_id"
 
 log = structlog.get_logger(__name__)
+
+
+def _get_delivery_id_store(settings: Settings) -> DeliveryIdStore | None:
+    """Return the configured delivery-ID store, or None if idempotency is disabled (ttl<=0). Caller must hold _STORE_GUARD."""
+    ttl = int(settings.workflow.delivery_id_ttl_seconds)
+    if ttl <= 0:
+        return None
+    backend = (settings.workflow.idempotency_backend or "memory").strip().lower()
+    if backend == "redis" and settings.workflow.redis_url:
+        cache_key = (settings.workflow.redis_url, ttl)
+        result: DeliveryIdStore | None = _REDIS_STORES.get(cache_key)
+        if result is None:
+            result = RedisDeliveryIdStore(settings.workflow.redis_url, ttl)
+            _REDIS_STORES[cache_key] = result
+        return result
+    result = _DELIVERY_ID_SETS.get(ttl)
+    if result is None:
+        result = InMemoryTTLSet(ttl_seconds=float(ttl))
+        _DELIVERY_ID_SETS[ttl] = result
+    return result
 
 
 async def _claim_delivery_id(settings: Settings, delivery_id: str) -> bool:
@@ -62,14 +84,10 @@ async def _claim_delivery_id(settings: Settings, delivery_id: str) -> bool:
     Returns True if this delivery was newly claimed (caller should proceed),
     False if already seen (caller should skip).
     """
-    ttl = int(settings.workflow.delivery_id_ttl_seconds)
-    if ttl <= 0:
-        return True
-    async with _DELIVERY_ID_SETS_GUARD:
-        store = _DELIVERY_ID_SETS.get(ttl)
+    async with _STORE_GUARD:
+        store = _get_delivery_id_store(settings)
         if store is None:
-            store = InMemoryTTLSet(ttl_seconds=float(ttl))
-            _DELIVERY_ID_SETS[ttl] = store
+            return True
         if await store.seen(delivery_id):
             return False
         await store.add(delivery_id)
