@@ -218,8 +218,8 @@ Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; 
 
 - Durable idempotency (e.g. Redis or DB) for delivery ID.
 - Optional attachment binary inclusion (configurable, with size limits).
-- Additional template variants or localization.
-- These remain out of scope until explicitly added to this PRD and roadmap.
+- Additional template variants or localization: **compact** variant is implemented; further variants can be added under `templates/<name>/`.
+- Other items above remain out of scope until explicitly added to this PRD and roadmap.
 
 ---
 
