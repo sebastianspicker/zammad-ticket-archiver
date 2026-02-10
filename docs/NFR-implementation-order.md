@@ -15,7 +15,7 @@ This document reviews the PRD non-functional requirements (NFRs) against the cod
 | **NFR5** | Disallow plaintext HTTP, disabled TLS, loopback/link-local by default; explicit overrides | ✅ Done | `config/validate.py`: `validate_settings()` checks base_url scheme, `verify_tls`, `allow_local_upstreams`; TSA URL validated in same way |
 | **NFR6** | Config: env + optional YAML; precedence env > YAML > defaults | ✅ Done | `config/load.py`: dotenv, YAML via `CONFIG_PATH` or `config/config.yaml`, `Settings(**yaml_data)`. Precedence env > YAML > defaults enforced via `settings_customise_sources` (env, flat env, init). Verified by `test/unit/test_config.py::test_env_overrides_yaml`. |
 | **NFR7** | Single process; Docker and systemd deployment | ✅ Done | `runtime.py` (uvicorn); `Dockerfile`, `docker-compose.yml`; `infra/systemd/` |
-| **NFR8** | Document setup, path policy, signing, storage, operations, security | ✅ Done | `docs/00–09`, `api.md`, `config-reference.md` |
+| **NFR8** | Document setup, path policy, signing, storage, operations, security | ✅ Done | Key docs: 00–09, api, config-reference, faq (see `test_nfr8_docs.py`) |
 | **NFR9** | Python 3.12+; declared dependencies | ✅ Done | `pyproject.toml` |
 | **NFR10** | No mandatory external queue; in-memory dedupe/guard | ✅ By design | Constraint, not an implementation task |
 
@@ -34,7 +34,7 @@ Each NFR is covered by dedicated tests in **`test/nfr/`**:
 | NFR5 | `test_nfr5_transport.py` | `validate_settings` rejects `http://` base_url by default |
 | NFR6 | `test_nfr6_config.py` | Load from YAML; `validate_settings` called on load |
 | NFR7 | `test_nfr7_deploy.py` | App creates with settings; Dockerfile exists |
-| NFR8 | `test_nfr8_docs.py` | Key doc files exist (overview, architecture, setup, path policy, storage, operations, security, config-reference) |
+| NFR8 | `test_nfr8_docs.py` | Key doc files exist (00–09, api, config-reference, faq) |
 | NFR9 | `test_nfr9_python.py` | `pyproject.toml` requires Python 3.12+ |
 | NFR10 | `test_nfr10_design.py` | No Redis/Celery/RabbitMQ in dependencies |
 
@@ -148,7 +148,7 @@ If you want to tighten beyond the PRD:
 
 | Priority | Improvement | Depends on |
 |----------|-------------|------------|
-| 1 | Verify and, if needed, fix config precedence so env explicitly overrides YAML (or document actual behavior). | NFR6 |
+| 1 | Done: env > YAML precedence verified and documented (see NFR6 row). | NFR6 |
 | 2 | NFR verification tests in `test/nfr/` already cover HMAC 403/503/202, path escape, body/rate limit, redaction, transport, config, deploy, docs, Python version, and no-queue design. | — |
 | 3 | Consider rate limiting per Zammad instance or per API key if multiple tenants share one archiver. | NFR2 |
 | 4 | L1 (security-review): lockfile + pip-audit fail on HIGH | See [security-review.md](security-review.md) §4 Step 3.1. |
