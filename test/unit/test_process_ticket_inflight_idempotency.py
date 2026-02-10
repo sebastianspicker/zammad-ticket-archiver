@@ -83,12 +83,22 @@ def test_skipped_inflight_delivery_id_is_not_poisoned_for_retry(
         _FakeClient,
     )
 
+    _fake_snapshot = object()
+
     async def _fake_build_snapshot(client, ticket_id, *, ticket=None, tags=None):  # noqa: ANN001, ARG001
-        return object()
+        return _fake_snapshot
 
     monkeypatch.setattr(
         "zammad_pdf_archiver.app.jobs.process_ticket.build_snapshot",
         _fake_build_snapshot,
+    )
+
+    async def _fake_enrich_attachment_content(snapshot, client, *args, **kwargs):  # noqa: ANN001, ARG002
+        return snapshot
+
+    monkeypatch.setattr(
+        "zammad_pdf_archiver.app.jobs.process_ticket.enrich_attachment_content",
+        _fake_enrich_attachment_content,
     )
 
     calls = {"n": 0}
