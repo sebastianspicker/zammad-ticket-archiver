@@ -26,7 +26,7 @@ flowchart LR
 ### Threat: forged webhook requests
 
 Mitigations:
-- HMAC verification (`X-Hub-Signature: sha1=<hex>`) using `hmac.compare_digest`
+- HMAC verification (`X-Hub-Signature: sha1=<hex>` or `sha256=<hex>`) using `hmac.compare_digest`
 - fail-closed default when no webhook secret is configured
 - unsigned mode requires explicit opt-in
 

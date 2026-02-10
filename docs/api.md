@@ -12,7 +12,7 @@ Webhook ingestion endpoint.
 
 - `Content-Type: application/json` (recommended)
 - `X-Request-Id: <id>` (optional)
-- `X-Hub-Signature: sha1=<hex>` (required when secret is configured)
+- `X-Hub-Signature: sha1=<hex>` or `sha256=<hex>` (required when secret is configured)
 - `X-Zammad-Delivery: <id>` (required only when `hardening.webhook.require_delivery_id=true`)
 
 #### Request body
@@ -21,7 +21,7 @@ JSON object. Ticket ID is extracted from either:
 - `ticket.id`
 - `ticket_id`
 
-If ticket ID is missing or invalid, response is still `202` with `ticket_id: null`, and no background processing is scheduled.
+If ticket ID is missing or invalid, the request is rejected with `422` (schema validation); valid payloads get `202` and background processing.
 
 Example payload:
 - [`../examples/webhook-payload.sample.json`](../examples/webhook-payload.sample.json)
@@ -36,6 +36,7 @@ Example payload:
 
 - `400` `{"detail":"missing_delivery_id"}`
 - `403` `{"detail":"forbidden"}`
+- `422` invalid body (e.g. missing or invalid ticket id)
 - `413` `{"detail":"request_too_large"}`
 - `429` `{"detail":"rate_limited"}`
 - `503` `{"detail":"webhook_auth_not_configured"}`
@@ -57,10 +58,11 @@ Example response:
 
 Notes:
 - `version` comes from installed package metadata; fallback may be `0.0.0` in some non-packaged contexts.
+- When `HEALTHZ_OMIT_VERSION=true`, the response contains only `status` and `time` (no `service` or `version`).
 
 ### `GET /metrics`
 
-Only mounted when `observability.metrics_enabled=true`.
+Only mounted when `observability.metrics_enabled=true`. When `METRICS_BEARER_TOKEN` is set, requests must include `Authorization: Bearer <token>`; otherwise `401` is returned.
 
 Response format:
 - Prometheus text exposition (`text/plain`)
@@ -71,8 +73,8 @@ Response format:
 
 When a secret is configured:
 - header: `X-Hub-Signature`
-- format: `sha1=<hex>`
-- algorithm: HMAC-SHA1
+- format: `sha1=<hex>` or `sha256=<hex>`
+- algorithms: HMAC-SHA1 and HMAC-SHA256 (sender chooses; prefer SHA-256 for new setups)
 - message: raw request body bytes
 
 Secret sources:
@@ -100,6 +102,8 @@ Optional strict mode:
 
 ## 4. Example Signed Request
 
+SHA-1 (Zammad typically sends this):
+
 ```bash
 sig="sha1=$(openssl dgst -sha1 -hmac "$WEBHOOK_HMAC_SECRET" -hex payload.json | awk '{print $2}')"
 curl -i \
@@ -109,3 +113,5 @@ curl -i \
   --data-binary @payload.json \
   http://127.0.0.1:8080/ingest
 ```
+
+SHA-256 is also accepted: use `sha256=<hex>` in the header and compute HMAC-SHA256 over the raw body.

@@ -8,15 +8,16 @@ This runbook is for deployment, monitoring, troubleshooting, and recovery.
   - returns `202` on accepted payload
   - processing happens asynchronously in background
 - `GET /healthz`
-  - basic liveness/status payload
+  - basic liveness/status payload (optionally omit version/service via `HEALTHZ_OMIT_VERSION`)
 - `GET /metrics`
-  - available only when `observability.metrics_enabled=true`
+  - available only when `observability.metrics_enabled=true`; optional Bearer auth via `METRICS_BEARER_TOKEN`
 
 Common ingest error responses:
 - `403` invalid/missing HMAC signature when signed mode is active
 - `503` no webhook auth configured and unsigned mode disabled
 - `400` missing delivery header when `require_delivery_id=true`
 - `413` request exceeds configured body size
+- `422` invalid body (e.g. missing or invalid ticket id)
 - `429` request rate-limited
 
 ## 2. Start/Stop
@@ -88,7 +89,7 @@ Use this procedure after failed runs:
 Check:
 - identical HMAC secret on Zammad and service
 - header name `X-Hub-Signature`
-- format `sha1=<hex>`
+- format `sha1=<hex>` or `sha256=<hex>`
 - request body not transformed by proxy
 
 ### `503 webhook_auth_not_configured`

@@ -81,7 +81,7 @@ Admin path:
   - Method: `POST`
   - Content-Type: `application/json`
   - Enable HMAC signing if available
-  - Use SHA1 signature format (`X-Hub-Signature: sha1=<hex>`)
+  - Use SHA-1 or SHA-256 signature format (`X-Hub-Signature: sha1=<hex>` or `sha256=<hex>`)
 
 If HMAC is enabled:
 - Generate secret: `openssl rand -hex 32`
