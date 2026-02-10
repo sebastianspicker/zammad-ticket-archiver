@@ -11,7 +11,10 @@ import structlog
 
 from zammad_pdf_archiver.adapters.pdf.render_pdf import render_pdf
 from zammad_pdf_archiver.adapters.signing.sign_pdf import sign_pdf
-from zammad_pdf_archiver.adapters.snapshot.build_snapshot import build_snapshot
+from zammad_pdf_archiver.adapters.snapshot.build_snapshot import (
+    build_snapshot,
+    enrich_attachment_content,
+)
 from zammad_pdf_archiver.adapters.storage.fs_storage import write_atomic_bytes, write_bytes
 from zammad_pdf_archiver.adapters.storage.layout import (
     build_filename_from_pattern,
@@ -414,6 +417,13 @@ async def process_ticket(
                         ticket_id,
                         ticket=ticket,
                         tags=tags,
+                    )
+                    snapshot = await enrich_attachment_content(
+                        snapshot,
+                        client,
+                        include_attachment_binary=settings.pdf.include_attachment_binary,
+                        max_attachment_bytes_per_file=settings.pdf.max_attachment_bytes_per_file,
+                        max_total_attachment_bytes=settings.pdf.max_total_attachment_bytes,
                     )
                     render_start = perf_counter()
                     pdf_bytes = render_pdf(

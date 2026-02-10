@@ -31,6 +31,14 @@ class ZammadSnapshotClient(Protocol):
     async def list_articles(self, ticket_id: int) -> list[ZammadArticle]: ...
 
 
+class ZammadAttachmentClient(Protocol):
+    """Client that can fetch attachment binary (for optional PRD §8.2 inclusion)."""
+
+    async def get_attachment_content(
+        self, ticket_id: int, article_id: int, attachment_id: int
+    ) -> bytes: ...
+
+
 class _HTMLToText(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -184,3 +192,63 @@ async def build_snapshot(
         ),
         articles=snapshot_articles,
     )
+
+
+async def enrich_attachment_content(
+    snapshot: Snapshot,
+    client: ZammadAttachmentClient,
+    *,
+    include_attachment_binary: bool,
+    max_attachment_bytes_per_file: int,
+    max_total_attachment_bytes: int,
+) -> Snapshot:
+    """Fetch attachment binaries and set AttachmentMeta.content when within limits (PRD §8.2)."""
+    if not include_attachment_binary or max_total_attachment_bytes <= 0:
+        return snapshot
+    ticket_id = snapshot.ticket.id
+    total_so_far = 0
+    new_articles: list[Article] = []
+    for article in snapshot.articles:
+        new_attachments: list[AttachmentMeta] = []
+        for att in article.attachments:
+            content: bytes | None = None
+            if att.attachment_id is not None:
+                if att.size is not None and att.size > max_attachment_bytes_per_file:
+                    pass  # leave content None
+                elif total_so_far >= max_total_attachment_bytes:
+                    pass
+                else:
+                    try:
+                        raw = await client.get_attachment_content(
+                            ticket_id, article.id, att.attachment_id
+                        )
+                        if len(raw) <= max_attachment_bytes_per_file and total_so_far + len(
+                            raw
+                        ) <= max_total_attachment_bytes:
+                            content = raw
+                            total_so_far += len(raw)
+                    except Exception:
+                        pass
+            new_attachments.append(
+                AttachmentMeta(
+                    article_id=att.article_id,
+                    attachment_id=att.attachment_id,
+                    filename=att.filename,
+                    size=att.size,
+                    content_type=att.content_type,
+                    content=content,
+                )
+            )
+        new_articles.append(
+            Article(
+                id=article.id,
+                created_at=article.created_at,
+                internal=article.internal,
+                sender=article.sender,
+                subject=article.subject,
+                body_html=article.body_html,
+                body_text=article.body_text,
+                attachments=new_attachments,
+            )
+        )
+    return Snapshot(ticket=snapshot.ticket, articles=new_articles)

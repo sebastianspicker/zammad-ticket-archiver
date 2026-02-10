@@ -2,8 +2,17 @@ from __future__ import annotations
 
 import asyncio
 
-from zammad_pdf_archiver.adapters.snapshot.build_snapshot import build_snapshot
+from zammad_pdf_archiver.adapters.snapshot.build_snapshot import (
+    build_snapshot,
+    enrich_attachment_content,
+)
 from zammad_pdf_archiver.adapters.zammad.models import Article as ZammadArticle
+from zammad_pdf_archiver.domain.snapshot_models import (
+    Article,
+    AttachmentMeta,
+    Snapshot,
+    TicketMeta,
+)
 from zammad_pdf_archiver.adapters.zammad.models import TagList
 from zammad_pdf_archiver.adapters.zammad.models import Ticket as ZammadTicket
 
@@ -174,3 +183,65 @@ def test_plain_text_with_angle_brackets_is_not_treated_as_html() -> None:
         assert snapshot.articles[0].body_text == "Please include <foo> in the config."
 
     asyncio.run(run())
+
+
+def test_enrich_attachment_content_unchanged_when_disabled() -> None:
+    """When include_attachment_binary is False, snapshot is returned unchanged (PRD §8.2)."""
+    snapshot = Snapshot(
+        ticket=TicketMeta(id=1, number="T1", title="t"),
+        articles=[
+            Article(
+                id=1,
+                body_html="",
+                body_text="",
+                attachments=[
+                    AttachmentMeta(article_id=1, attachment_id=10, filename="a.txt", size=5),
+                ],
+            )
+        ],
+    )
+    result = asyncio.run(
+        enrich_attachment_content(
+            snapshot,
+            type("Client", (), {"get_attachment_content": lambda *a: None})(),
+            include_attachment_binary=False,
+            max_attachment_bytes_per_file=1000,
+            max_total_attachment_bytes=5000,
+        )
+    )
+    assert result.articles[0].attachments[0].content is None
+
+
+async def _run_enrich_fills_content() -> None:
+    class FakeAttachmentClient:
+        async def get_attachment_content(
+            self, ticket_id: int, article_id: int, attachment_id: int
+        ) -> bytes:
+            return b"binary data"
+
+    snapshot = Snapshot(
+        ticket=TicketMeta(id=1, number="T1", title="t"),
+        articles=[
+            Article(
+                id=1,
+                body_html="",
+                body_text="",
+                attachments=[
+                    AttachmentMeta(article_id=1, attachment_id=10, filename="a.txt", size=11),
+                ],
+            )
+        ],
+    )
+    result = await enrich_attachment_content(
+        snapshot,
+        FakeAttachmentClient(),
+        include_attachment_binary=True,
+        max_attachment_bytes_per_file=100,
+        max_total_attachment_bytes=1000,
+    )
+    assert result.articles[0].attachments[0].content == b"binary data"
+
+
+def test_enrich_attachment_content_fills_content_when_enabled() -> None:
+    """When include_attachment_binary is True and within limits, content is set (PRD §8.2)."""
+    asyncio.run(_run_enrich_fills_content())
