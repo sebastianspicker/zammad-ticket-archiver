@@ -1,0 +1,117 @@
+/* Compact variant: reduced spacing and font size for dense output */
+body.compact {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #111;
+}
+
+.muted {
+  color: #666;
+}
+
+.header {
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.subject {
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.article {
+  padding-top: 8px;
+  margin-top: 10px;
+  border-top: 1px solid #ddd;
+}
+
+.article:first-of-type {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.article-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.timestamp {
+  font-variant-numeric: tabular-nums;
+}
+
+.sender {
+  font-weight: 600;
+}
+
+.dot {
+  color: #666;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 999px;
+  border: 1px solid #ddd;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.badge--internal {
+  color: #8b2c2c;
+  border-color: #d8bcbc;
+}
+
+.badge--external {
+  color: #165b1a;
+  border-color: #bcd6bc;
+}
+
+.body {
+  overflow-wrap: anywhere;
+}
+
+.body p {
+  margin: 0 0 6px 0;
+}
+
+.body p:last-child {
+  margin-bottom: 0;
+}
+
+.body pre,
+.body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+}
+
+.body pre {
+  white-space: pre-wrap;
+  border: 1px solid #ddd;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  .article {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+}
