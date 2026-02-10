@@ -145,6 +145,9 @@ class RateLimitSettings(_BaseSection):
     rps: float = Field(default=5.0, ge=0)
     burst: int = Field(default=10, ge=1)
     include_metrics: bool = False
+    # When set (e.g. "X-Forwarded-For"), rate limit key is taken from this header (first value).
+    # Trust proxy to set it; use with care.
+    client_key_header: str | None = None
 
 
 class BodySizeLimitSettings(_BaseSection):
@@ -341,6 +344,8 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("hardening", {}).setdefault("rate_limit", {})["burst"] = value
     if (value := env.get("RATE_LIMIT_INCLUDE_METRICS")):
         data.setdefault("hardening", {}).setdefault("rate_limit", {})["include_metrics"] = value
+    if (value := env.get("RATE_LIMIT_CLIENT_KEY_HEADER")):
+        data.setdefault("hardening", {}).setdefault("rate_limit", {})["client_key_header"] = value
     if (value := env.get("MAX_BODY_BYTES")):
         data.setdefault("hardening", {}).setdefault("body_size_limit", {})["max_bytes"] = value
     if (value := env.get("HARDENING_WEBHOOK_ALLOW_UNSIGNED")):

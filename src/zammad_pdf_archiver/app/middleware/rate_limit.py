@@ -67,13 +67,33 @@ class _InMemoryTokenBucketLimiter:
             return False
 
 
-def _client_key(scope: Scope) -> str:
+def _client_key_from_scope(scope: Scope) -> str:
     client = scope.get("client")
     if isinstance(client, (list, tuple)) and client:
         host = client[0]
         if isinstance(host, str) and host:
             return host
     return "unknown"
+
+
+def _client_key_from_header(scope: Scope, header_name: str) -> str:
+    headers = scope.get("headers") or []
+    header_lower = header_name.lower().encode("utf-8")
+    for name, value in headers:
+        if name == header_lower and value:
+            first = value.decode("utf-8", errors="replace").strip()
+            if "," in first:
+                first = first.split(",")[0].strip()
+            if first:
+                return first
+            break
+    return "unknown"
+
+
+def _client_key(scope: Scope, header_name: str | None) -> str:
+    if header_name and header_name.strip():
+        return _client_key_from_header(scope, header_name.strip())
+    return _client_key_from_scope(scope)
 
 
 def _rate_limited() -> JSONResponse:
@@ -95,6 +115,9 @@ class RateLimitMiddleware:
         self._paths = frozenset(
             {_INGEST_PATH, _METRICS_PATH} if config.include_metrics else {_INGEST_PATH}
         )
+        self._client_key_header: str | None = getattr(
+            config, "client_key_header", None
+        ) or None
         self._limiter = _InMemoryTokenBucketLimiter(rps=config.rps, burst=config.burst)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -111,7 +134,7 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        key = _client_key(scope)
+        key = _client_key(scope, self._client_key_header)
         if not await limiter.allow(key):
             await _rate_limited()(scope, receive, send)
             return
