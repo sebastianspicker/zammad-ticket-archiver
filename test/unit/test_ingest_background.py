@@ -5,6 +5,7 @@ import asyncio
 from fastapi import BackgroundTasks
 from starlette.requests import Request
 
+from zammad_pdf_archiver.app.routes.ingest import IngestBody
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
@@ -48,7 +49,8 @@ def test_ingest_does_not_block_on_processing(tmp_path, monkeypatch) -> None:
     background = BackgroundTasks()
 
     async def _call() -> None:
-        response = await ingest_route.ingest(request, {"ticket": {"id": 123}}, background)
+        payload = IngestBody.model_validate({"ticket": {"id": 123}})
+        response = await ingest_route.ingest(request, payload, background)
         assert response.status_code == 202
 
     # If /ingest awaited the job, this would time out.

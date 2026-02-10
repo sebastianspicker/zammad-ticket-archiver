@@ -52,8 +52,9 @@ def test_nfr2_rate_limit_returns_429(tmp_path) -> None:
     """NFR2: Ingest over rate limit must be rejected with 429."""
     app = create_app(_settings_rate_limit(str(tmp_path)))
     client = TestClient(app)
-    assert client.post("/ingest", json={}).status_code == 202
-    assert client.post("/ingest", json={}).status_code == 202
-    resp = client.post("/ingest", json={})
+    payload = {"ticket": {"id": 1}}
+    assert client.post("/ingest", json=payload).status_code == 202
+    assert client.post("/ingest", json=payload).status_code == 202
+    resp = client.post("/ingest", json=payload)
     assert resp.status_code == 429
     assert resp.json() == {"detail": "rate_limited"}

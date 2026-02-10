@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 from collections.abc import Callable
+from typing import Any
 
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
@@ -14,7 +15,7 @@ _SIGNATURE_HEADER = "X-Hub-Signature"
 _INGEST_PATH = "/ingest"
 _DELIVERY_ID_HEADER = "X-Zammad-Delivery"
 
-_ALLOWED_ALGORITHMS: dict[str, tuple[int, type]] = {
+_ALLOWED_ALGORITHMS: dict[str, tuple[int, Any]] = {
     "sha1": (hashlib.sha1().digest_size, hashlib.sha1),
     "sha256": (hashlib.sha256().digest_size, hashlib.sha256),
 }
