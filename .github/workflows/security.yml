@@ -2,13 +2,10 @@ name: Security
 
 # Policy:
 # - This workflow runs `pip-audit` against the project dependencies.
-# - It fails only on CRITICAL vulnerabilities:
-#   - If OSV provides `database_specific.severity`, we require it to be `CRITICAL`.
-#   - Otherwise, we fall back to CVSS base score (CRITICAL := >= 9.0).
+# - It fails on CRITICAL and HIGH vulnerabilities:
+#   - If OSV provides `database_specific.severity`, we require it not to be CRITICAL or HIGH.
+#   - Otherwise we use CVSS base score (CRITICAL := >= 9.0, HIGH := >= 7.0).
 #   - If severity cannot be determined, we fail closed (treat as CRITICAL).
-#
-# Adjustments:
-# - If you want stricter gates (e.g. fail on HIGH), change the threshold logic in the "Enforce policy" step.
 
 on:
   push:
@@ -46,7 +43,7 @@ jobs:
           # We always capture JSON and enforce our policy in the next step.
           pip-audit -f json -s osv --desc off --aliases on -o pip-audit.json . || true
 
-      - name: Enforce policy (fail on CRITICAL)
+      - name: Enforce policy (fail on CRITICAL and HIGH)
         run: |
           python - <<'PY'
           from __future__ import annotations
@@ -161,6 +158,7 @@ jobs:
           osv_cache: dict[str, dict | None] = {}
 
           critical: list[str] = []
+          high: list[str] = []
           unknown: list[str] = []
 
           for f in findings:
@@ -195,10 +193,19 @@ jobs:
             if best_label == "CRITICAL":
               critical.append(f"{f.package}=={f.version} ({f.vuln_id})")
               continue
+            if best_label == "HIGH":
+              high.append(f"{f.package}=={f.version} ({f.vuln_id})")
+              continue
 
           if critical:
             print("CRITICAL vulnerabilities found:")
             for line in critical:
+              print(f"- {line}")
+            sys.exit(1)
+
+          if high:
+            print("HIGH vulnerabilities found:")
+            for line in high:
               print(f"- {line}")
             sys.exit(1)
 
@@ -208,6 +215,6 @@ jobs:
               print(f"- {line}")
             sys.exit(1)
 
-          print("No CRITICAL vulnerabilities found (policy passed).")
+          print("No CRITICAL or HIGH vulnerabilities found (policy passed).")
           sys.exit(0)
           PY
