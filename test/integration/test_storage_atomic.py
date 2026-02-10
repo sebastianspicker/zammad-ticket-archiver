@@ -23,6 +23,18 @@ def test_write_atomic_bytes_creates_dirs_and_writes_contents(tmp_path: Path) -> 
     assert _tmp_files(target.parent) == []
 
 
+def test_storage_writes_use_restrictive_file_mode(tmp_path: Path) -> None:
+    """Written files use 0o640 (no world read/write)."""
+    target = tmp_path / "f.bin"
+    write_atomic_bytes(target, b"x", storage_root=tmp_path, fsync=False)
+    mode = target.stat().st_mode & 0o777
+    assert mode == 0o640, f"expected 0o640, got {oct(mode)}"
+    target.unlink()
+    write_bytes(target, b"y", storage_root=tmp_path, fsync=False)
+    mode = target.stat().st_mode & 0o777
+    assert mode == 0o640, f"expected 0o640, got {oct(mode)}"
+
+
 def test_write_atomic_bytes_overwrites_existing_file(tmp_path: Path) -> None:
     target = tmp_path / "payload.bin"
     target.write_bytes(b"old")
