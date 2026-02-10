@@ -127,6 +127,8 @@ Env-only TSA auth keys:
 | `observability.log_format` | `null` | `LOG_FORMAT` | `json` or `human` |
 | `observability.json_logs` | `false` | `LOG_JSON` | legacy JSON toggle |
 | `observability.metrics_enabled` | `false` | `METRICS_ENABLED`, `OBSERVABILITY_METRICS_ENABLED` | expose `/metrics` |
+| `observability.metrics_bearer_token` | `null` | `METRICS_BEARER_TOKEN` | when set, require `Authorization: Bearer <token>` for `/metrics` |
+| `observability.healthz_omit_version` | `false` | `HEALTHZ_OMIT_VERSION` | omit `version` and `service` from `/healthz` response |
 
 ### `hardening.rate_limit`
 
@@ -136,6 +138,7 @@ Env-only TSA auth keys:
 | `hardening.rate_limit.rps` | `5.0` | `RATE_LIMIT_RPS` | token refill rate |
 | `hardening.rate_limit.burst` | `10` | `RATE_LIMIT_BURST` | token bucket capacity |
 | `hardening.rate_limit.include_metrics` | `false` | `RATE_LIMIT_INCLUDE_METRICS` | include `/metrics` path |
+| `hardening.rate_limit.client_key_header` | `null` | `RATE_LIMIT_CLIENT_KEY_HEADER` | header for rate-limit key (e.g. `X-Forwarded-For`) when behind proxy |
 
 ### `hardening.body_size_limit`
 
