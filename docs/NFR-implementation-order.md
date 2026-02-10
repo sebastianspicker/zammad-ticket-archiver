@@ -13,7 +13,7 @@ This document reviews the PRD non-functional requirements (NFRs) against the cod
 | **NFR3** | Path validation and confinement under `storage.root`; no traversal | ✅ Done | `domain/path_policy.py` (`ensure_within_root`, `sanitize_segment`, `validate_segments`); `adapters/storage/fs_storage.py` (`_reject_symlinks_under_root`, `O_NOFOLLOW` on write) |
 | **NFR4** | Scrub secrets in logs and ticket notes | ✅ Done | `config/redact.py` (`scrub_secrets_in_text`, `redact_settings_dict`); `observability/logger.py` (redacted processor/exception formatter); `process_ticket.py` uses scrub for error message |
 | **NFR5** | Disallow plaintext HTTP, disabled TLS, loopback/link-local by default; explicit overrides | ✅ Done | `config/validate.py`: `validate_settings()` checks base_url scheme, `verify_tls`, `allow_local_upstreams`; TSA URL validated in same way |
-| **NFR6** | Config: env + optional YAML; precedence env > YAML > defaults | ✅ Done | `config/load.py`: dotenv, YAML via `CONFIG_PATH` or `config/config.yaml`, `Settings(**yaml_data)`. Note: pydantic-settings merge order is init kwargs then env then defaults—verify whether “env overrides YAML” is desired and documented correctly. |
+| **NFR6** | Config: env + optional YAML; precedence env > YAML > defaults | ✅ Done | `config/load.py`: dotenv, YAML via `CONFIG_PATH` or `config/config.yaml`, `Settings(**yaml_data)`. Precedence env > YAML > defaults enforced via `settings_customise_sources` (env, flat env, init). Verified by `test/unit/test_config.py::test_env_overrides_yaml`. |
 | **NFR7** | Single process; Docker and systemd deployment | ✅ Done | `runtime.py` (uvicorn); `Dockerfile`, `docker-compose.yml`; `infra/systemd/` |
 | **NFR8** | Document setup, path policy, signing, storage, operations, security | ✅ Done | `docs/00–09`, `api.md`, `config-reference.md` |
 | **NFR9** | Python 3.12+; declared dependencies | ✅ Done | `pyproject.toml` |
@@ -151,6 +151,7 @@ If you want to tighten beyond the PRD:
 | 1 | Verify and, if needed, fix config precedence so env explicitly overrides YAML (or document actual behavior). | NFR6 |
 | 2 | NFR verification tests in `test/nfr/` already cover HMAC 403/503/202, path escape, body/rate limit, redaction, transport, config, deploy, docs, Python version, and no-queue design. | — |
 | 3 | Consider rate limiting per Zammad instance or per API key if multiple tenants share one archiver. | NFR2 |
+| 4 | L1 (security-review): lockfile + pip-audit fail on HIGH | See [security-review.md](security-review.md) §4 Step 3.1. |
 
 Security review remediation (see [security-review.md](security-review.md)) has been implemented: optional Bearer auth for `/metrics` (`METRICS_BEARER_TOKEN`), file mode `0o640` for written files, HMAC-SHA-256 support, rate-limit key from header (`RATE_LIMIT_CLIENT_KEY_HEADER`), ingest body schema validation, optional healthz omit version (`HEALTHZ_OMIT_VERSION`), and documentation of redaction/TOCTOU/delivery-ID/TEMPLATES_ROOT.
 
