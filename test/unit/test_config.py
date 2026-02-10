@@ -157,6 +157,36 @@ def test_workflow_redis_backend_requires_redis_url() -> None:
     assert "redis_url" in str(exc_info.value).lower() or "redis" in str(exc_info.value).lower()
 
 
+def test_pdf_attachment_binary_settings_loaded() -> None:
+    """Pdf attachment binary inclusion settings (PRD §8.2) are accepted and have defaults."""
+    settings = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://z.example", "api_token": "t"},
+            "storage": {"root": "/mnt"},
+            "hardening": {"webhook": {"allow_unsigned": True}},
+        }
+    )
+    assert settings.pdf.include_attachment_binary is False
+    assert settings.pdf.max_attachment_bytes_per_file == 10 * 1024 * 1024
+    assert settings.pdf.max_total_attachment_bytes == 50 * 1024 * 1024
+
+    settings2 = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://z.example", "api_token": "t"},
+            "storage": {"root": "/mnt"},
+            "hardening": {"webhook": {"allow_unsigned": True}},
+            "pdf": {
+                "include_attachment_binary": True,
+                "max_attachment_bytes_per_file": 1024,
+                "max_total_attachment_bytes": 4096,
+            },
+        }
+    )
+    assert settings2.pdf.include_attachment_binary is True
+    assert settings2.pdf.max_attachment_bytes_per_file == 1024
+    assert settings2.pdf.max_total_attachment_bytes == 4096
+
+
 def test_validate_settings_rejects_invalid_log_level() -> None:
     settings = Settings.from_mapping(
         {

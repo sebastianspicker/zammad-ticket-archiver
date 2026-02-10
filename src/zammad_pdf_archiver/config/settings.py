@@ -81,6 +81,10 @@ class PdfSettings(_BaseSection):
     locale: str = "de_DE"
     timezone: str = "Europe/Berlin"
     max_articles: int = Field(default=250, ge=0)
+    # Optional attachment binary inclusion (PRD §8.2)
+    include_attachment_binary: bool = False
+    max_attachment_bytes_per_file: int = Field(default=10 * 1024 * 1024, ge=0)  # 10 MiB
+    max_total_attachment_bytes: int = Field(default=50 * 1024 * 1024, ge=0)  # 50 MiB
 
     @property
     def template(self) -> str:
@@ -305,6 +309,12 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("pdf", {})["timezone"] = value
     if (value := env.get("PDF_MAX_ARTICLES")):
         data.setdefault("pdf", {})["max_articles"] = value
+    if (value := env.get("PDF_INCLUDE_ATTACHMENT_BINARY")):
+        data.setdefault("pdf", {})["include_attachment_binary"] = value
+    if (value := env.get("PDF_MAX_ATTACHMENT_BYTES_PER_FILE")):
+        data.setdefault("pdf", {})["max_attachment_bytes_per_file"] = value
+    if (value := env.get("PDF_MAX_TOTAL_ATTACHMENT_BYTES")):
+        data.setdefault("pdf", {})["max_total_attachment_bytes"] = value
 
     # Signing
     if (value := env.get("SIGNING_ENABLED")):

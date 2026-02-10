@@ -89,6 +89,9 @@ Required unless overridden by explicit unsafe/test options:
 | `pdf.locale` | `de_DE` | `PDF_LOCALE`, `RENDER_LOCALE` | locale setting (template-dependent) |
 | `pdf.timezone` | `Europe/Berlin` | `PDF_TIMEZONE`, `RENDER_TIMEZONE` | timezone setting (template-dependent) |
 | `pdf.max_articles` | `250` | `PDF_MAX_ARTICLES` | max article count (`0` disables limit) |
+| `pdf.include_attachment_binary` | `false` | `PDF_INCLUDE_ATTACHMENT_BINARY` | include attachment binaries in snapshot/storage (PRD §8.2) |
+| `pdf.max_attachment_bytes_per_file` | `10485760` | `PDF_MAX_ATTACHMENT_BYTES_PER_FILE` | max bytes per attachment when including binary |
+| `pdf.max_total_attachment_bytes` | `52428800` | `PDF_MAX_TOTAL_ATTACHMENT_BYTES` | max total attachment bytes per ticket |
 
 ### `signing`
 
