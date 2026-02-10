@@ -450,29 +450,31 @@ async def process_ticket(
                     writer = (
                         write_atomic_bytes if settings.storage.atomic_write else write_bytes
                     )
-                    for article in snapshot.articles:
-                        for att in article.attachments:
-                            if att.content is None:
-                                continue
-                            safe_name = sanitize_segment(
-                                f"{article.id}_{att.attachment_id or 0}_{att.filename or 'bin'}"
-                            ) or f"article_{article.id}_{att.attachment_id or 0}"
-                            attach_path = attachments_dir / safe_name
-                            writer(
-                                attach_path,
-                                att.content,
-                                fsync=settings.storage.fsync,
-                                storage_root=settings.storage.root,
-                            )
-                            attachment_entries.append(
-                                {
-                                    "storage_path": str(attach_path),
-                                    "article_id": article.id,
-                                    "attachment_id": att.attachment_id,
-                                    "filename": att.filename,
-                                    "sha256": compute_sha256(att.content),
-                                }
-                            )
+                    snapshot_articles = getattr(snapshot, "articles", None)
+                    if isinstance(snapshot_articles, list):
+                        for article in snapshot_articles:
+                            for att in article.attachments:
+                                if att.content is None:
+                                    continue
+                                safe_name = sanitize_segment(
+                                    f"{article.id}_{att.attachment_id or 0}_{att.filename or 'bin'}"
+                                ) or f"article_{article.id}_{att.attachment_id or 0}"
+                                attach_path = attachments_dir / safe_name
+                                writer(
+                                    attach_path,
+                                    att.content,
+                                    fsync=settings.storage.fsync,
+                                    storage_root=settings.storage.root,
+                                )
+                                attachment_entries.append(
+                                    {
+                                        "storage_path": str(attach_path),
+                                        "article_id": article.id,
+                                        "attachment_id": att.attachment_id,
+                                        "filename": att.filename,
+                                        "sha256": compute_sha256(att.content),
+                                    }
+                                )
 
                     sidecar_path = target_path.with_name(target_path.name + ".json")
                     audit_record = build_audit_record(
