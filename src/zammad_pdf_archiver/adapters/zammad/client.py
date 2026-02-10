@@ -150,6 +150,14 @@ class AsyncZammadClient:
         items = TypeAdapter(list[dict[str, Any]]).validate_python(resp)
         return [Article.model_validate(item) for item in items]
 
+    async def get_attachment_content(
+        self, ticket_id: int, article_id: int, attachment_id: int
+    ) -> bytes:
+        """Download attachment binary. GET /api/v1/ticket_attachment/{ticket}/{article}/{attachment}."""
+        path = f"api/v1/ticket_attachment/{ticket_id}/{article_id}/{attachment_id}"
+        response = await self._request("GET", path, headers={"Accept": "*/*"})
+        return response.content
+
     async def _request_json(
         self,
         method: Literal["GET", "POST"],
@@ -174,6 +182,7 @@ class AsyncZammadClient:
         *,
         params: dict[str, str] | None = None,
         json: Any | None = None,
+        headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         # Total attempts = 1 initial + max_retries
         max_attempts = self._retry.max_retries + 1
@@ -181,7 +190,9 @@ class AsyncZammadClient:
 
         while True:
             try:
-                response = await self._http.request(method, path, params=params, json=json)
+                response = await self._http.request(
+                    method, path, params=params, json=json, headers=headers
+                )
             except httpx.TimeoutException as exc:
                 if retry_count >= self._retry.max_retries:
                     raise ServerError(
