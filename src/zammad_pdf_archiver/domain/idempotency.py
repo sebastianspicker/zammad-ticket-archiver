@@ -2,6 +2,19 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from typing import Protocol
+
+
+class DeliveryIdStore(Protocol):
+    """Protocol for delivery-ID idempotency (in-memory or durable e.g. Redis)."""
+
+    async def seen(self, key: str) -> bool:
+        """Return True if key was already seen and is still within TTL."""
+        ...
+
+    async def add(self, key: str) -> None:
+        """Record key as seen (idempotent for same key within TTL)."""
+        ...
 
 
 class InMemoryTTLSet:
@@ -25,7 +38,7 @@ class InMemoryTTLSet:
         interval = min(60.0, max(1.0, self._ttl_seconds))
         self._next_evict_at = now + interval
 
-    def seen(self, key: str) -> bool:
+    def _seen_sync(self, key: str) -> bool:
         now = self._now()
         self._maybe_evict(now)
         expires_at = self._expires_at_by_key.get(key)
@@ -36,10 +49,16 @@ class InMemoryTTLSet:
             return False
         return True
 
-    def add(self, key: str) -> None:
+    def _add_sync(self, key: str) -> None:
         now = self._now()
         self._maybe_evict(now)
         self._expires_at_by_key[key] = now + self._ttl_seconds
+
+    async def seen(self, key: str) -> bool:
+        return self._seen_sync(key)
+
+    async def add(self, key: str) -> None:
+        self._add_sync(key)
 
     def evict_expired(self) -> None:
         self._evict_expired_at(self._now())

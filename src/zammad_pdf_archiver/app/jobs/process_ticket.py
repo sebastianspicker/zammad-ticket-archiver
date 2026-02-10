@@ -70,9 +70,9 @@ async def _claim_delivery_id(settings: Settings, delivery_id: str) -> bool:
         if store is None:
             store = InMemoryTTLSet(ttl_seconds=float(ttl))
             _DELIVERY_ID_SETS[ttl] = store
-        if store.seen(delivery_id):
+        if await store.seen(delivery_id):
             return False
-        store.add(delivery_id)
+        await store.add(delivery_id)
         return True
 
 
