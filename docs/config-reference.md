@@ -54,6 +54,8 @@ Required unless overridden by explicit unsafe/test options:
 | `workflow.require_tag` | `true` | `WORKFLOW_REQUIRE_TAG` | require trigger tag for processing |
 | `workflow.acknowledge_on_success` | `true` | none | create success note on ticket |
 | `workflow.delivery_id_ttl_seconds` | `3600` | `WORKFLOW_DELIVERY_ID_TTL_SECONDS` | in-memory dedupe TTL |
+| `workflow.idempotency_backend` | `memory` | `IDEMPOTENCY_BACKEND` | delivery-ID store: `memory` or `redis` |
+| `workflow.redis_url` | `null` | `REDIS_URL` | Redis URL when `idempotency_backend=redis` |
 
 ### `fields`
 
