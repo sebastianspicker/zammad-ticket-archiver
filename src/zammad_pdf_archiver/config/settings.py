@@ -33,6 +33,17 @@ class WorkflowSettings(_BaseSection):
     require_tag: bool = True
     acknowledge_on_success: bool = True
     delivery_id_ttl_seconds: int = Field(default=3600, ge=0)
+    # Durable idempotency (PRD §8.2): "memory" (default) or "redis"
+    idempotency_backend: str = "memory"
+    redis_url: str | None = None
+
+    @model_validator(mode="after")
+    def _redis_required_when_backend_redis(self) -> "WorkflowSettings":
+        if self.idempotency_backend == "redis" and not (self.redis_url and self.redis_url.strip()):
+            raise ValueError(
+                "workflow.idempotency_backend is 'redis' but workflow.redis_url is not set"
+            )
+        return self
 
 
 class FieldsSettings(_BaseSection):
@@ -261,6 +272,10 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("workflow", {})["require_tag"] = value
     if (value := env.get("WORKFLOW_DELIVERY_ID_TTL_SECONDS")):
         data.setdefault("workflow", {})["delivery_id_ttl_seconds"] = value
+    if (value := env.get("IDEMPOTENCY_BACKEND")):
+        data.setdefault("workflow", {})["idempotency_backend"] = value
+    if (value := env.get("REDIS_URL")):
+        data.setdefault("workflow", {})["redis_url"] = value
     if (value := env.get("FIELDS_ARCHIVE_PATH")):
         data.setdefault("fields", {})["archive_path"] = value
     if (value := env.get("FIELDS_ARCHIVE_USER_MODE")):
