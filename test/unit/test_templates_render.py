@@ -5,6 +5,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from zammad_pdf_archiver.adapters.pdf.template_engine import render_html
 from zammad_pdf_archiver.domain.snapshot_models import (
     Article,
     AttachmentMeta,
@@ -65,3 +66,36 @@ def test_default_template_renders_example_snapshot() -> None:
 
     assert "Ticket T1" in html
     assert "Hello" in html
+
+
+def test_compact_template_renders_example_snapshot() -> None:
+    """Compact template variant (PRD §8.2) renders snapshot via package loader."""
+    snapshot = Snapshot(
+        ticket=TicketMeta(
+            id=1,
+            number="T2",
+            title="Compact variant",
+            created_at=datetime(2024, 1, 1, 10, 0, tzinfo=UTC),
+            updated_at=datetime(2024, 1, 2, 12, 30, tzinfo=UTC),
+            customer=PartyRef(name="Acme", email="a@b.invalid"),
+            owner=PartyRef(login="agent1", name="Agent One"),
+            tags=[],
+            custom_fields={},
+        ),
+        articles=[
+            Article(
+                id=101,
+                created_at=datetime(2024, 1, 1, 11, 0, tzinfo=UTC),
+                internal=True,
+                sender="agent1",
+                subject="Note",
+                body_html="<p>Compact body</p>",
+                body_text="Compact body",
+                attachments=[],
+            )
+        ],
+    )
+    html = render_html(snapshot, "compact")
+    assert "Ticket T2" in html
+    assert "Compact body" in html
+    assert "compact" in html
