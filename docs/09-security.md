@@ -54,6 +54,8 @@ Mitigations:
 - free-text secret scrubbing in exception messages
 - ticket error notes use scrubbed exception text
 
+Redaction is best-effort (known keys and common patterns). Operators should avoid logging full config or raw exception traces in production; custom secret key names may need to be added to the redaction allowlist.
+
 ### Threat: request flood / oversized payload DoS
 
 Mitigations:
@@ -85,7 +87,9 @@ Operational controls required:
 
 - no distributed durable dedupe store
 - no built-in immutable/WORM enforcement
-- app-level checks cannot fully remove TOCTOU risk on hostile filesystems
+- **TOCTOU on symlink check:** the storage layer rejects paths that traverse symlinks under the root, but the check happens before the write. A symlink can be created between the check and the write (time-of-check to time-of-use race). For high-assurance deployments, use a dedicated mount or filesystem controls; the application cannot fully remove this risk.
+- **Delivery ID dedupe is in-memory only:** duplicate webhook deliveries can be processed again after a process restart; no durable idempotency store.
+- **TEMPLATES_ROOT:** when set (env), the process loads HTML templates from that path. Only the process owner should set it; point it to a controlled directory.
 - archive long-term trust depends on external trust and storage controls
 
 ## 5. Hardening Checklist
@@ -94,6 +98,11 @@ Operational controls required:
 - configure and rotate webhook HMAC secret
 - keep body/rate limits enabled and tuned
 - require delivery IDs when available
-- protect `/metrics` access when enabled
+- protect `/metrics` access when enabled (set `METRICS_BEARER_TOKEN` or restrict by network)
+- when behind a reverse proxy, set `RATE_LIMIT_CLIENT_KEY_HEADER=X-Forwarded-For` so rate limits apply per client IP (trust proxy to set the header)
 - secure and monitor storage mount permissions
 - keep signing/TSA credentials in secrets management, not source-controlled files
+
+## 6. See also
+
+- [Security review](security-review.md) – Engineer review with prioritized findings and remediation plan.
