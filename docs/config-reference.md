@@ -83,7 +83,7 @@ Required unless overridden by explicit unsafe/test options:
 
 | Key | Default | Flat env alias | Description |
 |---|---|---|---|
-| `pdf.template_variant` | `default` | `PDF_TEMPLATE_VARIANT`, `TEMPLATE_VARIANT` | template variant |
+| `pdf.template_variant` | `default` | `PDF_TEMPLATE_VARIANT`, `TEMPLATE_VARIANT` | template variant (`default`, `minimal`, `compact`) |
 | `pdf.locale` | `de_DE` | `PDF_LOCALE`, `RENDER_LOCALE` | locale setting (template-dependent) |
 | `pdf.timezone` | `Europe/Berlin` | `PDF_TIMEZONE`, `RENDER_TIMEZONE` | timezone setting (template-dependent) |
 | `pdf.max_articles` | `250` | `PDF_MAX_ARTICLES` | max article count (`0` disables limit) |
