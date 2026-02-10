@@ -90,6 +90,7 @@ def build_audit_record(
     signing_settings: Any | None = None,
     service_name: str = "zammad-pdf-archiver",
     service_dist_name: str = "zammad-pdf-archiver",
+    attachments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     signing_enabled = (
         bool(getattr(signing_settings, "enabled", False)) if signing_settings else False
@@ -111,7 +112,7 @@ def build_audit_record(
         "python": sys.version.split(" ", 1)[0],
     }
 
-    return {
+    out: dict[str, Any] = {
         "ticket_id": int(ticket_id),
         "ticket_number": str(ticket_number),
         "title": (title or "").strip(),
@@ -121,3 +122,6 @@ def build_audit_record(
         "signing": signing,
         "service": service,
     }
+    if attachments:
+        out["attachments"] = attachments
+    return out

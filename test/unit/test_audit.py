@@ -107,3 +107,33 @@ def test_build_audit_record_extracts_cert_fingerprint_from_pfx(tmp_path: Path) -
     expected = _cert_fingerprint_from_pfx(pfx_path, password="secret")
     assert audit["signing"]["enabled"] is True
     assert audit["signing"]["cert_fingerprint"] == expected
+
+
+def test_build_audit_record_includes_attachments_when_provided() -> None:
+    """Optional attachment list is added to audit record (PRD §8.2)."""
+    audit = build_audit_record(
+        ticket_id=1,
+        ticket_number="T1",
+        title="t",
+        created_at=datetime(2026, 2, 7, 12, 0, 0, tzinfo=UTC),
+        storage_path="/mnt/archive/T1.pdf",
+        sha256="ab",
+        attachments=[
+            {
+                "storage_path": "/mnt/archive/attachments/1_10_file.txt",
+                "article_id": 1,
+                "attachment_id": 10,
+                "filename": "file.txt",
+                "sha256": "cd",
+            },
+        ],
+    )
+    assert audit["attachments"] == [
+        {
+            "storage_path": "/mnt/archive/attachments/1_10_file.txt",
+            "article_id": 1,
+            "attachment_id": 10,
+            "filename": "file.txt",
+            "sha256": "cd",
+        },
+    ]
