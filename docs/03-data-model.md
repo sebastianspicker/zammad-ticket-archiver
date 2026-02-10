@@ -8,7 +8,7 @@ storage/audit output.
 The renderer operates on a strict “snapshot” object:
 - it is built from Zammad API data
 - it is the single source of truth for HTML templates
-- it deliberately keeps attachments as **metadata only** (no embedded binary content)
+- it keeps attachments as **metadata** in the snapshot/PDF by default; optional **attachment binary inclusion** (configurable) can store binary content in the snapshot and write files to storage (see [config-reference](config-reference.md) `pdf.include_attachment_binary`)
 
 Example (human-friendly):
 - [`examples/ticket-snapshot.sample.json`](../examples/ticket-snapshot.sample.json)

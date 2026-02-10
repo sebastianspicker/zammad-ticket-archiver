@@ -5,7 +5,7 @@
 **Status:** Living document (aligned with current implementation and docs)  
 **Last updated:** 2026-02-10
 
-NFR verification tests live in `test/nfr/`; implementation order and per-NFR guidance: [docs/NFR-implementation-order.md](NFR-implementation-order.md).
+NFR verification tests live in `test/nfr/`. Implementation order and per-NFR guidance are maintained in the `audit/` folder (for local and agent use; `audit/` is gitignored).
 
 ---
 
@@ -56,10 +56,10 @@ Processing is asynchronous (202 Accepted); path and security are configurable an
 
 | Non-goal | Reason |
 |----------|--------|
-| Export of attachment binary payloads | Attachments remain metadata-only in snapshot/PDF; reduces scope and storage. |
+| Export of attachment binary payloads (default off) | Default: metadata-only in snapshot/PDF. Optional `pdf.include_attachment_binary` writes binaries to `attachments/` and sidecar; see §8.2. |
 | Archive browsing or search UI | Archive is filesystem-based; search is handled by OS/tools or other systems. |
 | Distributed durable queue | Acceptable to use in-process background tasks and best-effort dedupe. |
-| Durable distributed idempotency store | In-memory delivery-ID dedupe is explicit tradeoff for simplicity. |
+| Durable distributed idempotency store (default) | Default: in-memory delivery-ID dedupe. Optional Redis backend available; see §8.2. |
 | Built-in retention/WORM policy engine | Retention and WORM are handled by storage/OS or external systems. |
 | Built-in encryption-at-rest management | Handled by filesystem or storage layer. |
 | Multi-tenant isolation beyond path policy | Isolation via path policy + external ACLs; no in-app tenant DB. |
@@ -143,7 +143,7 @@ Processing is asynchronous (202 Accepted); path and security are configurable an
 | F18 | Build normalized snapshot from ticket + tags + articles; sanitize HTML; deterministic article order. | P0 |
 | F19 | Render PDF from snapshot using Jinja2 template and WeasyPrint; support configurable template variant and locale/timezone. | P0 |
 | F20 | Limit number of articles included (configurable `max_articles`). | P1 |
-| F21 | Attachments in snapshot are metadata-only (no binary embedding). | P0 |
+| F21 | Attachments in snapshot are metadata; optional binary inclusion writes to storage and sidecar when configured. | P0 |
 
 ### 5.5 Signing and timestamping (optional)
 
@@ -200,7 +200,7 @@ Processing is asynchronous (202 Accepted); path and security are configurable an
 | Security | Webhook rejected without valid HMAC when secret set; no path escape; no secret leakage in logs/notes. |
 | Operability | Health endpoint and optional metrics; logs and ticket notes sufficient to debug failures and retry. |
 | Documentation | Admins can configure Zammad and archiver from docs; operators can deploy and troubleshoot from runbooks. |
-| Verification | NFRs are covered by dedicated tests in `test/nfr/`; see [NFR implementation order](NFR-implementation-order.md). |
+| Verification | NFRs are covered by dedicated tests in `test/nfr/`. |
 
 ---
 
@@ -212,7 +212,7 @@ Processing is asynchronous (202 Accepted); path and security are configurable an
 - Single-service architecture: FastAPI + in-process background tasks.
 - Config: env + optional YAML; Zammad, workflow, storage, PDF, signing, observability, hardening.
 
-Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; see [NFR implementation order](NFR-implementation-order.md).
+Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage.
 
 ### 8.2 Future considerations (not committed)
 
@@ -234,8 +234,8 @@ Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; 
 ### 9.2 Technical constraints
 
 - Processing is best-effort after 202: no guaranteed delivery or exactly-once across restarts.
-- One writer per ticket at a time (in-memory lock); delivery-ID dedupe is in-memory and TTL-based.
-- Attachments are not written to disk by the archiver; only metadata in snapshot/PDF.
+- One writer per ticket at a time (in-memory lock); delivery-ID dedupe is in-memory (or optional Redis) and TTL-based.
+- Attachments: by default only metadata in snapshot/PDF; when `pdf.include_attachment_binary=true`, binaries are written to an `attachments/` subdir and referenced in the audit sidecar.
 
 ---
 
@@ -246,7 +246,7 @@ Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; 
 | **Audit sidecar** | JSON file next to each PDF with checksum, storage path, signing/TSA metadata, service version. |
 | **Archive path** | Ticket custom field defining path segments under `storage.root`. |
 | **Archive user mode** | Strategy for first path segment: `owner`, `current_agent`, or `fixed` (custom field). |
-| **Delivery ID** | `X-Zammad-Delivery` header; used for best-effort in-memory deduplication. |
+| **Delivery ID** | `X-Zammad-Delivery` header; used for best-effort deduplication (in-memory or optional Redis). |
 | **PAdES** | PDF Advanced Electronic Signatures profile. |
 | **RFC3161** | Timestamp protocol used by Time Stamping Authorities. |
 | **Snapshot** | Normalized, render-ready model built from Zammad ticket + tags + articles. |
@@ -257,7 +257,6 @@ Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; 
 
 ## 11. References
 
-- [NFR implementation order and verification](NFR-implementation-order.md)
 - [00 - Overview](00-overview.md)
 - [01 - Architecture](01-architecture.md)
 - [02 - Zammad Setup](02-zammad-setup.md)

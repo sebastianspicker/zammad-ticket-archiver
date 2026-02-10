@@ -105,4 +105,4 @@ Operational controls required:
 
 ## 6. See also
 
-- [Security review](security-review.md) – Engineer review with prioritized findings and remediation plan.
+- Audit and improvement docs (security review, NFR implementation order, promise matrix, etc.) are kept in the `audit/` folder when used locally; that folder is gitignored.
