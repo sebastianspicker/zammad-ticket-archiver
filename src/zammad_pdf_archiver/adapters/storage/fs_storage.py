@@ -41,7 +41,7 @@ def write_bytes(
 
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
     flags |= getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(target), flags, 0o666)
+    fd = os.open(str(target), flags, 0o640)
     with os.fdopen(fd, "wb") as f:
         f.write(data)
         f.flush()
@@ -102,6 +102,10 @@ def write_atomic_bytes(
 
         try:
             os.replace(tmp_path, target)
+            try:
+                os.chmod(target, 0o640)
+            except OSError:
+                pass
         except Exception:
             # If replace fails, ensure tmp_path is cleaned up
             if tmp_path is not None:
