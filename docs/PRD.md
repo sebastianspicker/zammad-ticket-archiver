@@ -212,6 +212,8 @@ Processing is asynchronous (202 Accepted); path and security are configurable an
 - Single-service architecture: FastAPI + in-process background tasks.
 - Config: env + optional YAML; Zammad, workflow, storage, PDF, signing, observability, hardening.
 
+Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; see [NFR implementation order](NFR-implementation-order.md).
+
 ### 8.2 Future considerations (not committed)
 
 - Durable idempotency (e.g. Redis or DB) for delivery ID.
