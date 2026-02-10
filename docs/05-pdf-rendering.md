@@ -108,5 +108,5 @@ If limit is exceeded, processing fails with a permanent error.
 
 ## 9. Current Limitations
 
-- Attachments are represented as metadata only (not embedded binary files).
+- Attachments are represented as metadata in the PDF. Optionally, when `pdf.include_attachment_binary=true`, attachment binaries are fetched, written to an `attachments/` directory next to the PDF, and listed in the audit sidecar (see [config-reference](config-reference.md)).
 - Template datetime formatting is template-defined; `pdf.locale` and `pdf.timezone` are currently configuration fields without locale-aware template helpers.

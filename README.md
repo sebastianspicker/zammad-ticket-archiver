@@ -149,6 +149,7 @@ Operational docs:
 
 ## Full Documentation Index
 
+- [`docs/PRD.md`](docs/PRD.md) – Product Requirements Document
 - [`docs/00-overview.md`](docs/00-overview.md)
 - [`docs/01-architecture.md`](docs/01-architecture.md)
 - [`docs/02-zammad-setup.md`](docs/02-zammad-setup.md)

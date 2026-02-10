@@ -33,7 +33,7 @@ This repository provides:
 
 Out of scope by design:
 
-- exporting attachment binary payloads (attachments are metadata-only in snapshot/PDF)
+- exporting attachment binary payloads by default (attachments are metadata-only in snapshot/PDF; optional `pdf.include_attachment_binary` can write binaries to disk and the sidecar)
 - archive browsing/search UI
 - distributed durable queue
 - durable distributed idempotency store

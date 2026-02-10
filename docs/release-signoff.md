@@ -14,8 +14,8 @@ Release is approved pending completion of external deployment checks listed in
 
 ## What Was Verified
 
-- Promise coverage documented in `docs/promise-matrix.md` (statuses updated).
-- Gap closure tracked in `docs/gap-plan.md`:
+- Promise coverage documented in `audit/promise-matrix.md` when the audit folder is present (statuses updated).
+- Gap closure tracked in `audit/gap-plan.md` when present:
   - P0: TSA `trust_env` hardening behavior fixed and tested.
   - P1: fail-fast signing config now requires `signing.pfx_path` when signing is enabled.
   - P2 (feasible): deployment gates for `/metrics` network protection and CIFS runtime safety added.

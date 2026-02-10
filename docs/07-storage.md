@@ -7,6 +7,7 @@ This document describes how archive files are written and what storage assumptio
 Each successful ticket run writes:
 - one PDF file
 - one sidecar JSON file (`<pdf_filename>.json`)
+- optionally: attachment binaries in an `attachments/` subdir when `pdf.include_attachment_binary=true` (see [config-reference](config-reference.md)); the sidecar then includes an `attachments` array with `storage_path`, `article_id`, `attachment_id`, `filename`, and `sha256` per file.
 
 Output root is configured by:
 - `storage.root` / `STORAGE_ROOT`
@@ -14,6 +15,7 @@ Output root is configured by:
 Layout:
 - `<storage.root>/<archive_user>/<archive_path...>/<filename>.pdf`
 - sidecar next to PDF: `<filename>.pdf.json`
+- when attachment binary inclusion is enabled: `<same_dir>/attachments/<sanitized_name>` for each included attachment
 
 Path building and validation:
 - `src/zammad_pdf_archiver/adapters/storage/layout.py`

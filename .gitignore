@@ -33,3 +33,7 @@ Thumbs.db
 .idea/
 .vscode/
 .cursor/
+
+# Audit and iterative agent / improvement documentation (local use)
+audit/
+ralph-audit/
