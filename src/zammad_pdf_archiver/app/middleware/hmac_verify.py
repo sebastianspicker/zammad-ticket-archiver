@@ -55,7 +55,8 @@ def _missing_delivery_id() -> JSONResponse:
 
 
 def _parse_signature(value: str) -> tuple[bytes, type] | None:
-    """Parse X-Hub-Signature (sha1=<hex> or sha256=<hex>). Returns (digest_bytes, digest_constructor) or None."""
+    """Parse X-Hub-Signature (sha1=<hex> or sha256=<hex>).
+    Returns (digest_bytes, digest_constructor) or None."""
     try:
         algorithm, hex_digest = value.strip().split("=", 1)
     except ValueError:

@@ -11,4 +11,6 @@ def test_nfr10_no_redis_or_celery_in_dependencies() -> None:
     text = pyproject.read_text()
     forbidden = ("redis", "celery", "rabbitmq", "pika", "kombu")
     for word in forbidden:
-        assert word not in text.lower(), f"NFR10: optional queue dependency {word!r} must not be in pyproject"
+        assert word not in text.lower(), (
+            f"NFR10: optional queue dependency {word!r} must not be in pyproject"
+        )
