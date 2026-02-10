@@ -13,9 +13,11 @@ def test_nfr8_key_docs_exist() -> None:
         "01-architecture.md",
         "02-zammad-setup.md",
         "04-path-policy.md",
+        "06-signing-and-timestamp.md",
         "07-storage.md",
         "08-operations.md",
         "09-security.md",
+        "api.md",
         "config-reference.md",
     ]
     missing = [f for f in required if not (docs / f).is_file()]
