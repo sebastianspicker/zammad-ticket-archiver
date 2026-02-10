@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from pydantic import ValidationError
+
 from zammad_pdf_archiver.config.load import load_settings
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.config.validate import ConfigValidationError, validate_settings
@@ -140,6 +142,19 @@ def test_yaml_root_must_be_mapping(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         load_settings(config_path=config_path)
 
     assert "YAML root must be a mapping/object" in str(exc.value)
+
+
+def test_workflow_redis_backend_requires_redis_url() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        Settings.from_mapping(
+            {
+                "zammad": {"base_url": "https://z.example", "api_token": "t"},
+                "storage": {"root": "/mnt"},
+                "hardening": {"webhook": {"allow_unsigned": True}},
+                "workflow": {"idempotency_backend": "redis"},
+            }
+        )
+    assert "redis_url" in str(exc_info.value).lower() or "redis" in str(exc_info.value).lower()
 
 
 def test_validate_settings_rejects_invalid_log_level() -> None:
