@@ -40,7 +40,10 @@ def _test_settings_legacy_secret(storage_root: str, *, secret: str) -> Settings:
     )
 
 
-def _sign(body: bytes, secret: str) -> str:
+def _sign(body: bytes, secret: str, *, algorithm: str = "sha1") -> str:
+    if algorithm == "sha256":
+        digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        return f"sha256={digest}"
     digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha1).hexdigest()
     return f"sha1={digest}"
 
@@ -67,6 +70,30 @@ def test_valid_signature_passes(tmp_path, monkeypatch) -> None:
     )
     assert response.status_code == 202
     assert response.json() == {"accepted": True, "ticket_id": 123}
+
+
+def test_valid_sha256_signature_passes(tmp_path, monkeypatch) -> None:
+    secret = "test-secret"
+    app = create_app(_test_settings(str(tmp_path), secret=secret))
+    import zammad_pdf_archiver.app.routes.ingest as ingest_route
+
+    async def _stub_process_ticket(delivery_id, payload, settings) -> None:
+        return None
+
+    monkeypatch.setattr(ingest_route, "process_ticket", _stub_process_ticket)
+    client = TestClient(app)
+
+    body = b'{"ticket":{"id":456}}'
+    response = client.post(
+        "/ingest",
+        content=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature": _sign(body, secret, algorithm="sha256"),
+        },
+    )
+    assert response.status_code == 202
+    assert response.json() == {"accepted": True, "ticket_id": 456}
 
 
 def test_invalid_signature_is_rejected(tmp_path) -> None:

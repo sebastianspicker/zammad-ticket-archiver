@@ -11,9 +11,13 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from zammad_pdf_archiver.config.settings import Settings
 
 _SIGNATURE_HEADER = "X-Hub-Signature"
-_EXPECTED_ALGORITHM = "sha1"
 _INGEST_PATH = "/ingest"
 _DELIVERY_ID_HEADER = "X-Zammad-Delivery"
+
+_ALLOWED_ALGORITHMS: dict[str, tuple[int, type]] = {
+    "sha1": (hashlib.sha1().digest_size, hashlib.sha1),
+    "sha256": (hashlib.sha256().digest_size, hashlib.sha256),
+}
 
 
 def _secret_bytes(settings: Settings | None) -> bytes | None:
@@ -49,25 +53,28 @@ def _missing_delivery_id() -> JSONResponse:
     return JSONResponse(status_code=400, content={"detail": "missing_delivery_id"})
 
 
-def _parse_signature(value: str) -> bytes | None:
+def _parse_signature(value: str) -> tuple[bytes, type] | None:
+    """Parse X-Hub-Signature (sha1=<hex> or sha256=<hex>). Returns (digest_bytes, digest_constructor) or None."""
     try:
         algorithm, hex_digest = value.strip().split("=", 1)
     except ValueError:
         return None
 
-    if algorithm.lower() != _EXPECTED_ALGORITHM:
+    algo_lower = algorithm.strip().lower()
+    if algo_lower not in _ALLOWED_ALGORITHMS:
         return None
 
+    expected_size, digest_ctor = _ALLOWED_ALGORITHMS[algo_lower]
     hex_digest = hex_digest.strip()
     try:
         digest = bytes.fromhex(hex_digest)
     except ValueError:
         return None
 
-    if len(digest) != hashlib.sha1().digest_size:
+    if len(digest) != expected_size:
         return None
 
-    return digest
+    return (digest, digest_ctor)
 
 
 async def _read_body(receive: Receive, *, on_chunk: Callable[[bytes], None]) -> list[bytes]:
@@ -145,12 +152,13 @@ class HmacVerifyMiddleware:
             await _forbidden()(scope, receive, send)
             return
 
-        signature = _parse_signature(signature_raw)
-        if signature is None:
+        parsed = _parse_signature(signature_raw)
+        if parsed is None:
             await _forbidden()(scope, receive, send)
             return
 
-        mac = hmac.new(self._secret, digestmod=hashlib.sha1)
+        signature, digest_ctor = parsed
+        mac = hmac.new(self._secret, digestmod=digest_ctor)
         chunks = await _read_body(receive, on_chunk=mac.update)
         expected = mac.digest()
 
