@@ -62,6 +62,25 @@ def test_metrics_endpoint_is_not_exposed_when_disabled(tmp_path) -> None:
     assert resp.status_code == 404
 
 
+def test_metrics_requires_bearer_when_configured(tmp_path) -> None:
+    settings = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
+            "storage": {"root": str(tmp_path)},
+            "observability": {"metrics_enabled": True, "metrics_bearer_token": "secret-token"},
+            "hardening": {"webhook": {"allow_unsigned": True}},
+        }
+    )
+    app = create_app(settings)
+    client = TestClient(app)
+
+    assert client.get("/metrics").status_code == 401
+    assert client.get("/metrics", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    assert (
+        client.get("/metrics", headers={"Authorization": "Bearer secret-token"}).status_code == 200
+    )
+
+
 def test_ingest_success_increments_processed_total(tmp_path) -> None:
     app = create_app(_test_settings(str(tmp_path)))
     client = TestClient(app)
