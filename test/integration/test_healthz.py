@@ -31,3 +31,23 @@ def test_healthz_ok(tmp_path) -> None:
     datetime.fromisoformat(body["time"])
 
     assert response.headers.get("X-Request-Id")
+
+
+def test_healthz_omit_version(tmp_path) -> None:
+    settings = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
+            "storage": {"root": str(tmp_path)},
+            "observability": {"healthz_omit_version": True},
+        }
+    )
+    app = create_app(settings)
+    client = TestClient(app)
+
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "version" not in body
+    assert "service" not in body
+    assert "time" in body

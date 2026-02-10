@@ -128,6 +128,8 @@ class ObservabilitySettings(_BaseSection):
     metrics_enabled: bool = False
     # When set, GET /metrics requires Authorization: Bearer <this token> (constant-time compare).
     metrics_bearer_token: SecretStr | None = None
+    # When true, GET /healthz omits version and service name (reduces fingerprinting).
+    healthz_omit_version: bool = False
 
     @field_validator("log_format")
     @classmethod
@@ -334,6 +336,8 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("observability", {})["metrics_enabled"] = value
     if (value := env.get("METRICS_BEARER_TOKEN")):
         data.setdefault("observability", {})["metrics_bearer_token"] = value
+    if (value := env.get("HEALTHZ_OMIT_VERSION")):
+        data.setdefault("observability", {})["healthz_omit_version"] = value
 
     # Hardening
     if (value := env.get("RATE_LIMIT_ENABLED")):
