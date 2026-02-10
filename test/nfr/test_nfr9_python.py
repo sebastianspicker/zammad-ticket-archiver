@@ -18,7 +18,9 @@ def test_nfr9_pyproject_requires_python_312_plus() -> None:
             continue
         if in_project and line.startswith("requires-python"):
             value = line.split("=", 1)[1].strip().strip('"\'')
-            assert "3.12" in value or "3.13" in value, f"requires-python should be >=3.12, got {value}"
+            assert "3.12" in value or "3.13" in value, (
+                f"requires-python should be >=3.12, got {value}"
+            )
             return
         if in_project and line.startswith("["):
             break

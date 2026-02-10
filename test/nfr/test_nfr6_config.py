@@ -26,10 +26,14 @@ def test_nfr6_load_settings_from_yaml(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert settings.storage.root.as_posix() == "/mnt/archive"
 
 
-def test_nfr6_validate_settings_called_on_load(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_nfr6_validate_settings_called_on_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """NFR6: load_settings must run validate_settings (invalid config raises)."""
     monkeypatch.chdir(tmp_path)
-    for key in ("CONFIG_PATH", "ZAMMAD_BASE_URL", "ZAMMAD_API_TOKEN", "STORAGE_ROOT", "LOG_LEVEL"):
+    for key in (
+        "CONFIG_PATH", "ZAMMAD_BASE_URL", "ZAMMAD_API_TOKEN", "STORAGE_ROOT", "LOG_LEVEL"
+    ):
         monkeypatch.delenv(key, raising=False)
 
     yaml_path = tmp_path / "config.yaml"
