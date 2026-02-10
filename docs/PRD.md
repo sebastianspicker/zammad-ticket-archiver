@@ -216,8 +216,8 @@ Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage; 
 
 ### 8.2 Future considerations (not committed)
 
-- Durable idempotency (e.g. Redis or DB) for delivery ID.
-- Optional attachment binary inclusion (configurable, with size limits).
+- Durable idempotency (e.g. Redis or DB) for delivery ID: **Redis** optional backend is implemented; configure `idempotency_backend=redis` and `redis_url`.
+- Optional attachment binary inclusion (configurable, with size limits): **implemented**; set `pdf.include_attachment_binary=true` and optional per-file/total limits; binaries are written to an `attachments/` subdir and referenced in the audit sidecar.
 - Additional template variants or localization: **compact** variant is implemented; further variants can be added under `templates/<name>/`.
 - Other items above remain out of scope until explicitly added to this PRD and roadmap.
 
