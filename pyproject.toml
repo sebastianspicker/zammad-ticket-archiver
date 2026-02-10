@@ -53,6 +53,7 @@ dev = [
   "mypy>=1.10",
   "types-PyYAML",
 ]
+redis = ["redis>=5.0"]
 
 [project.scripts]
 zammad-pdf-archiver = "zammad_pdf_archiver.runtime:main"
