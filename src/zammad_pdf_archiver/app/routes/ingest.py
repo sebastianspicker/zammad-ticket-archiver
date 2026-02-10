@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
 import structlog
-from fastapi import APIRouter, BackgroundTasks, Body, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -27,7 +27,7 @@ class IngestBody(BaseModel):
     ticket_id: int | None = None
 
     @model_validator(mode="after")
-    def _require_ticket_id(self) -> "IngestBody":
+    def _require_ticket_id(self) -> IngestBody:
         tid = self._resolved_ticket_id()
         if tid is None or tid < 1:
             raise ValueError("Payload must contain ticket.id or ticket_id (positive integer)")
@@ -37,13 +37,6 @@ class IngestBody(BaseModel):
         if isinstance(self.ticket, dict):
             return coerce_ticket_id(self.ticket.get("id"))
         return coerce_ticket_id(self.ticket_id)
-
-
-def _extract_ticket_id(payload: dict[str, Any]) -> int | None:
-    ticket = payload.get("ticket")
-    if isinstance(ticket, dict):
-        return coerce_ticket_id(ticket.get("id"))
-    return coerce_ticket_id(payload.get("ticket_id"))
 
 
 async def _run_process_ticket_background(
