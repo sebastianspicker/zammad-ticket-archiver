@@ -15,6 +15,7 @@ _EXPLICIT_SENSITIVE_KEYS = frozenset(
         "webhook_hmac_secret",
         "pfx_password",
         "tsa_pass",
+        "metrics_bearer_token",
         # Common config-key style names.
         "api_token",
         "webhook_shared_secret",
