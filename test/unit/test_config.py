@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from pydantic import ValidationError
 
 from zammad_pdf_archiver.config.load import load_settings

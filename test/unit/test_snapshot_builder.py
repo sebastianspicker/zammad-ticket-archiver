@@ -6,15 +6,21 @@ from zammad_pdf_archiver.adapters.snapshot.build_snapshot import (
     build_snapshot,
     enrich_attachment_content,
 )
-from zammad_pdf_archiver.adapters.zammad.models import Article as ZammadArticle
+from zammad_pdf_archiver.adapters.zammad.models import (
+    Article as ZammadArticle,
+)
+from zammad_pdf_archiver.adapters.zammad.models import (
+    TagList,
+)
+from zammad_pdf_archiver.adapters.zammad.models import (
+    Ticket as ZammadTicket,
+)
 from zammad_pdf_archiver.domain.snapshot_models import (
     Article,
     AttachmentMeta,
     Snapshot,
     TicketMeta,
 )
-from zammad_pdf_archiver.adapters.zammad.models import TagList
-from zammad_pdf_archiver.adapters.zammad.models import Ticket as ZammadTicket
 
 
 class _FakeZammadClient:

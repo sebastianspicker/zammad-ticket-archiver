@@ -32,8 +32,8 @@ from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.audit import build_audit_record, compute_sha256
 from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
-from zammad_pdf_archiver.domain.path_policy import sanitize_segment
 from zammad_pdf_archiver.domain.idempotency import DeliveryIdStore, InMemoryTTLSet
+from zammad_pdf_archiver.domain.path_policy import sanitize_segment
 from zammad_pdf_archiver.domain.redis_delivery_id import RedisDeliveryIdStore
 from zammad_pdf_archiver.domain.state_machine import (
     PROCESSING_TAG,
@@ -63,7 +63,7 @@ log = structlog.get_logger(__name__)
 
 
 def _get_delivery_id_store(settings: Settings) -> DeliveryIdStore | None:
-    """Return the configured delivery-ID store, or None if idempotency is disabled (ttl<=0). Caller must hold _STORE_GUARD."""
+    """Delivery-ID store or None if idempotency off (ttl<=0). Caller must hold _STORE_GUARD."""
     ttl = int(settings.workflow.delivery_id_ttl_seconds)
     if ttl <= 0:
         return None

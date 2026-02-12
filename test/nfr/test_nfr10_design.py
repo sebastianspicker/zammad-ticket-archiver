@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 def test_nfr10_no_redis_or_celery_in_dependencies() -> None:
-    """NFR10: Design constraint: no Redis/Celery/RabbitMQ as required runtime deps (optional deps allowed)."""
+    """NFR10: No Redis/Celery/RabbitMQ as required runtime deps (optional allowed)."""
     repo_root = Path(__file__).resolve().parents[2]
     pyproject = repo_root / "pyproject.toml"
     data = tomllib.loads(pyproject.read_text())
