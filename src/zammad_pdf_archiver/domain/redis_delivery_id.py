@@ -18,7 +18,7 @@ class RedisDeliveryIdStore:
 
     def _client(self):  # noqa: ANN201
         try:
-            from redis.asyncio import Redis  # type: ignore[import-untyped]
+            from redis.asyncio import Redis  # type: ignore
         except ImportError as e:
             raise RuntimeError(
                 "Redis backend requires the redis package. "
