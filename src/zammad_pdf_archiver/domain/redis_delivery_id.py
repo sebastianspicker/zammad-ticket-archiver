@@ -1,4 +1,5 @@
-"""Redis-backed delivery-ID store for durable idempotency (PRD §8.2). Requires optional dependency: pip install zammad-pdf-archiver[redis]."""
+"""Redis-backed delivery-ID store for durable idempotency (PRD §8.2).
+Requires optional dependency: pip install zammad-pdf-archiver[redis]."""
 
 from __future__ import annotations
 
@@ -20,7 +21,8 @@ class RedisDeliveryIdStore:
             from redis.asyncio import Redis  # type: ignore[import-untyped]
         except ImportError as e:
             raise RuntimeError(
-                "Redis backend requires the redis package. Install with: pip install zammad-pdf-archiver[redis]"
+                "Redis backend requires the redis package. "
+                "Install with: pip install zammad-pdf-archiver[redis]"
             ) from e
         if self._redis is None:
             self._redis = Redis.from_url(self._redis_url, decode_responses=True)

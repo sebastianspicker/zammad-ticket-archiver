@@ -153,7 +153,8 @@ class AsyncZammadClient:
     async def get_attachment_content(
         self, ticket_id: int, article_id: int, attachment_id: int
     ) -> bytes:
-        """Download attachment binary. GET /api/v1/ticket_attachment/{ticket}/{article}/{attachment}."""
+        """Download attachment binary.
+        GET /api/v1/ticket_attachment/{ticket}/{article}/{attachment}."""
         path = f"api/v1/ticket_attachment/{ticket_id}/{article_id}/{attachment_id}"
         response = await self._request("GET", path, headers={"Accept": "*/*"})
         return response.content

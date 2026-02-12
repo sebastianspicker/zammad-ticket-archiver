@@ -38,7 +38,7 @@ class WorkflowSettings(_BaseSection):
     redis_url: str | None = None
 
     @model_validator(mode="after")
-    def _redis_required_when_backend_redis(self) -> "WorkflowSettings":
+    def _redis_required_when_backend_redis(self) -> WorkflowSettings:
         if self.idempotency_backend == "redis" and not (self.redis_url and self.redis_url.strip()):
             raise ValueError(
                 "workflow.idempotency_backend is 'redis' but workflow.redis_url is not set"

@@ -35,9 +35,9 @@ dependencies = [
   "httpx>=0.27",
   "structlog>=24.0",
   "prometheus-client>=0.20",
-  "weasyprint>=61.2,<62",
+  "weasyprint>=68.0,<69",
   "pydyf>=0.10,<0.11",
-  "cryptography>=42,<45",
+  "cryptography>=46.0.5",
   "pyhanko>=0.26,<0.28",
   "pyhanko-certvalidator>=0.26,<0.28",
 ]
