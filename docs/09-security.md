@@ -105,4 +105,4 @@ Operational controls required:
 
 ## 6. See also
 
-- Audit and improvement docs (security review, NFR implementation order, promise matrix, etc.) are kept in the `audit/` folder when used locally; that folder is gitignored.
+- `docs/BUGS_AND_FIXES.md` – known bugs and required fixes (including security-related items).

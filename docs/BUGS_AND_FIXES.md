@@ -26,7 +26,7 @@ List derived from documentation, known limitations, and operations runbooks. Eac
 
 **Fix (optional):**  
 - Document and recommend Redis as the default when avoiding duplicate processing matters.  
-- Or: Clearly document as “best-effort, process-local” and document behaviour on restart/scaling (partially already in README/PRD).
+- Or: Clearly document as "best-effort, process-local" and document behaviour on restart/scaling (partially already in README/PRD).
 
 **Sources:** README, `docs/08-operations.md`, PRD NFR10
 
@@ -38,7 +38,7 @@ List derived from documentation, known limitations, and operations runbooks. Eac
 
 **Impact:** In rare cases a ticket may be archived twice or left incomplete (e.g. stuck in `pdf:processing`).
 
-**Fix:** Describe more clearly in FAQ/operations when “stuck” `pdf:processing` occurs and how to recover manually (re-add trigger tag, remove `pdf:processing` if needed). No code change strictly required, but better visibility.
+**Fix:** Describe more clearly in FAQ/operations when "stuck" `pdf:processing` occurs and how to recover manually (re-add trigger tag, remove `pdf:processing` if needed). No code change strictly required, but better visibility.
 
 **Sources:** PRD 9.2, `docs/faq.md`, `docs/08-operations.md`
 
@@ -46,13 +46,13 @@ List derived from documentation, known limitations, and operations runbooks. Eac
 
 ### 4. [Bug] Large tickets fail when article limit is exceeded
 
-**Description:** If a ticket has more articles than `pdf.max_articles` (default 250), processing fails. The message may appear as “Rendering article limit exceeded” in the ticket note.
+**Description:** If a ticket has more articles than `pdf.max_articles` (default 250), processing fails. The message may appear as "Rendering article limit exceeded" in the ticket note.
 
 **Impact:** Tickets with very many articles end up in `pdf:error` even though they could be archived in principle.
 
 **Fix:**  
 - Increase the limit (`PDF_MAX_ARTICLES`) or set to 0 (unlimited).  
-- Optional: Instead of a hard limit, log a warning and continue with a capped article count (config option “cap and continue”).
+- Optional: Instead of a hard limit, log a warning and continue with a capped article count (config option "cap and continue").
 
 **Sources:** `docs/faq.md`, `docs/08-operations.md` (Rendering article limit exceeded)
 
@@ -83,7 +83,7 @@ Same as (1): Make the `archive_user` field name configurable so Zammad field nam
 
 **Description:** On permanent failures (e.g. missing `archive_path`, `allow_prefixes` violation, missing `archive_user` in `fixed` mode) the ticket is marked `pdf:error`. The exact cause should be clearly identifiable in the internal note and logs.
 
-**Fix:** Ensure all failure reasons (missing field, prefix policy, path sanitization) are reported with distinct codes/messages; optionally add short hints for typical fixes (e.g. “set archive_path” / “check allow_prefixes”).
+**Fix:** Ensure all failure reasons (missing field, prefix policy, path sanitization) are reported with distinct codes/messages; optionally add short hints for typical fixes (e.g. "set archive_path" / "check allow_prefixes").
 
 **Sources:** `docs/faq.md` (Permanent classification), `docs/04-path-policy.md`
 
@@ -91,11 +91,11 @@ Same as (1): Make the `archive_user` field name configurable so Zammad field nam
 
 ### 8. [Enhancement] Documentation: residual risks and deployment checklist
 
-**Description:** `docs/release-signoff.md` mentions external risks (CIFS durability, `/metrics` access control, TSA certificate trust). These should be visible to operators.
+**Description:** External risks (CIFS durability, `/metrics` access control, TSA certificate trust) should be visible to operators.
 
-**Fix:** Add a short section in `docs/08-operations.md` or `docs/09-security.md`: “Residual risks” plus reference to `docs/release-checklist.md` (deployment safety checks) so operators can find these points easily.
+**Fix:** Add a short section in `docs/08-operations.md` or `docs/09-security.md`: "Residual risks" plus reference to `docs/release-checklist.md` (deployment safety checks) so operators can find these points easily.
 
-**Sources:** `docs/release-signoff.md`, `docs/release-checklist.md`
+**Sources:** `docs/release-checklist.md`
 
 ---
 
@@ -103,15 +103,15 @@ Same as (1): Make the `archive_user` field name configurable so Zammad field nam
 
 **Description:** If the process is interrupted during processing, a ticket can remain stuck with `pdf:processing`.
 
-**Fix:** Recovery steps are already in FAQ/08-operations (clean tags, re-add trigger). Optional: Short “Stuck in pdf:processing” section in the README or a pointer to `docs/faq.md` under “Operational Notes”.
+**Fix:** Recovery steps are already in FAQ/08-operations (clean tags, re-add trigger). Optional: Short "Stuck in pdf:processing" section in the README or a pointer to `docs/faq.md` under "Operational Notes".
 
 **Sources:** `docs/faq.md`, `docs/08-operations.md`
 
 ---
 
-### 10. [Enhancement] Optional: article limit as “cap and continue”
+### 10. [Enhancement] Optional: article limit as "cap and continue"
 
-Same as (4): Instead of failing immediately when `max_articles` is exceeded, add an option to “cap and continue” (with a log warning) so large tickets can still be archived.
+Same as (4): Instead of failing immediately when `max_articles` is exceeded, add an option to "cap and continue" (with a log warning) so large tickets can still be archived.
 
 ---
 
@@ -120,11 +120,11 @@ Same as (4): Instead of failing immediately when `max_articles` is exceeded, add
 ### 11. [Bug] Ingest: `_resolved_ticket_id()` ignores top-level `ticket_id` when `ticket` is a dict
 
 **Description:** When the payload has a `ticket` object (even empty or with missing `ticket.id`), the handler uses only `ticket.id` and never falls back to top-level `ticket_id`, contradicting the validator message and causing 422 for valid shapes.  
-**Fix:** Unify precedence (e.g. prefer top-level `ticket_id` when present, or document and enforce “ticket.id or ticket_id” consistently).  
+**Fix:** Unify precedence (e.g. prefer top-level `ticket_id` when present, or document and enforce "ticket.id or ticket_id" consistently).  
 ### 12. [Bug] HMAC: Allow unsigned with no secret fully disables webhook auth
 
 **Description:** If no webhook secret is set and `hardening.webhook.allow_unsigned` is true, all requests pass without signature verification. Easy to enable by mistake or via config/secret loading failure.  
-**Fix:** Require explicit opt-in (e.g. separate “allow unsigned only when secret is set” vs “allow unsigned when no secret”); document and harden default.  
+**Fix:** Require explicit opt-in (e.g. separate "allow unsigned only when secret is set" vs "allow unsigned when no secret"); document and harden default.  
 ### 13. [Bug] Path/storage: Symlink confinement is best-effort and TOCTOU
 
 **Description:** Symlink checks run after `ensure_dir(parent)`; a symlink can be introduced between check and write, and `mkdir` can create directories outside `storage_root` before the later check.
@@ -149,9 +149,9 @@ Same as (4): Instead of failing immediately when `max_articles` is exceeded, add
 
 **Description:** If the task is cancelled during `await _release_ticket()`, the ticket ID may never be removed from `_IN_FLIGHT_TICKETS`, causing permanent skip for that ticket in this process.  
 **Fix:** Ensure release runs in a `finally` that re-raises `CancelledError` after release; or use a cancellation-safe guard pattern.  
-### 17. [Bug] Idempotency: Redis “claim” is GET then SET, not atomic
+### 17. [Bug] Idempotency: Redis "claim" is GET then SET, not atomic
 
-**Description:** With Redis backend, `_claim_delivery_id` does `seen()` then `add()`; under concurrency across workers both can see “not seen” and both add, allowing duplicate processing.  
+**Description:** With Redis backend, `_claim_delivery_id` does `seen()` then `add()`; under concurrency across workers both can see "not seen" and both add, allowing duplicate processing.  
 **Fix:** Use Redis SETNX or a single Lua/transaction so claim is atomic.  
 ---
 
@@ -367,4 +367,4 @@ Same as (4): Instead of failing immediately when `max_articles` is exceeded, add
 - **Labels:** `bug`, `enhancement`, `documentation`, `operational` as appropriate.
 - **Title:** Use the **[Bug]** / **[Enhancement]** part as a prefix or label.
 - **Body:** Copy the relevant section (description, impact, fix, sources) into the issue.
-- The **quick reference** table can be added as a comment to a meta-issue “Common issues / Troubleshooting” or linked from the README.
+- The **quick reference** table can be added as a comment to a meta-issue "Common issues / Troubleshooting" or linked from the README.

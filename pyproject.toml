@@ -24,8 +24,6 @@ classifiers = [
   "Typing :: Typed",
 ]
 
-# NOTE: Dependencies are placeholders for upcoming work packages.
-# No business logic is implemented yet.
 dependencies = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.27",

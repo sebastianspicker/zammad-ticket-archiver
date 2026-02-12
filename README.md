@@ -102,11 +102,19 @@ cp .env.example .env
 make dev
 ```
 
-4. Run checks:
+4. Run validation (lint, test, type-check, build):
 
 ```bash
 make lint
 make test
+mypy . --config-file pyproject.toml
+python -m build
+```
+
+Optional smoke test (requires env and optional services):
+
+```bash
+bash scripts/ci/smoke-test.sh
 ```
 
 Endpoints:
@@ -147,7 +155,18 @@ Operational docs:
 - [`docs/08-operations.md`](docs/08-operations.md)
 - [`docs/09-security.md`](docs/09-security.md)
 
-## Full Documentation Index
+## Validation commands
+
+| Action | Command |
+|--------|--------|
+| Lint | `make lint` (ruff) |
+| Test | `make test` (pytest) |
+| Type-check | `mypy . --config-file pyproject.toml` |
+| Build | `python -m build` (sdist + wheel) |
+| Smoke test | `bash scripts/ci/smoke-test.sh` (optional; needs env) |
+| Dev run | `make dev` (Docker Compose dev stack) |
+
+## Documentation
 
 - [`docs/PRD.md`](docs/PRD.md) – Product Requirements Document
 - [`docs/00-overview.md`](docs/00-overview.md)
@@ -163,3 +182,6 @@ Operational docs:
 - [`docs/api.md`](docs/api.md)
 - [`docs/config-reference.md`](docs/config-reference.md)
 - [`docs/faq.md`](docs/faq.md)
+- [`docs/BUGS_AND_FIXES.md`](docs/BUGS_AND_FIXES.md) – Known bugs and required fixes (must be kept)
+- [`docs/release-checklist.md`](docs/release-checklist.md) – Release and deployment checklist
+- [`docs/deploy.md`](docs/deploy.md) – Production deployment

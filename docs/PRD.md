@@ -5,7 +5,7 @@
 **Status:** Living document (aligned with current implementation and docs)  
 **Last updated:** 2026-02-10
 
-NFR verification tests live in `test/nfr/`. Implementation order and per-NFR guidance are maintained in the `audit/` folder (for local and agent use; `audit/` is gitignored).
+NFR verification tests live in `test/nfr/`.
 
 ---
 
