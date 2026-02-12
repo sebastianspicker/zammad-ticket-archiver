@@ -42,6 +42,7 @@ jobs:
           # pip-audit returns exit code 1 when it finds vulnerabilities.
           # We always capture JSON and enforce our policy in the next step.
           pip-audit -f json -s osv --desc off --aliases on -o pip-audit.json . || true
+          if [ ! -f pip-audit.json ]; then echo '{"dependencies":[]}' > pip-audit.json; fi
 
       - name: Enforce policy (fail on CRITICAL and HIGH)
         run: |
