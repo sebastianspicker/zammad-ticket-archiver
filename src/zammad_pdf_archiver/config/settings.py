@@ -179,7 +179,7 @@ class BodySizeLimitSettings(_BaseSection):
 
 class WebhookHardeningSettings(_BaseSection):
     # When true and a secret is set: requests without signature are allowed (e.g. for testing).
-    # When no secret is set: allow_unsigned alone is ignored; use allow_unsigned_when_no_secret (Bug #12).
+    # When no secret: allow_unsigned is ignored; use allow_unsigned_when_no_secret (Bug #12).
     allow_unsigned: bool = False
     # Explicit opt-in to allow /ingest when no HMAC secret is configured (insecure; dev/local only).
     allow_unsigned_when_no_secret: bool = False

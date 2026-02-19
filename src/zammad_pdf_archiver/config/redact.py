@@ -48,7 +48,7 @@ _JSON_STYLE_SECRET_RE = re.compile(
 _ENV_VAR_SECRET_RE = re.compile(
     r"(?im)^([A-Za-z_][A-Za-z0-9_]*(?:API[_-]?TOKEN|TOKEN|PASSWORD|SECRET|PASSWD|PFX_PASS|TSA_PASS)\s*=\s*)([^\s#]+)"
 )
-# Bug #42: api_key / apikey in free-form key=value (already in _SENSITIVE_KEY_FRAGMENTS; add explicit pattern).
+# Bug #42: api_key/apikey in free-form key=value (explicit pattern).
 _API_KEY_KV_RE = re.compile(r"(?i)\b(api[_-]?key|apikey)\s*[:=]\s*([^\s,;]+)")
 
 

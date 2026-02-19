@@ -1,4 +1,4 @@
-"""Safe URL fetcher for WeasyPrint: blocks file:// outside template root and all network (Bug #18)."""
+"""Safe URL fetcher for WeasyPrint: blocks file:// outside template root (Bug #18)."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ class _SafeURLFetcher:
 
     def fetch(self, url: str, headers=None):
         from weasyprint.urls import (  # type: ignore[import-untyped]
+            FatalURLFetchingError,
             URLFetcher,
             URLFetcherResponse,
-            FatalURLFetchingError,
         )
 
         parsed = urlparse(url)

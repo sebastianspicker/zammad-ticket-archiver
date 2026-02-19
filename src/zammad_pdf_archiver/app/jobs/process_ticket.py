@@ -245,13 +245,19 @@ def _error_code_and_hint(exc: BaseException) -> tuple[str, str]:
     if "allow_prefixes" in msg and "not allowed" in msg:
         return ("path_not_allowed", "Check allow_prefixes; archive_path must match a prefix.")
     if "allow_prefixes is empty" in msg:
-        return ("allow_prefixes_empty", "Configure at least one allow_prefixes entry or leave unset.")
+        return (
+            "allow_prefixes_empty",
+            "Configure at least one allow_prefixes entry or leave unset.",
+        )
     if "owner.login" in msg or "updated_by.login" in msg:
         return ("missing_user_login", "Ensure ticket has owner/updated_by with login.")
     if "archive_user" in msg or "archive_user_mode" in msg:
         return ("missing_archive_user", "Set custom_fields.archive_user for fixed mode.")
     if "filename" in msg and ("pattern" in msg or "segment" in msg or "must not" in msg):
-        return ("invalid_filename", "Check filename_pattern and path policy (no ., .., separators).")
+        return (
+            "invalid_filename",
+            "Check filename_pattern and path policy (no ., .., separators).",
+        )
     if "path segment" in msg or "path separators" in msg or "dot segments" in msg:
         return ("path_validation", "Check archive_path segments (no ., .., empty, or separators).")
     return ("permanent_error", "")

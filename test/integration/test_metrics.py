@@ -18,7 +18,12 @@ def _test_settings(storage_root: str) -> Settings:
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": storage_root},
             "observability": {"metrics_enabled": True},
-            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
+            "hardening": {
+                "webhook": {
+                    "allow_unsigned": True,
+                    "allow_unsigned_when_no_secret": True,
+                }
+            },
         }
     )
 
@@ -28,7 +33,12 @@ def _test_settings_metrics_disabled(storage_root: str) -> Settings:
         {
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": storage_root},
-            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
+            "hardening": {
+                "webhook": {
+                    "allow_unsigned": True,
+                    "allow_unsigned_when_no_secret": True,
+                }
+            },
         }
     )
 
@@ -68,7 +78,12 @@ def test_metrics_requires_bearer_when_configured(tmp_path) -> None:
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": str(tmp_path)},
             "observability": {"metrics_enabled": True, "metrics_bearer_token": "secret-token"},
-            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
+            "hardening": {
+                "webhook": {
+                    "allow_unsigned": True,
+                    "allow_unsigned_when_no_secret": True,
+                }
+            },
         }
     )
     app = create_app(settings)

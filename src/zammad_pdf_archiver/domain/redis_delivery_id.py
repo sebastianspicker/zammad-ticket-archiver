@@ -41,7 +41,7 @@ class RedisDeliveryIdStore:
         await redis.set(self._key(key), "1", ex=self._ttl_seconds)
 
     async def try_claim(self, key: str) -> bool:
-        """Atomically claim key (SET NX EX). Returns True if claimed, False if already seen (Bug #17)."""
+        """Atomically claim key (SET NX EX). True if claimed, False if seen (Bug #17)."""
         redis = self._client()
         full_key = self._key(key)
         # SET key "1" NX EX ttl: set only if not exists, with TTL; return True if key was set.

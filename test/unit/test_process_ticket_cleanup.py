@@ -17,7 +17,12 @@ def _settings(storage_root: Path) -> Settings:
         {
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": str(storage_root)},
-            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
+            "hardening": {
+                "webhook": {
+                    "allow_unsigned": True,
+                    "allow_unsigned_when_no_secret": True,
+                }
+            },
         }
     )
 

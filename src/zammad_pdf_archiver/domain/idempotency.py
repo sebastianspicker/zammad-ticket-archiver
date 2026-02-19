@@ -17,7 +17,7 @@ class DeliveryIdStore(Protocol):
         ...
 
     async def try_claim(self, key: str) -> bool:
-        """Atomically claim key if not yet seen. Return True if claimed, False if already seen (Bug #17)."""
+        """Atomically claim key if not yet seen. True if claimed, False if seen (Bug #17)."""
         ...
 
 
