@@ -149,7 +149,7 @@ def test_workflow_redis_backend_requires_redis_url() -> None:
             {
                 "zammad": {"base_url": "https://z.example", "api_token": "t"},
                 "storage": {"root": "/mnt"},
-                "hardening": {"webhook": {"allow_unsigned": True}},
+                "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
                 "workflow": {"idempotency_backend": "redis"},
             }
         )
@@ -162,7 +162,7 @@ def test_pdf_attachment_binary_settings_loaded() -> None:
         {
             "zammad": {"base_url": "https://z.example", "api_token": "t"},
             "storage": {"root": "/mnt"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
     assert settings.pdf.include_attachment_binary is False
@@ -173,7 +173,7 @@ def test_pdf_attachment_binary_settings_loaded() -> None:
         {
             "zammad": {"base_url": "https://z.example", "api_token": "t"},
             "storage": {"root": "/mnt"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
             "pdf": {
                 "include_attachment_binary": True,
                 "max_attachment_bytes_per_file": 1024,
@@ -192,7 +192,7 @@ def test_validate_settings_rejects_invalid_log_level() -> None:
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": "/mnt/archive"},
             "observability": {"log_level": "VERBOSE"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -223,7 +223,7 @@ def test_validate_settings_allows_unsigned_webhooks_when_enabled() -> None:
         {
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": "/mnt/archive"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -236,7 +236,7 @@ def test_validate_settings_rejects_plain_http_upstream_by_default() -> None:
         {
             "zammad": {"base_url": "http://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": "/mnt/archive"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -255,7 +255,7 @@ def test_validate_settings_rejects_insecure_tls_by_default() -> None:
                 "verify_tls": False,
             },
             "storage": {"root": "/mnt/archive"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -270,7 +270,7 @@ def test_validate_settings_rejects_loopback_upstream_by_default() -> None:
         {
             "zammad": {"base_url": "https://127.0.0.1", "api_token": "test-token"},
             "storage": {"root": "/mnt/archive"},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -288,7 +288,7 @@ def test_validate_settings_allows_loopback_upstream_when_explicitly_enabled() ->
             "zammad": {"base_url": "https://127.0.0.1", "api_token": "test-token"},
             "storage": {"root": "/mnt/archive"},
             "hardening": {
-                "webhook": {"allow_unsigned": True},
+                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
                 "transport": {"allow_local_upstreams": True},
             },
         }

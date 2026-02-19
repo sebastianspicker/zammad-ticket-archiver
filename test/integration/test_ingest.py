@@ -13,7 +13,7 @@ def _test_settings(storage_root: str) -> Settings:
         {
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": storage_root},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -24,7 +24,7 @@ def _test_settings_require_delivery_id(storage_root: str) -> Settings:
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": storage_root},
             "workflow": {"delivery_id_ttl_seconds": 3600},
-            "hardening": {"webhook": {"allow_unsigned": True, "require_delivery_id": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True, "require_delivery_id": True}},
         }
     )
 
@@ -105,7 +105,7 @@ def test_ingest_rejects_missing_delivery_id_when_required(tmp_path) -> None:
 
     response = client.post("/ingest", json={"ticket": {"id": 123}})
     assert response.status_code == 400
-    assert response.json() == {"detail": "missing_delivery_id"}
+    assert response.json() == {"detail": "missing_delivery_id", "code": "missing_delivery_id"}
     assert response.headers.get("X-Request-Id")
 
 

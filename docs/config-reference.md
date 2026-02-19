@@ -61,8 +61,9 @@ Required unless overridden by explicit unsafe/test options:
 
 | Key | Default | Flat env alias | Description |
 |---|---|---|---|
-| `fields.archive_path` | `archive_path` | `FIELDS_ARCHIVE_PATH` | ticket custom field name |
-| `fields.archive_user_mode` | `archive_user_mode` | `FIELDS_ARCHIVE_USER_MODE` | ticket custom field name |
+| `fields.archive_path` | `archive_path` | `FIELDS_ARCHIVE_PATH` | ticket custom field name for archive path |
+| `fields.archive_user_mode` | `archive_user_mode` | `FIELDS_ARCHIVE_USER_MODE` | ticket custom field name for user mode |
+| `fields.archive_user` | `archive_user` | `FIELDS_ARCHIVE_USER` | ticket custom field name for fixed user (when mode is `fixed`) |
 
 ### `storage`
 
@@ -76,7 +77,7 @@ Required unless overridden by explicit unsafe/test options:
 
 | Key | Default | Flat env alias | Description |
 |---|---|---|---|
-| `storage.path_policy.allow_prefixes` | `[]` | none | optional allowed path prefixes |
+| `storage.path_policy.allow_prefixes` | `null` | none | allowed path prefixes; `null` = no restriction, `[]` = no path allowed |
 | `storage.path_policy.filename_pattern` | `Ticket-{ticket_number}_{timestamp_utc}.pdf` | none | output filename template |
 | `storage.path_policy.sanitize.replace_whitespace` | `_` | none | compatibility setting |
 | `storage.path_policy.sanitize.strip_control_chars` | `true` | none | compatibility setting |
@@ -89,6 +90,7 @@ Required unless overridden by explicit unsafe/test options:
 | `pdf.locale` | `de_DE` | `PDF_LOCALE`, `RENDER_LOCALE` | locale setting (template-dependent) |
 | `pdf.timezone` | `Europe/Berlin` | `PDF_TIMEZONE`, `RENDER_TIMEZONE` | timezone setting (template-dependent) |
 | `pdf.max_articles` | `250` | `PDF_MAX_ARTICLES` | max article count (`0` disables limit) |
+| `pdf.article_limit_mode` | `fail` | `PDF_ARTICLE_LIMIT_MODE` | `fail` (raise when over limit) or `cap_and_continue` (truncate and warn) |
 | `pdf.include_attachment_binary` | `false` | `PDF_INCLUDE_ATTACHMENT_BINARY` | include attachment binaries in snapshot/storage (PRD §8.2) |
 | `pdf.max_attachment_bytes_per_file` | `10485760` | `PDF_MAX_ATTACHMENT_BYTES_PER_FILE` | max bytes per attachment when including binary |
 | `pdf.max_total_attachment_bytes` | `52428800` | `PDF_MAX_TOTAL_ATTACHMENT_BYTES` | max total attachment bytes per ticket |

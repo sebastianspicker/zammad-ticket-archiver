@@ -6,9 +6,9 @@ from collections.abc import Callable
 from typing import Any
 
 from starlette.datastructures import Headers
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
 
 _SIGNATURE_HEADER = "X-Hub-Signature"
@@ -41,17 +41,17 @@ def _secret_bytes(settings: Settings | None) -> bytes | None:
     return None
 
 
-def _forbidden() -> JSONResponse:
-    return JSONResponse(status_code=403, content={"detail": "forbidden"})
+def _forbidden():
+    return api_error(403, "forbidden", code="forbidden")
 
 
-def _service_misconfigured() -> JSONResponse:
+def _service_misconfigured():
     # Fail closed: running without webhook auth is almost always a production footgun.
-    return JSONResponse(status_code=503, content={"detail": "webhook_auth_not_configured"})
+    return api_error(503, "webhook_auth_not_configured", code="webhook_auth_not_configured")
 
 
-def _missing_delivery_id() -> JSONResponse:
-    return JSONResponse(status_code=400, content={"detail": "missing_delivery_id"})
+def _missing_delivery_id():
+    return api_error(400, "missing_delivery_id", code="missing_delivery_id")
 
 
 def _parse_signature(value: str) -> tuple[bytes, type] | None:
@@ -79,14 +79,29 @@ def _parse_signature(value: str) -> tuple[bytes, type] | None:
     return (digest, digest_ctor)
 
 
-async def _read_body(receive: Receive, *, on_chunk: Callable[[bytes], None]) -> list[bytes]:
+async def _drain_receive(receive: Receive) -> None:
+    """Drain the request body so the connection is left in a clean state (Bug #27)."""
+    while True:
+        message = await receive()
+        if message.get("type") == "http.disconnect":
+            return
+        if message.get("type") == "http.request" and not message.get("more_body", False):
+            return
+
+
+async def _read_body(
+    receive: Receive, *, on_chunk: Callable[[bytes], None]
+) -> tuple[list[bytes], bool]:
+    """
+    Read body and update MAC. Returns (chunks, disconnected).
+    If disconnected is True, client disconnected during read (Bug #28: treat as auth failure).
+    """
     chunks: list[bytes] = []
     while True:
         message = await receive()
         message_type = message.get("type")
         if message_type == "http.disconnect":
-            # Client disconnected before request body completed; abort body read.
-            return chunks
+            return (chunks, True)
         if message_type != "http.request":
             continue
 
@@ -96,7 +111,7 @@ async def _read_body(receive: Receive, *, on_chunk: Callable[[bytes], None]) -> 
             on_chunk(body)
 
         if not message.get("more_body", False):
-            return chunks
+            return (chunks, False)
 
 
 def _replay_receive(chunks: list[bytes]) -> Receive:
@@ -122,6 +137,11 @@ class HmacVerifyMiddleware:
         self._allow_unsigned = (
             bool(getattr(webhook, "allow_unsigned", False)) if settings else False
         )
+        self._allow_unsigned_when_no_secret = (
+            bool(getattr(webhook, "allow_unsigned_when_no_secret", False))
+            if settings
+            else False
+        )
         self._require_delivery_id = (
             bool(getattr(webhook, "require_delivery_id", False)) if settings else False
         )
@@ -143,7 +163,8 @@ class HmacVerifyMiddleware:
             return
 
         if not self._secret:
-            if self._allow_unsigned:
+            # Bug #12: require explicit allow_unsigned_when_no_secret to allow without secret.
+            if self._allow_unsigned and self._allow_unsigned_when_no_secret:
                 await self.app(scope, receive, send)
             else:
                 await _service_misconfigured()(scope, receive, send)
@@ -151,21 +172,28 @@ class HmacVerifyMiddleware:
 
         signature_raw = headers.get(_SIGNATURE_HEADER)
         if not signature_raw:
+            await _drain_receive(receive)
             await _forbidden()(scope, receive, send)
             return
 
         parsed = _parse_signature(signature_raw)
         if parsed is None:
+            await _drain_receive(receive)
             await _forbidden()(scope, receive, send)
             return
 
         signature, digest_ctor = parsed
         mac = hmac.new(self._secret, digestmod=digest_ctor)
-        chunks = await _read_body(receive, on_chunk=mac.update)
-        expected = mac.digest()
+        chunks, disconnected = await _read_body(receive, on_chunk=mac.update)
+        if disconnected:
+            await _drain_receive(receive)
+            await _forbidden()(scope, receive, send)
+            return
 
+        expected = mac.digest()
         if not hmac.compare_digest(signature, expected):
-            await _forbidden()(scope, _replay_receive([]), send)
+            await _drain_receive(receive)
+            await _forbidden()(scope, receive, send)
             return
 
         await self.app(scope, _replay_receive(chunks), send)

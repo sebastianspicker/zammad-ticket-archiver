@@ -4,9 +4,9 @@ import asyncio
 from dataclasses import dataclass
 from time import monotonic
 
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
 
 _INGEST_PATH = "/ingest"
@@ -96,8 +96,8 @@ def _client_key(scope: Scope, header_name: str | None) -> str:
     return _client_key_from_scope(scope)
 
 
-def _rate_limited() -> JSONResponse:
-    return JSONResponse(status_code=429, content={"detail": "rate_limited"})
+def _rate_limited():
+    return api_error(429, "rate_limited", code="rate_limited")
 
 
 class RateLimitMiddleware:

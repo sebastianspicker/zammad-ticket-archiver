@@ -10,6 +10,7 @@ from asn1crypto import tsp  # type: ignore[import-untyped]
 from pyhanko.sign.timestamps.api import TimeStamper
 from pyhanko.sign.timestamps.common_utils import set_tsp_headers
 
+from zammad_pdf_archiver.adapters.http_util import timeouts_for
 from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
 
 
@@ -94,7 +95,7 @@ class _HttpxRFC3161TimeStamper(TimeStamper):
             if self._config.auth is not None:
                 post_kwargs["auth"] = self._config.auth
             async with httpx.AsyncClient(
-                timeout=_timeouts(self._config.timeout_seconds),
+                timeout=timeouts_for(self._config.timeout_seconds),
                 limits=httpx.Limits(max_connections=2, max_keepalive_connections=1),
                 verify=verify,
                 trust_env=self._config.trust_env,
@@ -141,7 +142,3 @@ def build_timestamper(settings: Any) -> TimeStamper:
     return _HttpxRFC3161TimeStamper(config)
 
 
-def _timeouts(timeout_seconds: float) -> httpx.Timeout:
-    total = float(timeout_seconds)
-    connect = min(5.0, total)
-    return httpx.Timeout(connect=connect, read=total, write=total, pool=connect)

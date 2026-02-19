@@ -50,6 +50,10 @@ def build_target_dir(
     validate_segments([user_safe], max_depth=1)
     validate_segments(segs_safe)
 
+    # Bug #30: empty list means no path allowed (allowlist is explicit).
+    if allow_prefixes is not None and len(allow_prefixes) == 0:
+        raise ValueError("allow_prefixes is empty; no archive path allowed")
+
     if allow_prefixes:
         allowed: list[list[str]] = []
         for prefix in allow_prefixes:
@@ -111,6 +115,10 @@ def build_filename_from_pattern(
     rendered = rendered.strip()
     if not rendered:
         raise ValueError("filename_pattern produced an empty filename")
+
+    # Bug #31: reject dot segments and enforce single-segment length.
+    if rendered in (".", ".."):
+        raise ValueError("filename must not be '.' or '..'")
 
     # Disallow separators explicitly; patterns should not create directories.
     if "/" in rendered or "\\" in rendered or "\x00" in rendered:

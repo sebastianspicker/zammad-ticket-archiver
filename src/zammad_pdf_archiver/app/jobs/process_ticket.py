@@ -30,11 +30,16 @@ from zammad_pdf_archiver.adapters.zammad.errors import (
 from zammad_pdf_archiver.app.jobs.retry_policy import classify
 from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
 from zammad_pdf_archiver.config.settings import Settings
-from zammad_pdf_archiver.domain.audit import build_audit_record, compute_sha256
+from zammad_pdf_archiver.domain.audit import (
+    _format_timestamp_utc,
+    build_audit_record,
+    compute_sha256,
+)
 from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
 from zammad_pdf_archiver.domain.idempotency import DeliveryIdStore, InMemoryTTLSet
 from zammad_pdf_archiver.domain.path_policy import sanitize_segment
 from zammad_pdf_archiver.domain.redis_delivery_id import RedisDeliveryIdStore
+from zammad_pdf_archiver.domain.snapshot_models import Snapshot
 from zammad_pdf_archiver.domain.state_machine import (
     PROCESSING_TAG,
     TRIGGER_TAG,
@@ -44,6 +49,7 @@ from zammad_pdf_archiver.domain.state_machine import (
     should_process,
 )
 from zammad_pdf_archiver.domain.ticket_id import coerce_ticket_id
+from zammad_pdf_archiver.domain.ticket_utils import ticket_custom_fields
 from zammad_pdf_archiver.observability.metrics import (
     failed_total,
     processed_total,
@@ -92,10 +98,7 @@ async def _claim_delivery_id(settings: Settings, delivery_id: str) -> bool:
         store = _get_delivery_id_store(settings)
         if store is None:
             return True
-        if await store.seen(delivery_id):
-            return False
-        await store.add(delivery_id)
-        return True
+        return await store.try_claim(delivery_id)
 
 
 async def _try_acquire_ticket(ticket_id: int) -> bool:
@@ -120,16 +123,6 @@ def _extract_ticket_id(payload: dict[str, Any]) -> int | None:
     return coerce_ticket_id(value)
 
 
-def _ticket_custom_fields(ticket: Any) -> dict[str, Any]:
-    prefs = getattr(ticket, "preferences", None)
-    if prefs is None:
-        return {}
-    fields = getattr(prefs, "custom_fields", None)
-    if isinstance(fields, dict):
-        return fields
-    return {}
-
-
 def _require_nonempty(value: Any, *, field: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field} must be a string")
@@ -145,6 +138,7 @@ def _determine_username(
     payload: dict[str, Any],
     custom_fields: dict[str, Any],
     mode_field_name: str,
+    archive_user_field_name: str = "archive_user",
 ) -> str:
     raw_mode = custom_fields.get(mode_field_name)
     mode = str(raw_mode).strip() if raw_mode is not None else "owner"
@@ -168,8 +162,8 @@ def _determine_username(
 
     if mode == "fixed":
         return _require_nonempty(
-            custom_fields.get("archive_user"),
-            field="custom_fields.archive_user",
+            custom_fields.get(archive_user_field_name),
+            field=f"custom_fields.{archive_user_field_name}",
         )
 
     raise ValueError(f"unsupported archive_user_mode: {mode!r}")
@@ -206,11 +200,6 @@ def _now_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def _format_timestamp_utc(dt: datetime) -> str:
-    # ISO 8601 with "Z" suffix.
-    return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
 def _success_note_html(
     *,
     storage_dir: str,
@@ -244,6 +233,30 @@ def _success_note_html(
     )
 
 
+def _error_code_and_hint(exc: BaseException) -> tuple[str, str]:
+    """Return (stable_code, short_hint) for permanent failures (Bug #7)."""
+    msg = str(exc).strip().lower()
+    if "archive_path is missing" in msg or "archive_path" in msg and "missing" in msg:
+        return ("missing_archive_path", "Set custom_fields.archive_path on the ticket.")
+    if "archive_path must not be empty" in msg or "all segments were empty" in msg:
+        return ("empty_archive_path", "Set archive_path to at least one non-empty segment.")
+    if "archive_path must be a string" in msg or "archive_path[" in msg:
+        return ("invalid_archive_path", "Use a string or list of strings for archive_path.")
+    if "allow_prefixes" in msg and "not allowed" in msg:
+        return ("path_not_allowed", "Check allow_prefixes; archive_path must match a prefix.")
+    if "allow_prefixes is empty" in msg:
+        return ("allow_prefixes_empty", "Configure at least one allow_prefixes entry or leave unset.")
+    if "owner.login" in msg or "updated_by.login" in msg:
+        return ("missing_user_login", "Ensure ticket has owner/updated_by with login.")
+    if "archive_user" in msg or "archive_user_mode" in msg:
+        return ("missing_archive_user", "Set custom_fields.archive_user for fixed mode.")
+    if "filename" in msg and ("pattern" in msg or "segment" in msg or "must not" in msg):
+        return ("invalid_filename", "Check filename_pattern and path policy (no ., .., separators).")
+    if "path segment" in msg or "path separators" in msg or "dot segments" in msg:
+        return ("path_validation", "Check archive_path segments (no ., .., empty, or separators).")
+    return ("permanent_error", "")
+
+
 def _error_note_html(
     *,
     classification: str,
@@ -252,22 +265,37 @@ def _error_note_html(
     request_id: str | None,
     delivery_id: str | None,
     timestamp_utc: str,
+    code: str = "",
+    hint: str = "",
 ) -> str:
     rid = escape(request_id or "unknown")
     did = escape(delivery_id or "none")
     cls = escape(classification)
     msg = escape(message)
     act = escape(action)
+    code_esc = escape(code) if code else ""
+    hint_esc = escape(hint) if hint else ""
+    items = [
+        f"<li>classification: <code>{cls}</code></li>",
+        f"<li>error: <code>{msg}</code></li>",
+        f"<li>action: <code>{act}</code></li>",
+    ]
+    if code_esc:
+        items.append(f"<li>code: <code>{code_esc}</code></li>")
+    if hint_esc:
+        items.append(f"<li>hint: <code>{hint_esc}</code></li>")
+    items.extend(
+        [
+            f"<li>request_id: <code>{rid}</code></li>",
+            f"<li>delivery_id: <code>{did}</code></li>",
+            f"<li>time_utc: <code>{timestamp_utc}</code></li>",
+        ]
+    )
     return (
         "<p><strong>PDF archiver error (v0.1)</strong></p>"
         "<ul>"
-        f"<li>classification: <code>{cls}</code></li>"
-        f"<li>error: <code>{msg}</code></li>"
-        f"<li>action: <code>{act}</code></li>"
-        f"<li>request_id: <code>{rid}</code></li>"
-        f"<li>delivery_id: <code>{did}</code></li>"
-        f"<li>time_utc: <code>{timestamp_utc}</code></li>"
-        "</ul>"
+        + "".join(items)
+        + "</ul>"
     )
 
 
@@ -386,12 +414,13 @@ async def process_ticket(
 
                     await apply_processing(client, ticket_id, trigger_tag=trigger_tag)
 
-                    custom_fields = _ticket_custom_fields(ticket)
+                    custom_fields = ticket_custom_fields(ticket)
                     username = _determine_username(
                         ticket=ticket,
                         payload=payload,
                         custom_fields=custom_fields,
                         mode_field_name=settings.fields.archive_user_mode,
+                        archive_user_field_name=settings.fields.archive_user,
                     )
 
                     segments = _parse_archive_path_segments(
@@ -419,6 +448,23 @@ async def process_ticket(
                         ticket=ticket,
                         tags=tags,
                     )
+                    # Bug #4/#10: cap_and_continue truncates articles and logs instead of failing.
+                    max_articles = settings.pdf.max_articles
+                    if (
+                        getattr(settings.pdf, "article_limit_mode", "fail") == "cap_and_continue"
+                        and max_articles > 0
+                        and len(snapshot.articles) > max_articles
+                    ):
+                        log.warning(
+                            "process_ticket.article_limit_capped",
+                            ticket_id=ticket_id,
+                            total=len(snapshot.articles),
+                            cap=max_articles,
+                        )
+                        snapshot = Snapshot(
+                            ticket=snapshot.ticket,
+                            articles=snapshot.articles[:max_articles],
+                        )
                     snapshot = await enrich_attachment_content(
                         snapshot,
                         client,
@@ -534,20 +580,32 @@ async def process_ticket(
                         request_id=request_id,
                         delivery_id=delivery_id,
                     )
-                except Exception as exc:
+                except BaseException as exc:
+                    # Bug #15: catch BaseException so CancelledError runs cleanup too.
                     failed_total.inc()
-                    classified = classify(exc)
+                    classified = (
+                        None if isinstance(exc, asyncio.CancelledError) else classify(exc)
+                    )
                     classification_label = (
-                        "Transient" if isinstance(classified, TransientError) else "Permanent"
+                        "Transient"
+                        if classified is not None and isinstance(classified, TransientError)
+                        else "Permanent"
                     )
                     msg = _concise_exc_message(exc)
-                    action = _action_hint(exc, classified=classified)
+                    action = (
+                        _action_hint(exc, classified=classified) if classified is not None else ""
+                    )
+                    code, hint = "", ""
+                    if classified is not None and isinstance(classified, PermanentError):
+                        code, hint = _error_code_and_hint(exc)
                     log.exception(
                         "process_ticket.error",
                         ticket_id=ticket_id,
                         request_id=request_id,
                         delivery_id=delivery_id,
                         classification=classification_label,
+                        code=code or None,
+                        hint=hint or None,
                     )
 
                     now = _now_utc()
@@ -562,6 +620,8 @@ async def process_ticket(
                                 request_id=request_id,
                                 delivery_id=delivery_id,
                                 timestamp_utc=_format_timestamp_utc(now),
+                                code=code,
+                                hint=hint,
                             ),
                         )
                     except Exception:
@@ -574,7 +634,9 @@ async def process_ticket(
                         )
 
                     try:
-                        keep_trigger = isinstance(classified, TransientError)
+                        keep_trigger = (
+                            classified is not None and isinstance(classified, TransientError)
+                        )
                         try:
                             await apply_error(
                                 client,
@@ -610,12 +672,16 @@ async def process_ticket(
                             delivery_id=delivery_id,
                             classification=classification_label,
                         )
+                    # Bug #15: re-raise CancelledError after cleanup so task is properly cancelled.
+                    if isinstance(exc, asyncio.CancelledError):
+                        raise
                 finally:
                     if observe_total:
                         total_seconds.observe(perf_counter() - total_start)
         finally:
+            # Bug #16: shield so cancellation during release doesn't leave ticket in in-flight set.
             try:
-                await _release_ticket(ticket_id)
+                await asyncio.shield(_release_ticket(ticket_id))
             except Exception:
                 log.exception(
                     "process_ticket.release_ticket_failed",

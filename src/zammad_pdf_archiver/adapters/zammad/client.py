@@ -8,6 +8,7 @@ from typing import Any, Literal, NoReturn, TypeVar
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
+from zammad_pdf_archiver.adapters.http_util import timeouts_for
 from zammad_pdf_archiver.adapters.zammad.errors import (
     AuthError,
     ClientError,
@@ -62,7 +63,7 @@ class AsyncZammadClient:
                 "Authorization": f"Token token={api_token}",
                 "Accept": "application/json",
             },
-            timeout=_timeouts(timeout_seconds),
+            timeout=timeouts_for(timeout_seconds),
             limits=httpx.Limits(
                 max_connections=10,
                 max_keepalive_connections=5,
@@ -266,8 +267,3 @@ def _parse_retry_after_seconds(value: str | None) -> float | None:
     return seconds
 
 
-def _timeouts(timeout_seconds: float) -> httpx.Timeout:
-    total = float(timeout_seconds)
-    # Keep connect/pool bounded to fail fast on unreachable upstreams.
-    connect = min(5.0, total)
-    return httpx.Timeout(connect=connect, read=total, write=total, pool=connect)

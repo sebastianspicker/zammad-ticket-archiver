@@ -16,6 +16,10 @@ class DeliveryIdStore(Protocol):
         """Record key as seen (idempotent for same key within TTL)."""
         ...
 
+    async def try_claim(self, key: str) -> bool:
+        """Atomically claim key if not yet seen. Return True if claimed, False if already seen (Bug #17)."""
+        ...
+
 
 class InMemoryTTLSet:
     def __init__(self, *, ttl_seconds: float, now: Callable[[], float] = time.monotonic) -> None:
@@ -59,6 +63,12 @@ class InMemoryTTLSet:
 
     async def add(self, key: str) -> None:
         self._add_sync(key)
+
+    async def try_claim(self, key: str) -> bool:
+        if self._seen_sync(key):
+            return False
+        self._add_sync(key)
+        return True
 
     def evict_expired(self) -> None:
         self._evict_expired_at(self._now())

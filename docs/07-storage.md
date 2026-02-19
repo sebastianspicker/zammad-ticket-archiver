@@ -59,6 +59,8 @@ This reduces path traversal and symlink abuse risk.
 
 **Residual risk (TOCTOU):** The symlink check runs before the write. A symlink could be created between the check and the write. For high-assurance deployments, use a dedicated mount or filesystem controls; see [09-security.md](09-security.md).
 
+**O_NOFOLLOW:** File opens use `O_NOFOLLOW` where the platform supports it to avoid following a symlink at the final path component. On platforms without `O_NOFOLLOW`, see [09-security.md](09-security.md) (Residual risks).
+
 ## 5. CIFS/SMB Deployment Assumptions
 
 Recommended production pattern:

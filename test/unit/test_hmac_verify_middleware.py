@@ -11,7 +11,8 @@ def test_read_body_returns_when_client_disconnects() -> None:
         await asyncio.sleep(0)
         return {"type": "http.disconnect"}
 
-    chunks = asyncio.run(
+    chunks, disconnected = asyncio.run(
         asyncio.wait_for(_read_body(receive, on_chunk=lambda _chunk: None), timeout=0.1)
     )
     assert chunks == []
+    assert disconnected is True

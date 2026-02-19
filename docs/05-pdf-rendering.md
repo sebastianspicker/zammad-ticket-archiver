@@ -33,7 +33,9 @@ When `TEMPLATES_ROOT` is set, templates are loaded from:
 - `<TEMPLATES_ROOT>/<template_variant>/ticket.html`
 - CSS files in same variant directory
 
-## 3. Template Context Contract
+## 3. Template Context Contract (Sandbox)
+
+The Jinja context is restricted to a minimal whitelist (Bug #39): only these variables are passed; no config, request, or other application state.
 
 Jinja variables provided:
 - `snapshot`
@@ -71,7 +73,7 @@ Failure behavior:
 ## 5. HTML Safety Model
 
 - Jinja autoescape is enabled for HTML templates.
-- Article HTML (`body_html`) is sanitized before rendering.
+- Article HTML (`body_html`) is sanitized in `build_snapshot()` before it is passed to the template context (Bug #19). Templates use `|safe` on this already-sanitized content; the pipeline does not trust raw upstream HTML.
 - Sanitizer behavior:
   - drops active content (`script`, `style`, `iframe`, form controls, etc.)
   - strips event handlers and inline styles

@@ -88,6 +88,7 @@ Operational controls required:
 - no distributed durable dedupe store
 - no built-in immutable/WORM enforcement
 - **TOCTOU on symlink check:** the storage layer rejects paths that traverse symlinks under the root, but the check happens before the write. A symlink can be created between the check and the write (time-of-check to time-of-use race). For high-assurance deployments, use a dedicated mount or filesystem controls; the application cannot fully remove this risk.
+- **O_NOFOLLOW (Bugs #14/#41):** Final file open uses `O_NOFOLLOW` where the platform provides it (`os.O_NOFOLLOW`). On platforms where `O_NOFOLLOW` is not defined (e.g. some Windows builds), it is passed as `0` and the kernel may follow a symlink at the target path. Symlink rejection under the storage root is still performed before write; this residual risk applies only to the last path component. Operators on such platforms should use a dedicated mount or avoid symlinks in the archive tree.
 - **Delivery ID dedupe is in-memory only:** duplicate webhook deliveries can be processed again after a process restart; no durable idempotency store.
 - **TEMPLATES_ROOT:** when set (env), the process loads HTML templates from that path. Only the process owner should set it; point it to a controlled directory.
 - archive long-term trust depends on external trust and storage controls
@@ -105,4 +106,5 @@ Operational controls required:
 
 ## 6. See also
 
-- `docs/BUGS_AND_FIXES.md` – known bugs and required fixes (including security-related items).
+- [`docs/BUGS_AND_FIXES.md`](BUGS_AND_FIXES.md) – known bugs and required fixes (including security-related items).
+- [`docs/release-checklist.md`](release-checklist.md) – release and deployment safety checks.

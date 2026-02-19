@@ -15,7 +15,7 @@ def _settings_body_limit(storage_root: str, max_bytes: int) -> Settings:
             "hardening": {
                 "rate_limit": {"enabled": False},
                 "body_size_limit": {"max_bytes": max_bytes},
-                "webhook": {"allow_unsigned": True},
+                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
             },
         }
     )
@@ -29,7 +29,7 @@ def _settings_rate_limit(storage_root: str) -> Settings:
             "hardening": {
                 "rate_limit": {"enabled": True, "rps": 0, "burst": 2},
                 "body_size_limit": {"max_bytes": 1024 * 1024},
-                "webhook": {"allow_unsigned": True},
+                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
             },
         }
     )
@@ -45,7 +45,7 @@ def test_nfr2_body_over_limit_returns_413(tmp_path) -> None:
         headers={"Content-Type": "application/json"},
     )
     assert resp.status_code == 413
-    assert resp.json() == {"detail": "request_too_large"}
+    assert resp.json() == {"detail": "request_too_large", "code": "request_too_large"}
 
 
 def test_nfr2_rate_limit_returns_429(tmp_path) -> None:
@@ -57,4 +57,4 @@ def test_nfr2_rate_limit_returns_429(tmp_path) -> None:
     assert client.post("/ingest", json=payload).status_code == 202
     resp = client.post("/ingest", json=payload)
     assert resp.status_code == 429
-    assert resp.json() == {"detail": "rate_limited"}
+    assert resp.json() == {"detail": "rate_limited", "code": "rate_limited"}

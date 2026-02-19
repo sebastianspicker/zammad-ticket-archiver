@@ -36,7 +36,7 @@ def test_nfr1_invalid_signature_returns_403(tmp_path) -> None:
         headers={"Content-Type": "application/json", "X-Hub-Signature": _sign(body, "wrong")},
     )
     assert response.status_code == 403
-    assert response.json() == {"detail": "forbidden"}
+    assert response.json() == {"detail": "forbidden", "code": "forbidden"}
 
 
 def test_nfr1_no_secret_returns_503_unless_allow_unsigned(tmp_path) -> None:
@@ -45,7 +45,8 @@ def test_nfr1_no_secret_returns_503_unless_allow_unsigned(tmp_path) -> None:
     client = TestClient(app)
     response = client.post("/ingest", json={"ticket_id": 123})
     assert response.status_code == 503
-    assert response.json() == {"detail": "webhook_auth_not_configured"}
+    data = response.json()
+    assert data == {"detail": "webhook_auth_not_configured", "code": "webhook_auth_not_configured"}
 
 
 def test_nfr1_valid_signature_returns_202(tmp_path, monkeypatch) -> None:

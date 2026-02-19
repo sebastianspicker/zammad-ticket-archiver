@@ -14,7 +14,7 @@ def _test_settings(storage_root: str) -> Settings:
             "hardening": {
                 "rate_limit": {"enabled": True, "rps": 0, "burst": 2},
                 "body_size_limit": {"max_bytes": 1024 * 1024},
-                "webhook": {"allow_unsigned": True},
+                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
             },
         }
     )
@@ -30,7 +30,7 @@ def test_rate_limit_triggers_on_ingest(tmp_path) -> None:
 
     resp = client.post("/ingest", json=payload)
     assert resp.status_code == 429
-    assert resp.json() == {"detail": "rate_limited"}
+    assert resp.json() == {"detail": "rate_limited", "code": "rate_limited"}
     assert resp.headers.get("X-Request-Id")
 
 

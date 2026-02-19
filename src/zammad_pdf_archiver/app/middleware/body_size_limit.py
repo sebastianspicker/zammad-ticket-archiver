@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from starlette.datastructures import Headers
-from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
 
 _INGEST_PATH = "/ingest"
@@ -13,8 +13,8 @@ class _BodyTooLarge(Exception):
     pass
 
 
-def _too_large() -> JSONResponse:
-    return JSONResponse(status_code=413, content={"detail": "request_too_large"})
+def _too_large():
+    return api_error(413, "request_too_large", code="request_too_large")
 
 
 async def _drain_body(receive: Receive) -> None:

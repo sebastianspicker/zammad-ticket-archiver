@@ -2,7 +2,7 @@
 
 ## Why did `/ingest` return `202` but no PDF exists yet?
 
-`202` means the request was accepted, not that processing completed.
+`202` means the request was accepted, not that processing completed. Processing after `202` is best-effort: there is no guaranteed retry, and work can be lost on process restart (no durable queue). If the service restarted or the job never ran, re-trigger by saving the ticket or reapplying the macro.
 
 Check:
 - ticket tags (`pdf:processing`, `pdf:signed`, `pdf:error`)

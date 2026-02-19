@@ -14,7 +14,7 @@ def _test_settings(storage_root: str) -> Settings:
             "hardening": {
                 "rate_limit": {"enabled": False, "rps": 1, "burst": 1},
                 "body_size_limit": {"max_bytes": 10},
-                "webhook": {"allow_unsigned": True},
+                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
             },
         }
     )
@@ -30,5 +30,5 @@ def test_body_size_limit_triggers_on_ingest(tmp_path) -> None:
         headers={"Content-Type": "application/json"},
     )
     assert resp.status_code == 413
-    assert resp.json() == {"detail": "request_too_large"}
+    assert resp.json() == {"detail": "request_too_large", "code": "request_too_large"}
     assert resp.headers.get("X-Request-Id")

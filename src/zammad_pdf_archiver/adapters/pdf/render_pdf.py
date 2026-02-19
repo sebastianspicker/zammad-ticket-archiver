@@ -7,7 +7,8 @@ from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
 
-from zammad_pdf_archiver.adapters.pdf.template_engine import render_html
+from zammad_pdf_archiver.adapters.pdf.template_engine import render_html, validate_template_name
+from zammad_pdf_archiver.adapters.pdf.url_fetcher import _safe_url_fetcher
 from zammad_pdf_archiver.config.settings import PdfSettings
 from zammad_pdf_archiver.domain.errors import PermanentError
 from zammad_pdf_archiver.domain.snapshot_models import Snapshot
@@ -17,9 +18,7 @@ _TEMPLATE_STYLES_MAIN = "styles.css"
 
 @contextmanager
 def _template_folder_path(template_name: str):
-    if not isinstance(template_name, str) or not template_name.strip():
-        raise ValueError("template_name must be a non-empty string")
-    template_name = template_name.strip()
+    template_name = validate_template_name(template_name)
 
     if (value := os.environ.get("TEMPLATES_ROOT")):
         yield Path(value).expanduser() / template_name
@@ -109,7 +108,12 @@ def render_pdf(snapshot: Snapshot, template_name: str, *, max_articles: int | No
                 ),
                 category=DeprecationWarning,
             )
-            return HTML(string=html, base_url=str(template_folder)).write_pdf(
+            html_doc = HTML(
+                string=html,
+                base_url=str(template_folder),
+                url_fetcher=_safe_url_fetcher(template_folder),
+            )
+            return html_doc.write_pdf(
                 stylesheets=stylesheets,
                 pdf_identifier=pdf_identifier,
             )

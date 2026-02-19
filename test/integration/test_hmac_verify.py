@@ -25,7 +25,7 @@ def _test_settings_unsigned_ok(storage_root: str) -> Settings:
         {
             "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
             "storage": {"root": storage_root},
-            "hardening": {"webhook": {"allow_unsigned": True}},
+            "hardening": {"webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True}},
         }
     )
 
@@ -197,7 +197,8 @@ def test_default_app_fails_closed_without_settings() -> None:
     response = client.post("/ingest", json={"ticket": {"id": 123}})
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "webhook_auth_not_configured"}
+    data = response.json()
+    assert data == {"detail": "webhook_auth_not_configured", "code": "webhook_auth_not_configured"}
     assert response.headers.get("X-Request-Id")
 
 

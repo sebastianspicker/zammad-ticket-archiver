@@ -58,9 +58,9 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement.
-
-TODO: Provide a dedicated contact method for conduct issues.
+reported to the community leaders responsible for enforcement. Report conduct
+issues to the project maintainers via the repository's issue tracker or the
+contact channel listed in the project README.
 
 ## Enforcement Guidelines
 

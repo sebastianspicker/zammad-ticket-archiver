@@ -46,5 +46,5 @@ def test_body_size_limit_triggers_before_hmac_verification(tmp_path) -> None:
     )
 
     assert response.status_code == 413
-    assert response.json() == {"detail": "request_too_large"}
+    assert response.json() == {"detail": "request_too_large", "code": "request_too_large"}
 

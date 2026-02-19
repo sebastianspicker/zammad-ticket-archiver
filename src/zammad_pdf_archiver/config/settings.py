@@ -49,6 +49,8 @@ class WorkflowSettings(_BaseSection):
 class FieldsSettings(_BaseSection):
     archive_path: str = "archive_path"
     archive_user_mode: str = "archive_user_mode"
+    # Custom field name for archive_user in fixed mode (Bug #1/#6).
+    archive_user: str = "archive_user"
 
 
 class StoragePathPolicySanitizeSettings(_BaseSection):
@@ -57,7 +59,8 @@ class StoragePathPolicySanitizeSettings(_BaseSection):
 
 
 class StoragePathPolicySettings(_BaseSection):
-    allow_prefixes: list[str] = Field(default_factory=list)
+    # None = no allowlist (all paths allowed); [] = no path allowed (Bug #30).
+    allow_prefixes: list[str] | None = None
     sanitize: StoragePathPolicySanitizeSettings = Field(
         default_factory=StoragePathPolicySanitizeSettings
     )
@@ -81,6 +84,8 @@ class PdfSettings(_BaseSection):
     locale: str = "de_DE"
     timezone: str = "Europe/Berlin"
     max_articles: int = Field(default=250, ge=0)
+    # fail = raise when over limit; cap_and_continue = truncate and warn (Bug #4/#10).
+    article_limit_mode: str = "fail"
     # Optional attachment binary inclusion (PRD §8.2)
     include_attachment_binary: bool = False
     max_attachment_bytes_per_file: int = Field(default=10 * 1024 * 1024, ge=0)  # 10 MiB
@@ -173,8 +178,11 @@ class BodySizeLimitSettings(_BaseSection):
 
 
 class WebhookHardeningSettings(_BaseSection):
-    # If false, /ingest is rejected unless a webhook HMAC secret is configured.
+    # When true and a secret is set: requests without signature are allowed (e.g. for testing).
+    # When no secret is set: allow_unsigned alone is ignored; use allow_unsigned_when_no_secret (Bug #12).
     allow_unsigned: bool = False
+    # Explicit opt-in to allow /ingest when no HMAC secret is configured (insecure; dev/local only).
+    allow_unsigned_when_no_secret: bool = False
     # When enabled, /ingest requires X-Zammad-Delivery and the replay TTL must be > 0.
     require_delivery_id: bool = False
 
@@ -284,6 +292,8 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("fields", {})["archive_path"] = value
     if (value := env.get("FIELDS_ARCHIVE_USER_MODE")):
         data.setdefault("fields", {})["archive_user_mode"] = value
+    if (value := env.get("FIELDS_ARCHIVE_USER")):
+        data.setdefault("fields", {})["archive_user"] = value
 
     # Storage
     if (value := env.get("STORAGE_ROOT")):
@@ -309,6 +319,8 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("pdf", {})["timezone"] = value
     if (value := env.get("PDF_MAX_ARTICLES")):
         data.setdefault("pdf", {})["max_articles"] = value
+    if (value := env.get("PDF_ARTICLE_LIMIT_MODE")):
+        data.setdefault("pdf", {})["article_limit_mode"] = value
     if (value := env.get("PDF_INCLUDE_ATTACHMENT_BINARY")):
         data.setdefault("pdf", {})["include_attachment_binary"] = value
     if (value := env.get("PDF_MAX_ATTACHMENT_BYTES_PER_FILE")):
@@ -379,6 +391,10 @@ def _flat_env_settings_source() -> dict[str, Any]:
         data.setdefault("hardening", {}).setdefault("body_size_limit", {})["max_bytes"] = value
     if (value := env.get("HARDENING_WEBHOOK_ALLOW_UNSIGNED")):
         data.setdefault("hardening", {}).setdefault("webhook", {})["allow_unsigned"] = value
+    if (value := env.get("HARDENING_WEBHOOK_ALLOW_UNSIGNED_WHEN_NO_SECRET")):
+        data.setdefault("hardening", {}).setdefault("webhook", {})[
+            "allow_unsigned_when_no_secret"
+        ] = value
     if (value := env.get("HARDENING_WEBHOOK_REQUIRE_DELIVERY_ID")):
         data.setdefault("hardening", {}).setdefault("webhook", {})["require_delivery_id"] = value
     if (value := env.get("HARDENING_TRANSPORT_TRUST_ENV")):

@@ -48,6 +48,10 @@ Primary signals:
 
 ## 4. Processing and Idempotency Behavior
 
+### Background processing (202)
+
+After `POST /ingest` returns `202`, work is run asynchronously in process. This is **best-effort**: there is no guaranteed retry (e.g. no durable queue). If the process restarts or exits before the job finishes, that work is lost; the ticket will not be updated and no PDF is written. Operators can re-trigger by saving the ticket or reapplying the macro so a new webhook is sent. A durable queue for accepted payloads is a possible future improvement.
+
 ### Tag transitions
 
 - processing start:
@@ -68,6 +72,17 @@ Primary signals:
 - repeated delivery IDs are skipped for `workflow.delivery_id_ttl_seconds`
 - dedupe store is in-memory only
 - restart clears dedupe history
+
+### Workflow and idempotency limitations (Bugs #32–#37)
+
+Operators should be aware of the following; some are documented only, others are inherent to the current design:
+
+- **In-flight lock is process-local:** Per-ticket concurrency is in-memory. Multiple processes or replicas can process the same ticket concurrently; use a single instance or accept possible tag races when scaling out.
+- **should_process:** The gate skips when the “done” tag (`pdf:signed`) is present. Tickets in `pdf:processing` or `pdf:error` can be considered eligible depending on `require_tag` and tag state; a second worker may start if in-flight state is not shared.
+- **TOCTOU on tag updates:** Two workers can both pass `should_process`; the slower one may then call `apply_processing`, removing `pdf:signed` and setting `pdf:processing`, undoing the first worker’s completion. Conditional or atomic tag updates are not used; accept or avoid concurrent workers per ticket.
+- **Error path orphans:** If `apply_error` fails after the trigger was removed, the ticket can end with no state tags and be skipped when `require_tag=true`. Recovery: re-add trigger and remove stale `pdf:processing` if present, then re-trigger.
+- **Delivery ID claim order:** The delivery ID is claimed before `should_process` is evaluated. If the run exits early (e.g. no trigger tag), that delivery ID is still “seen” for the TTL, so a later replay with the same ID is skipped until TTL expires.
+- **Claim before success:** The delivery ID is marked seen when the job starts, not after successful completion. A failure after claim but before `apply_done` prevents the same delivery ID from retrying until TTL expires; use a new webhook (new delivery ID) or wait for TTL to retry.
 
 ## 5. Reprocessing Workflow
 
@@ -138,12 +153,12 @@ Check:
 ### Rendering article limit exceeded
 
 Cause:
-- ticket has more articles than `pdf.max_articles`
+- ticket has more articles than `pdf.max_articles` and `pdf.article_limit_mode` is `fail` (default).
 
 Fix:
-- increase `PDF_MAX_ARTICLES`
-- set `PDF_MAX_ARTICLES=0` to disable
-- optionally use `minimal` template
+- increase `PDF_MAX_ARTICLES` or set to `0` for unlimited; or
+- set `PDF_ARTICLE_LIMIT_MODE=cap_and_continue` to truncate and archive with a warning; or
+- use `minimal` template.
 
 ## 7. Signature Verification Procedure
 
@@ -171,3 +186,26 @@ VERIFY_PDF_OTHER_CERTS="/path/extra.pem" scripts/ops/verify-pdf.sh /path/to/file
 3. What does latest internal note report?
 4. Is destination path expected and writable?
 5. Could run be skipped by delivery-ID dedupe?
+
+## 9. Scripts
+
+| Script | Purpose |
+|--------|--------|
+| `scripts/ci/smoke-test.sh` | Optional CI smoke test (requires env and optional services). |
+| `scripts/dev/run-local.sh` | Run the service locally (e.g. with env loaded). |
+| `scripts/dev/gen-dev-certs.sh` | Generate development certificates. |
+| `scripts/ops/verify-pdf.sh` | Verify PDF signatures (wrapper: uses `pyhanko`/`pyhanko-cli` if available, else `scripts/ops/verify-pdf.py`). |
+| `scripts/ops/verify-pdf.py` | Python fallback for PDF verification when pyHanko CLI is not installed. |
+| `scripts/ops/mount-cifs.sh` | Mount CIFS/SMB share (operations helper). |
+
+For local development, to remove untracked and ignored files (e.g. `.mypy_cache`, `build/`): `git clean -fdx` (use with care).
+
+## 10. Residual risks and release checklist
+
+External risks operators should be aware of:
+
+- **CIFS/network storage:** Durability and consistency depend on the share and network; consider fsync and atomic write settings.
+- **`/metrics` access:** When enabled, protect with `METRICS_BEARER_TOKEN` or network policy; otherwise metrics may be exposed.
+- **TSA certificate trust:** RFC3161 timestamp validation depends on TSA and CA trust configuration.
+
+Before deployment, run through [Release and deployment checklist](release-checklist.md) for safety checks.

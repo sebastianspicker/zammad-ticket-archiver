@@ -4,10 +4,11 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, model_validator
+from starlette.responses import JSONResponse
 
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
+from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.domain.ticket_id import coerce_ticket_id
 
 router = APIRouter()
@@ -34,9 +35,13 @@ class IngestBody(BaseModel):
         return self
 
     def _resolved_ticket_id(self) -> int | None:
+        # Prefer top-level ticket_id when present (Bug #11).
+        tid = coerce_ticket_id(self.ticket_id)
+        if tid is not None and tid >= 1:
+            return tid
         if isinstance(self.ticket, dict):
             return coerce_ticket_id(self.ticket.get("id"))
-        return coerce_ticket_id(self.ticket_id)
+        return None
 
 
 async def _run_process_ticket_background(
@@ -79,16 +84,17 @@ async def ingest(
     ticket_id = payload._resolved_ticket_id()
 
     settings = getattr(request.app.state, "settings", None)
-    if settings is None and ticket_id is not None:
-        log.warning(
-            "ingest.settings_not_configured",
-            ticket_id=ticket_id,
-            message="App settings missing; background processing skipped",
+    if settings is None:
+        # Bug #25: return 503 when settings missing so caller knows processing will not run.
+        return api_error(
+            503,
+            "settings not configured; processing unavailable",
+            code="settings_not_configured",
         )
-    if settings is not None and ticket_id is not None:
+    if ticket_id is not None:
         delivery_id_raw = request.headers.get(_DELIVERY_ID_HEADER)
-        # Normalize empty string to None for consistent handling
-        delivery_id = delivery_id_raw if (delivery_id_raw and delivery_id_raw.strip()) else None
+        # Bug #24: strip whitespace so idempotency treats "abc" and " abc " the same.
+        delivery_id = (delivery_id_raw or "").strip() or None
         payload_for_job = payload.model_dump(exclude_none=False)
         if hasattr(payload, "__pydantic_extra__") and payload.__pydantic_extra__:
             payload_for_job.update(payload.__pydantic_extra__)

@@ -38,10 +38,9 @@ Defaults are configurable for the first two fields:
 `archive_user_mode` values:
 - `owner`: use `ticket.owner.login`
 - `current_agent`: use webhook `payload.user.login`, fallback `ticket.updated_by.login`
-- `fixed`: use `custom_fields.archive_user` (required in this mode)
+- `fixed`: use the custom field configured as `fields.archive_user` (default `archive_user`; required in this mode)
 
-Note:
-- `archive_user` field name is currently fixed in code and not configurable.
+The field names for `archive_path`, `archive_user_mode`, and `archive_user` are configurable via `fields.*` in config or `FIELDS_ARCHIVE_PATH`, `FIELDS_ARCHIVE_USER_MODE`, `FIELDS_ARCHIVE_USER` in the environment.
 
 ### Tag State Transitions
 
@@ -146,7 +145,9 @@ Configuration references:
 - TSA basic auth (if needed) uses env-only keys:
   - `TSA_USER`
   - `TSA_PASS`
-- Delivery ID dedupe is in-memory only and resets on process restart.
+- Delivery ID dedupe is in-memory only and resets on process restart. For consistent deduplication across restarts or multiple instances, use Redis (`workflow.idempotency_backend=redis`, `workflow.redis_url`); see [Operations](docs/08-operations.md).
+- Processing after `202` is **best-effort**: there is no guaranteed retry and work may be lost on process restart. A durable queue is a possible future feature. See [Processing and Idempotency](docs/08-operations.md#4-processing-and-idempotency-behavior).
+- If a ticket is stuck in `pdf:processing` after a crash, see [Stuck in pdf:processing](docs/faq.md#why-is-a-ticket-stuck-with-pdfprocessing) in the FAQ.
 
 Operational docs:
 - [`docs/04-path-policy.md`](docs/04-path-policy.md)
@@ -166,10 +167,11 @@ Operational docs:
 | Smoke test | `bash scripts/ci/smoke-test.sh` (optional; needs env) |
 | Dev run | `make dev` (Docker Compose dev stack) |
 
-## Documentation
+## Documentation (index)
 
 - [`docs/PRD.md`](docs/PRD.md) – Product Requirements Document
 - [`docs/00-overview.md`](docs/00-overview.md)
+- [`docs/adr/`](docs/adr/) – Architecture Decision Records
 - [`docs/01-architecture.md`](docs/01-architecture.md)
 - [`docs/02-zammad-setup.md`](docs/02-zammad-setup.md)
 - [`docs/03-data-model.md`](docs/03-data-model.md)
@@ -183,5 +185,6 @@ Operational docs:
 - [`docs/config-reference.md`](docs/config-reference.md)
 - [`docs/faq.md`](docs/faq.md)
 - [`docs/BUGS_AND_FIXES.md`](docs/BUGS_AND_FIXES.md) – Known bugs and required fixes (must be kept)
+- [`docs/PLAN_REPO_CLEANUP_AND_IMPROVEMENTS.md`](docs/PLAN_REPO_CLEANUP_AND_IMPROVEMENTS.md) – Repo cleanup, dedup, refactoring, QoL, features, UI (status and backlog)
 - [`docs/release-checklist.md`](docs/release-checklist.md) – Release and deployment checklist
 - [`docs/deploy.md`](docs/deploy.md) – Production deployment

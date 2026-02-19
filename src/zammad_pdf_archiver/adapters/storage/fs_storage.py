@@ -35,9 +35,10 @@ def write_bytes(
 ) -> None:
     target = Path(target_path)
     parent = target.parent
+    # Bug #13/#20: validate path and symlinks before any directory creation.
     ensure_within_root(storage_root, target)
-    ensure_dir(parent)
     _reject_symlinks_under_root(storage_root, parent)
+    ensure_dir(parent)
 
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
     flags |= getattr(os, "O_NOFOLLOW", 0)
@@ -45,6 +46,8 @@ def write_bytes(
     with os.fdopen(fd, "wb") as f:
         f.write(data)
         f.flush()
+        # Bug #40: always set permissions (e.g. when overwriting existing file).
+        os.fchmod(f.fileno(), 0o640)
         if fsync:
             os.fsync(f.fileno())
 
@@ -82,9 +85,10 @@ def write_atomic_bytes(
 ) -> None:
     target = Path(target_path)
     parent = target.parent
+    # Bug #13/#20: validate path and symlinks before any directory creation.
     ensure_within_root(storage_root, target)
-    ensure_dir(parent)
     _reject_symlinks_under_root(storage_root, parent)
+    ensure_dir(parent)
 
     tmp_path: Path | None = None
     fd: int | None = None
@@ -97,15 +101,13 @@ def write_atomic_bytes(
             fd = None
             f.write(data)
             f.flush()
+            # Bug #21: set mode on fd before replace so target gets correct permissions.
+            os.fchmod(f.fileno(), 0o640)
             if fsync:
                 os.fsync(f.fileno())
 
         try:
             os.replace(tmp_path, target)
-            try:
-                os.chmod(target, 0o640)
-            except OSError:
-                pass
         except Exception:
             # If replace fails, ensure tmp_path is cleaned up
             if tmp_path is not None:

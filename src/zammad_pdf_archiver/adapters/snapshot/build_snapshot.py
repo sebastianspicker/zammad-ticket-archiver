@@ -16,6 +16,7 @@ from zammad_pdf_archiver.domain.snapshot_models import (
     Snapshot,
     TicketMeta,
 )
+from zammad_pdf_archiver.domain.ticket_utils import ticket_custom_fields
 
 _HTML_TAG_HINT_RE = re.compile(
     r"<\s*(?:p|div|br|span|a|ul|ol|li|pre|code|blockquote|table|tr|td|th|strong|em|b|i|u)\b",
@@ -86,14 +87,6 @@ def _has_html_hint(*, content_type: str | None, body: str) -> bool:
         return True
     # Heuristic: only treat bodies as HTML if they look like common HTML tags.
     return bool(_HTML_TAG_HINT_RE.search(body))
-
-
-def _ticket_custom_fields(ticket: ZammadTicket) -> dict[str, Any]:
-    prefs = ticket.preferences
-    if prefs is None:
-        return {}
-    fields = prefs.custom_fields
-    return fields if isinstance(fields, dict) else {}
 
 
 def _party_from_zammad_ref(ref: Any) -> PartyRef | None:
@@ -188,7 +181,7 @@ async def build_snapshot(
             customer=_party_from_zammad_ref(ticket.customer),
             owner=_party_from_zammad_ref(ticket.owner),
             tags=list(tags.root),
-            custom_fields=_ticket_custom_fields(ticket),
+            custom_fields=ticket_custom_fields(ticket),
         ),
         articles=snapshot_articles,
     )
