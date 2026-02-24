@@ -3,6 +3,7 @@ from __future__ import annotations
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from zammad_pdf_archiver.adapters.http_util import drain_stream
 from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
 
@@ -17,14 +18,7 @@ def _too_large():
     return api_error(413, "request_too_large", code="request_too_large")
 
 
-async def _drain_body(receive: Receive) -> None:
-    """Consume the request body so the connection is left in a clean state."""
-    while True:
-        message = await receive()
-        if message.get("type") == "http.disconnect":
-            return
-        if message.get("type") == "http.request" and not message.get("more_body", False):
-            return
+
 
 
 class BodySizeLimitMiddleware:
@@ -51,7 +45,7 @@ class BodySizeLimitMiddleware:
         if content_length:
             try:
                 if int(content_length) > self._max_bytes:
-                    await _drain_body(receive)
+                    await drain_stream(receive)
                     await _too_large()(scope, receive, send)
                     return
             except ValueError:

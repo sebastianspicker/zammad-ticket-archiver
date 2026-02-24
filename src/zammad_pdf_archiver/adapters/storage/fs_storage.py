@@ -133,3 +133,28 @@ def write_atomic_bytes(
             except OSError:
                 pass
         raise
+
+
+def move_file_within_root(
+    src: Path,
+    dst: Path,
+    *,
+    storage_root: Path,
+    fsync: bool = True,
+) -> None:
+    """
+    Move a file from src to dst after validating both are within storage_root and dst
+    doesn't traverse symlinks.
+    """
+    src = Path(src)
+    dst = Path(dst)
+
+    ensure_within_root(storage_root, src)
+    ensure_within_root(storage_root, dst)
+    _reject_symlinks_under_root(storage_root, dst.parent)
+
+    ensure_dir(dst.parent)
+    os.replace(src, dst)
+
+    if fsync:
+        _fsync_dir_best_effort(dst.parent)

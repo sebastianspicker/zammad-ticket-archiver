@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import UTC, datetime
 from html.parser import HTMLParser
@@ -103,20 +104,23 @@ def _party_from_zammad_ref(ref: Any) -> PartyRef | None:
 def _article_to_snapshot(article: ZammadArticle) -> Article:
     body_raw = article.body if isinstance(article.body, str) else ""
     body_html = ""
-
     body_text = ""
+
     if body_raw:
         if _has_html_hint(content_type=article.content_type, body=body_raw):
             body_html = sanitize_html_fragment(body_raw)
             if body_html:
                 body_text = _strip_html_to_text(body_html)
             else:
+                # Bug #P1-1: If sanitization failed, never fallback to raw body as HTML.
+                # Fallback to stripped text from raw for body_text; body_html stays empty.
                 body_text = _strip_html_to_text(body_raw)
         else:
             body_text = body_raw
 
+    # Best-effort for body_text: if decoding/stripping yielded nothing but we have raw input,
+    # keep it as text (will be escaped by Jinja anyway).
     if not body_text and body_raw:
-        # Fallback as requested: keep the original body if HTML stripping yields nothing.
         body_text = body_raw
 
     attachments: list[AttachmentMeta] = []
@@ -198,30 +202,55 @@ async def enrich_attachment_content(
     """Fetch attachment binaries and set AttachmentMeta.content when within limits (PRD §8.2)."""
     if not include_attachment_binary or max_total_attachment_bytes <= 0:
         return snapshot
+
     ticket_id = snapshot.ticket.id
+    semaphore = asyncio.Semaphore(5)  # Limit concurrency to avoid overloading Zammad
+
+    async def _fetch_one(
+        article_id: int, att: AttachmentMeta
+    ) -> tuple[int, int | None, bytes | None]:
+        if att.attachment_id is None:
+            return article_id, None, None
+
+        # Pre-check size if available to avoid useless downloads
+        if att.size is not None and att.size > max_attachment_bytes_per_file:
+            return article_id, att.attachment_id, None
+
+        async with semaphore:
+            try:
+                raw = await client.get_attachment_content(
+                    ticket_id, article_id, att.attachment_id
+                )
+                if len(raw) > max_attachment_bytes_per_file:
+                    return article_id, att.attachment_id, None
+                return article_id, att.attachment_id, raw
+            except Exception:
+                return article_id, att.attachment_id, None
+
+    targets = []
+    for article in snapshot.articles:
+        for att in article.attachments:
+            targets.append(_fetch_one(article.id, att))
+
+    if not targets:
+        return snapshot
+
+    results = await asyncio.gather(*targets)
+    # Map for easy lookup: (article_id, attachment_id) -> content
+    content_map = {(r[0], r[1]): r[2] for r in results if r[1] is not None and r[2] is not None}
+
     total_so_far = 0
     new_articles: list[Article] = []
     for article in snapshot.articles:
         new_attachments: list[AttachmentMeta] = []
         for att in article.attachments:
-            content: bytes | None = None
-            if att.attachment_id is not None:
-                if att.size is not None and att.size > max_attachment_bytes_per_file:
-                    pass  # leave content None
-                elif total_so_far >= max_total_attachment_bytes:
-                    pass
+            content = content_map.get((article.id, att.attachment_id))
+            if content:
+                if total_so_far + len(content) <= max_total_attachment_bytes:
+                    total_so_far += len(content)
                 else:
-                    try:
-                        raw = await client.get_attachment_content(
-                            ticket_id, article.id, att.attachment_id
-                        )
-                        if len(raw) <= max_attachment_bytes_per_file and total_so_far + len(
-                            raw
-                        ) <= max_total_attachment_bytes:
-                            content = raw
-                            total_so_far += len(raw)
-                    except Exception:
-                        pass
+                    content = None
+            
             new_attachments.append(
                 AttachmentMeta(
                     article_id=att.article_id,

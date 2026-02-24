@@ -12,6 +12,11 @@ processed_total = Counter(
     "processed_total",
     "Number of successfully processed tickets.",
 )
+skipped_total = Counter(
+    "skipped_total",
+    "Number of skipped ticket processing attempts.",
+    labelnames=("reason",),
+)
 failed_total = Counter(
     "failed_total",
     "Number of failed ticket processing attempts.",

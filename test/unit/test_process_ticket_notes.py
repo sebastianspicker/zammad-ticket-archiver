@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from zammad_pdf_archiver.app.jobs.process_ticket import _concise_exc_message, _success_note_html
+from zammad_pdf_archiver.app.jobs.ticket_notes import concise_exc_message as _concise_exc_message, success_note_html as _success_note_html
 from zammad_pdf_archiver.config.redact import REDACTED_VALUE
 
 

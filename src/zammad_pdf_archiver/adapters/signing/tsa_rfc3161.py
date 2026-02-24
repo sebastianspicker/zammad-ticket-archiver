@@ -56,12 +56,18 @@ def _load_tsa_config(settings: Any) -> _TsaConfig:
     if isinstance(ca_bundle_path, str):
         ca_bundle_path = Path(ca_bundle_path)
 
-    user = os.getenv("TSA_USER")
-    password = os.getenv("TSA_PASS")
+    user = getattr(tsa_settings, "user", None)
+    password_secret = getattr(tsa_settings, "password", None)
+    password = (
+        password_secret.get_secret_value()
+        if hasattr(password_secret, "get_secret_value")
+        else password_secret
+    )
+
     auth: tuple[str, str] | None
-    if user is not None or password is not None:
+    if user or password:
         if not user or not password:
-            raise PermanentError("TSA basic auth requires both TSA_USER and TSA_PASS")
+            raise PermanentError("TSA basic auth requires both user and password in settings")
         auth = (user, password)
     else:
         auth = None

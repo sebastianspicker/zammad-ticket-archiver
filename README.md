@@ -19,6 +19,41 @@ Processing pipeline:
   - audit sidecar JSON (`<filename>.json`, for PDFs usually `...pdf.json`)
 - Writes an internal note to the ticket and transitions archive tags.
 
+## Scope
+
+This repository provides:
+
+- FastAPI service endpoints:
+  - `POST /ingest`
+  - `GET /healthz`
+  - `GET /metrics` (when enabled)
+- End-to-end ticket processing:
+  1. receive webhook
+  2. fetch ticket + tags + articles from Zammad
+  3. build normalized snapshot model
+  4. render PDF
+  5. optionally sign and timestamp
+  6. write PDF + sidecar JSON to storage
+  7. update ticket note + tags
+- Runtime hardening controls:
+  - webhook HMAC verification
+  - optional delivery ID requirement
+  - request size limits
+  - rate limiting
+  - transport safety checks for upstream URLs
+
+## Non-goals
+
+Out of scope by design:
+
+- exporting attachment binary payloads by default (attachments are metadata-only in snapshot/PDF; optional `pdf.include_attachment_binary` can write binaries to disk and the sidecar)
+- archive browsing/search UI
+- distributed durable queue
+- durable distributed idempotency store (default; optional Redis backend available)
+- built-in retention/WORM policy engine
+- built-in encryption-at-rest management
+- multi-tenant isolation beyond path policy and external ACLs
+
 ## How Archiving Works
 
 ### Trigger Tag
@@ -74,6 +109,17 @@ flowchart LR
 
 Detailed architecture and state diagrams:
 - [`docs/01-architecture.md`](docs/01-architecture.md)
+
+## High-Level Behavior
+
+```mermaid
+flowchart TD
+  A["Agent applies macro (adds pdf:sign)"] --> B["Zammad trigger sends webhook"]
+  B --> C["POST /ingest returns 202"]
+  C --> D["Background processing job"]
+  D --> E["PDF + sidecar written"]
+  E --> F["Ticket note + final tags"]
+```
 
 ## Quickstart (Development)
 
@@ -170,7 +216,6 @@ Operational docs:
 ## Documentation (index)
 
 - [`docs/PRD.md`](docs/PRD.md) – Product Requirements Document
-- [`docs/00-overview.md`](docs/00-overview.md)
 - [`docs/adr/`](docs/adr/) – Architecture Decision Records
 - [`docs/01-architecture.md`](docs/01-architecture.md)
 - [`docs/02-zammad-setup.md`](docs/02-zammad-setup.md)
@@ -184,7 +229,16 @@ Operational docs:
 - [`docs/api.md`](docs/api.md)
 - [`docs/config-reference.md`](docs/config-reference.md)
 - [`docs/faq.md`](docs/faq.md)
-- [`docs/BUGS_AND_FIXES.md`](docs/BUGS_AND_FIXES.md) – Known bugs and required fixes (must be kept)
-- [`docs/PLAN_REPO_CLEANUP_AND_IMPROVEMENTS.md`](docs/PLAN_REPO_CLEANUP_AND_IMPROVEMENTS.md) – Repo cleanup, dedup, refactoring, QoL, features, UI (status and backlog)
 - [`docs/release-checklist.md`](docs/release-checklist.md) – Release and deployment checklist
 - [`docs/deploy.md`](docs/deploy.md) – Production deployment
+
+## Glossary
+
+- **Audit sidecar**: JSON file written next to each PDF containing checksum and processing metadata.
+- **Archive path**: ticket custom field defining path segments under storage root.
+- **Archive user mode**: strategy that selects the first directory component (`owner`, `current_agent`, `fixed`).
+- **Delivery ID**: `X-Zammad-Delivery` header used for best-effort in-memory deduplication.
+- **HMAC**: webhook signature validation via `X-Hub-Signature: sha1=<hex>` or `sha256=<hex>`.
+- **PAdES**: PDF Advanced Electronic Signatures profile.
+- **RFC3161**: timestamp protocol used by Time Stamping Authorities.
+- **TSA**: Time Stamping Authority endpoint used for timestamp tokens.

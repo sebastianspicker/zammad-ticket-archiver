@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 from zammad_pdf_archiver.adapters.zammad.models import TagList
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
+from zammad_pdf_archiver.app.jobs import ticket_stores
 from zammad_pdf_archiver.config.settings import Settings
 
 
@@ -28,8 +29,8 @@ def _settings(storage_root: Path) -> Settings:
 def test_process_ticket_serializes_same_ticket_concurrent_runs(
     monkeypatch, tmp_path: Path
 ) -> None:
-    process_ticket_module._DELIVERY_ID_SETS.clear()
-    process_ticket_module._IN_FLIGHT_TICKETS.clear()
+    ticket_stores._DELIVERY_ID_SETS.clear()
+    ticket_stores._IN_FLIGHT_TICKETS.clear()
 
     class _FakeClient:
         _tags: set[str] = {"pdf:sign"}

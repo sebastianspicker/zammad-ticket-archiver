@@ -1,172 +1,174 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ticket {{ ticket.number }}{% if ticket.title %} – {{ ticket.title }}{% endif %}</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    {% macro fmt_dt(value) -%}
-      {%- if not value -%}
-        —
-      {%- elif value.strftime is defined -%}
-        {{- value.strftime("%Y-%m-%d %H:%M") -}}
-      {%- else -%}
-        {{- value -}}
-      {%- endif -%}
-    {%- endmacro %}
 
-    {% macro party(value) -%}
-      {%- if not value -%}
-        —
-      {%- else -%}
-        {%- if value.name -%}{{ value.name }}{%- elif value.login -%}{{ value.login }}{%- elif value.email -%}{{ value.email }}{%- else -%}—{%- endif -%}
-        {%- if value.email and value.name -%} <span class="muted">&lt;{{ value.email }}&gt;</span>{%- endif -%}
-        {%- if value.login and value.name -%} <span class="muted">({{ value.login }})</span>{%- endif -%}
-      {%- endif -%}
-    {%- endmacro %}
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ticket {{ ticket.number }}{% if ticket.title %} – {{ ticket.title }}{% endif %}</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
 
-    {% set custom_fields = ticket.custom_fields if ticket.custom_fields is defined else {} %}
-    {% set archive_path = custom_fields.get("archive_path") %}
-    {% set archive_user_mode = custom_fields.get("archive_user_mode") %}
+<body>
+  {% macro fmt_dt(value) -%}
+  {%- if not value -%}
+  —
+  {%- else -%}
+  {{- value | format_dt_local -}}
+  {%- endif -%}
+  {%- endmacro %}
 
-    <header class="ticket-header">
-      <h1 class="ticket-title">
-        <span class="ticket-number">Ticket {{ ticket.number }}</span>
-        {% if ticket.title %}<span class="ticket-subject">— {{ ticket.title }}</span>{% endif %}
-      </h1>
+  {% macro party(value) -%}
+  {%- if not value -%}
+  —
+  {%- else -%}
+  {%- if value.name -%}{{ value.name }}{%- elif value.login -%}{{ value.login }}{%- elif value.email -%}{{ value.email
+  }}{%- else -%}—{%- endif -%}
+  {%- if value.email and value.name -%} <span class="muted">&lt;{{ value.email }}&gt;</span>{%- endif -%}
+  {%- if value.login and value.name -%} <span class="muted">({{ value.login }})</span>{%- endif -%}
+  {%- endif -%}
+  {%- endmacro %}
 
-      <section class="ticket-meta" aria-label="Ticket metadata">
-        <dl class="meta-grid">
-          <div class="meta-item">
-            <dt>Created</dt>
-            <dd>{{ fmt_dt(ticket.created_at) }}</dd>
-          </div>
-          <div class="meta-item">
-            <dt>Updated</dt>
-            <dd>{{ fmt_dt(ticket.updated_at) }}</dd>
-          </div>
-          <div class="meta-item">
-            <dt>Requester / Customer</dt>
-            <dd>{{ party(ticket.customer) }}</dd>
-          </div>
-          <div class="meta-item">
-            <dt>Owner</dt>
-            <dd>{{ party(ticket.owner) }}</dd>
-          </div>
-          <div class="meta-item meta-item--wide">
-            <dt>Tags</dt>
-            <dd>
-              {% if ticket.tags %}{{ ticket.tags | join(", ") }}{% else %}—{% endif %}
-            </dd>
-          </div>
-          <div class="meta-item meta-item--wide">
-            <dt>Archive path</dt>
-            <dd>
-              {% if archive_path is sequence and archive_path is not string %}
-                {{ archive_path | join(" > ") }}
-              {% elif archive_path %}
-                {{ archive_path }}
-              {% else %}
-                —
-              {% endif %}
-            </dd>
-          </div>
-          <div class="meta-item">
-            <dt>Archive user mode</dt>
-            <dd>{{ archive_user_mode if archive_user_mode else "—" }}</dd>
-          </div>
-        </dl>
-      </section>
-    </header>
+  {% set custom_fields = ticket.custom_fields if ticket.custom_fields is defined else {} %}
+  {% set archive_path = custom_fields.get("archive_path") %}
+  {% set archive_user_mode = custom_fields.get("archive_user_mode") %}
 
-    <main class="content">
-      <section class="section">
-        <h2 class="section-title">Articles</h2>
+  <header class="ticket-header">
+    <h1 class="ticket-title">
+      <span class="ticket-number">Ticket {{ ticket.number }}</span>
+      {% if ticket.title %}<span class="ticket-subject">— {{ ticket.title }}</span>{% endif %}
+    </h1>
 
-        {% for article in articles %}
-          <article class="article">
-            <header class="article-header">
-              <div class="article-meta">
-                <div class="article-primary">
-                  <span class="article-timestamp">{{ fmt_dt(article.created_at) }}</span>
-                  <span class="dot" aria-hidden="true">·</span>
-                  <span class="article-sender">{{ article.sender if article.sender else "—" }}</span>
-                </div>
+    <section class="ticket-meta" aria-label="Ticket metadata">
+      <dl class="meta-grid">
+        <div class="meta-item">
+          <dt>Created</dt>
+          <dd>{{ fmt_dt(ticket.created_at) }}</dd>
+        </div>
+        <div class="meta-item">
+          <dt>Updated</dt>
+          <dd>{{ fmt_dt(ticket.updated_at) }}</dd>
+        </div>
+        <div class="meta-item">
+          <dt>Requester / Customer</dt>
+          <dd>{{ party(ticket.customer) }}</dd>
+        </div>
+        <div class="meta-item">
+          <dt>Owner</dt>
+          <dd>{{ party(ticket.owner) }}</dd>
+        </div>
+        <div class="meta-item meta-item--wide">
+          <dt>Tags</dt>
+          <dd>
+            {% if ticket.tags %}{{ ticket.tags | join(", ") }}{% else %}—{% endif %}
+          </dd>
+        </div>
+        <div class="meta-item meta-item--wide">
+          <dt>Archive path</dt>
+          <dd>
+            {% if archive_path is sequence and archive_path is not string %}
+            {{ archive_path | join(" > ") }}
+            {% elif archive_path %}
+            {{ archive_path }}
+            {% else %}
+            —
+            {% endif %}
+          </dd>
+        </div>
+        <div class="meta-item">
+          <dt>Archive user mode</dt>
+          <dd>{{ archive_user_mode if archive_user_mode else "—" }}</dd>
+        </div>
+      </dl>
+    </section>
+  </header>
 
-                <div class="article-secondary">
-                  <span class="badge {{ 'badge--internal' if article.internal else 'badge--external' }}">
-                    {{ "Internal" if article.internal else "External" }}
-                  </span>
-                  {% if article.subject %}
-                    <span class="article-subject">{{ article.subject }}</span>
-                  {% endif %}
-                </div>
-              </div>
-            </header>
+  <main class="content">
+    <section class="section">
+      <h2 class="section-title">Articles</h2>
 
-            <div class="article-body">
-              {% if article.body_html %}
-                {{ article.body_html | safe }}
-              {% elif article.body_text %}
-                {{ article.body_text | e | replace("\n", "<br />") | safe }}
-              {% else %}
-                <p class="muted">—</p>
-              {% endif %}
+      {% for article in articles %}
+      <article class="article">
+        <header class="article-header">
+          <div class="article-meta">
+            <div class="article-primary">
+              <span class="article-timestamp">{{ fmt_dt(article.created_at) }}</span>
+              <span class="dot" aria-hidden="true">·</span>
+              <span class="article-sender">{{ article.sender if article.sender else "—" }}</span>
             </div>
 
-            {% if article.attachments %}
-              <aside class="article-attachments" aria-label="Attachments">
-                <h3 class="subheading">Attachments</h3>
-                <ul class="attachment-list">
-                  {% for att in article.attachments %}
-                    <li class="attachment-item">
-                      <span class="attachment-name">{{ att.filename if att.filename else "Unnamed file" }}</span>
-                      <span class="attachment-meta">
-                        {% if att.content_type %}{{ att.content_type }}{% endif %}
-                        {% if att.size %}{% if att.content_type %} · {% endif %}{{ att.size }} B{% endif %}
-                        {% if att.attachment_id %} · id {{ att.attachment_id }}{% endif %}
-                      </span>
-                    </li>
-                  {% endfor %}
-                </ul>
-              </aside>
-            {% endif %}
-          </article>
-        {% else %}
-          <p class="muted">No articles.</p>
-        {% endfor %}
-      </section>
+            <div class="article-secondary">
+              <span class="badge {{ 'badge--internal' if article.internal else 'badge--external' }}">
+                {{ "Internal" if article.internal else "External" }}
+              </span>
+              {% if article.subject %}
+              <span class="article-subject">{{ article.subject }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </header>
 
-      <section class="section">
-        <h2 class="section-title">Attachments (index)</h2>
+        <div class="article-body">
+          {% if article.body_html %}
+          {{ article.body_html | safe }}
+          {% elif article.body_text %}
+          {{ article.body_text | e | replace("\n", "<br />") | safe }}
+          {% else %}
+          <p class="muted">—</p>
+          {% endif %}
+        </div>
 
-        {% set articles_with_attachments = articles | selectattr("attachments") | list %}
-        {% if articles_with_attachments %}
-          <ul class="attachment-index">
-            {% for article in articles_with_attachments %}
-              {% for att in article.attachments %}
-                <li class="attachment-index-item">
-                  <span class="attachment-name">{{ att.filename if att.filename else "Unnamed file" }}</span>
-                  <span class="attachment-meta">
-                    article #{{ article.id }}
-                    {% if article.created_at %} · {{ fmt_dt(article.created_at) }}{% endif %}
-                    {% if att.content_type %} · {{ att.content_type }}{% endif %}
-                    {% if att.size %} · {{ att.size }} B{% endif %}
-                  </span>
-                </li>
-              {% endfor %}
+        {% if article.attachments %}
+        <aside class="article-attachments" aria-label="Attachments">
+          <h3 class="subheading">Attachments</h3>
+          <ul class="attachment-list">
+            {% for att in article.attachments %}
+            <li class="attachment-item">
+              <span class="attachment-name">{{ att.filename if att.filename else "Unnamed file" }}</span>
+              <span class="attachment-meta">
+                {% if att.content_type %}{{ att.content_type }}{% endif %}
+                {% if att.size %}{% if att.content_type %} · {% endif %}{{ att.size }} B{% endif %}
+                {% if att.attachment_id %} · id {{ att.attachment_id }}{% endif %}
+              </span>
+            </li>
             {% endfor %}
           </ul>
-        {% else %}
-          <p class="muted">No attachments.</p>
+        </aside>
         {% endif %}
-      </section>
-    </main>
+      </article>
+      {% else %}
+      <p class="muted">No articles.</p>
+      {% endfor %}
+    </section>
 
-    <footer class="footer">
-      <small class="muted">Generated by zammad-pdf-archiver</small>
-    </footer>
-  </body>
+    <section class="section">
+      <h2 class="section-title">Attachments (index)</h2>
+
+      {% set articles_with_attachments = articles | selectattr("attachments") | list %}
+      {% if articles_with_attachments %}
+      <ul class="attachment-index">
+        {% for article in articles_with_attachments %}
+        {% for att in article.attachments %}
+        <li class="attachment-index-item">
+          <span class="attachment-name">{{ att.filename if att.filename else "Unnamed file" }}</span>
+          <span class="attachment-meta">
+            article #{{ article.id }}
+            {% if article.created_at %} · {{ fmt_dt(article.created_at) }}{% endif %}
+            {% if att.content_type %} · {{ att.content_type }}{% endif %}
+            {% if att.size %} · {{ att.size }} B{% endif %}
+          </span>
+        </li>
+        {% endfor %}
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">No attachments.</p>
+      {% endif %}
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small class="muted">Generated by zammad-pdf-archiver</small>
+  </footer>
+</body>
+
 </html>

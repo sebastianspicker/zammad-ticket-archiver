@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
-from jinja2 import Environment, FileSystemLoader, PackageLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, PackageLoader, select_autoescape, pass_context
 from jinja2.loaders import BaseLoader
+from typing import Any
 
 from zammad_pdf_archiver.domain.snapshot_models import Snapshot
 
@@ -33,19 +35,12 @@ def validate_template_name(template_name: str) -> str:
     return name
 
 
-def _templates_root_override() -> Path | None:
-    if not (value := os.environ.get("TEMPLATES_ROOT")):
-        return None
-    path = Path(value).expanduser()
-    return path
-
-
 @lru_cache(maxsize=32)
-def _env_for(template_name: str) -> Environment:
+def _env_for(template_name: str, templates_root: Path | None = None) -> Environment:
     template_name = validate_template_name(template_name)
 
     loader: BaseLoader
-    if (templates_root := _templates_root_override()) is not None:
+    if templates_root is not None:
         template_dir = templates_root / template_name
         if not template_dir.exists() or not template_dir.is_dir():
             raise FileNotFoundError(f"Template folder not found: {template_dir}")
@@ -53,19 +48,62 @@ def _env_for(template_name: str) -> Environment:
     else:
         loader = PackageLoader("zammad_pdf_archiver", f"templates/{template_name}")
 
-    return Environment(
+    env = Environment(
         loader=loader,
         autoescape=select_autoescape(["html", "xml"]),
     )
 
+    def format_dt(value: Any, tz_name: str = "UTC") -> str:
+        if not value or not hasattr(value, "strftime"):
+            return str(value) if value is not None else "—"
+        try:
+            target_tz = ZoneInfo(tz_name)
+            localized = value.astimezone(target_tz)
+            return localized.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            if hasattr(value, "strftime"):
+                return value.strftime("%Y-%m-%d %H:%M")
+            return str(value)
 
-def render_html(snapshot: Snapshot, template_name: str) -> str:
+    @pass_context
+    def format_dt_local(context: Any, value: Any, fmt: str = "%Y-%m-%d %H:%M") -> str:
+        tz_name = context.get("pdf_timezone", "UTC")
+        if not value or not hasattr(value, "strftime"):
+            return str(value) if value is not None else "—"
+        try:
+            target_tz = ZoneInfo(tz_name)
+            localized = value.astimezone(target_tz)
+            return localized.strftime(fmt)
+        except Exception:
+            if hasattr(value, "strftime"):
+                return value.strftime(fmt)
+            return str(value)
+
+    env.filters["format_dt"] = format_dt
+    env.filters["format_dt_local"] = format_dt_local
+    return env
+
+
+def render_html(
+    snapshot: Snapshot,
+    template_name: str,
+    *,
+    locale: str = "de_DE",
+    timezone: str = "Europe/Berlin",
+    templates_root: Path | None = None,
+) -> str:
     """
     Render a Snapshot to HTML using templates/<template_name>/ticket.html.
 
     Jinja context is restricted to a minimal whitelist (Bug #39): only snapshot,
     ticket, and articles are passed; no config, request, or full object graph.
     """
-    env = _env_for(template_name)
+    env = _env_for(template_name, templates_root=templates_root)
     template = env.get_template(_TEMPLATE_FILE)
-    return template.render(snapshot=snapshot, ticket=snapshot.ticket, articles=snapshot.articles)
+    return template.render(
+        snapshot=snapshot,
+        ticket=snapshot.ticket,
+        articles=snapshot.articles,
+        pdf_locale=locale,
+        pdf_timezone=timezone,
+    )

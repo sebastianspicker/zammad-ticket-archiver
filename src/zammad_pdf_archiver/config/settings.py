@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -8,6 +7,8 @@ from typing import Any
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic.networks import AnyHttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from zammad_pdf_archiver.config.env_aliases import get_flat_env_settings_source
 
 
 class _BaseSection(BaseModel):
@@ -81,6 +82,7 @@ class StorageSettings(_BaseSection):
 
 class PdfSettings(_BaseSection):
     template_variant: str = "default"  # default|minimal
+    templates_root: Path | None = None
     locale: str = "de_DE"
     timezone: str = "Europe/Berlin"
     max_articles: int = Field(default=250, ge=0)
@@ -108,6 +110,8 @@ class SigningTimestampRfc3161Settings(_BaseSection):
     tsa_url: AnyHttpUrl | None = None
     timeout_seconds: float = Field(default=10.0, gt=0)
     ca_bundle_path: Path | None = None
+    user: str | None = None
+    password: SecretStr | None = None
 
 
 class SigningTimestampSettings(_BaseSection):
@@ -244,168 +248,8 @@ class Settings(BaseSettings):
     ):
         return (
             env_settings,
-            _flat_env_settings_source,
+            get_flat_env_settings_source,
             init_settings,
             dotenv_settings,
             file_secret_settings,
         )
-
-
-def _flat_env_settings_source() -> dict[str, Any]:
-    env = os.environ
-    data: dict[str, Any] = {}
-
-    # Server
-    if (value := env.get("SERVER_HOST")):
-        data.setdefault("server", {})["host"] = value
-    if (value := env.get("SERVER_PORT")):
-        data.setdefault("server", {})["port"] = value
-    if (value := env.get("WEBHOOK_SHARED_SECRET")):
-        data.setdefault("server", {})["webhook_shared_secret"] = value
-
-    # Zammad
-    if (value := env.get("ZAMMAD_BASE_URL")):
-        data.setdefault("zammad", {})["base_url"] = value
-    elif (value := env.get("ZAMMAD_URL")):
-        data.setdefault("zammad", {})["base_url"] = value
-    if (value := env.get("ZAMMAD_API_TOKEN")):
-        data.setdefault("zammad", {})["api_token"] = value
-    if (value := env.get("WEBHOOK_HMAC_SECRET")):
-        data.setdefault("zammad", {})["webhook_hmac_secret"] = value
-    if (value := env.get("ZAMMAD_TIMEOUT_SECONDS")):
-        data.setdefault("zammad", {})["timeout_seconds"] = value
-    if (value := env.get("ZAMMAD_VERIFY_TLS")):
-        data.setdefault("zammad", {})["verify_tls"] = value
-
-    # Workflow / Fields
-    if (value := env.get("WORKFLOW_TRIGGER_TAG")):
-        data.setdefault("workflow", {})["trigger_tag"] = value
-    if (value := env.get("WORKFLOW_REQUIRE_TAG")):
-        data.setdefault("workflow", {})["require_tag"] = value
-    if (value := env.get("WORKFLOW_DELIVERY_ID_TTL_SECONDS")):
-        data.setdefault("workflow", {})["delivery_id_ttl_seconds"] = value
-    if (value := env.get("IDEMPOTENCY_BACKEND")):
-        data.setdefault("workflow", {})["idempotency_backend"] = value
-    if (value := env.get("REDIS_URL")):
-        data.setdefault("workflow", {})["redis_url"] = value
-    if (value := env.get("FIELDS_ARCHIVE_PATH")):
-        data.setdefault("fields", {})["archive_path"] = value
-    if (value := env.get("FIELDS_ARCHIVE_USER_MODE")):
-        data.setdefault("fields", {})["archive_user_mode"] = value
-    if (value := env.get("FIELDS_ARCHIVE_USER")):
-        data.setdefault("fields", {})["archive_user"] = value
-
-    # Storage
-    if (value := env.get("STORAGE_ROOT")):
-        data.setdefault("storage", {})["root"] = value
-    if (value := env.get("STORAGE_ATOMIC_WRITE")):
-        data.setdefault("storage", {})["atomic_write"] = value
-    if (value := env.get("STORAGE_FSYNC")):
-        data.setdefault("storage", {})["fsync"] = value
-
-    # PDF
-    if (value := env.get("PDF_TEMPLATE_VARIANT")):
-        data.setdefault("pdf", {})["template_variant"] = value
-    elif (value := env.get("TEMPLATE_VARIANT")):
-        # Backwards-compatible alias (present in older deployment env templates).
-        data.setdefault("pdf", {})["template_variant"] = value
-    if (value := env.get("PDF_LOCALE")):
-        data.setdefault("pdf", {})["locale"] = value
-    elif (value := env.get("RENDER_LOCALE")):
-        data.setdefault("pdf", {})["locale"] = value
-    if (value := env.get("PDF_TIMEZONE")):
-        data.setdefault("pdf", {})["timezone"] = value
-    elif (value := env.get("RENDER_TIMEZONE")):
-        data.setdefault("pdf", {})["timezone"] = value
-    if (value := env.get("PDF_MAX_ARTICLES")):
-        data.setdefault("pdf", {})["max_articles"] = value
-    if (value := env.get("PDF_ARTICLE_LIMIT_MODE")):
-        data.setdefault("pdf", {})["article_limit_mode"] = value
-    if (value := env.get("PDF_INCLUDE_ATTACHMENT_BINARY")):
-        data.setdefault("pdf", {})["include_attachment_binary"] = value
-    if (value := env.get("PDF_MAX_ATTACHMENT_BYTES_PER_FILE")):
-        data.setdefault("pdf", {})["max_attachment_bytes_per_file"] = value
-    if (value := env.get("PDF_MAX_TOTAL_ATTACHMENT_BYTES")):
-        data.setdefault("pdf", {})["max_total_attachment_bytes"] = value
-
-    # Signing
-    if (value := env.get("SIGNING_ENABLED")):
-        data.setdefault("signing", {})["enabled"] = value
-    if (value := env.get("SIGNING_PFX_PATH")):
-        data.setdefault("signing", {})["pfx_path"] = value
-    if (value := env.get("SIGNING_PFX_PASSWORD")):
-        data.setdefault("signing", {})["pfx_password"] = value
-    if (value := env.get("SIGNING_CERT_PATH")):
-        data.setdefault("signing", {}).setdefault("pades", {})["cert_path"] = value
-    if (value := env.get("SIGNING_KEY_PATH")):
-        data.setdefault("signing", {}).setdefault("pades", {})["key_path"] = value
-    if (value := env.get("SIGNING_KEY_PASSWORD")):
-        data.setdefault("signing", {}).setdefault("pades", {})["key_password"] = value
-    if (value := env.get("SIGNING_REASON")):
-        data.setdefault("signing", {}).setdefault("pades", {})["reason"] = value
-    if (value := env.get("SIGNING_LOCATION")):
-        data.setdefault("signing", {}).setdefault("pades", {})["location"] = value
-    if (value := env.get("TSA_ENABLED")):
-        data.setdefault("signing", {}).setdefault("timestamp", {})["enabled"] = value
-    if (value := env.get("TSA_URL")):
-        data.setdefault("signing", {}).setdefault("timestamp", {}).setdefault("rfc3161", {})[
-            "tsa_url"
-        ] = value
-    if (value := env.get("TSA_TIMEOUT_SECONDS")):
-        data.setdefault("signing", {}).setdefault("timestamp", {}).setdefault("rfc3161", {})[
-            "timeout_seconds"
-        ] = value
-    if (value := env.get("TSA_CA_BUNDLE_PATH")):
-        data.setdefault("signing", {}).setdefault("timestamp", {}).setdefault("rfc3161", {})[
-            "ca_bundle_path"
-        ] = value
-
-    # Observability
-    if (value := env.get("LOG_LEVEL")):
-        data.setdefault("observability", {})["log_level"] = value
-    if (value := env.get("LOG_FORMAT")):
-        data.setdefault("observability", {})["log_format"] = value
-    if (value := env.get("LOG_JSON")):
-        data.setdefault("observability", {})["json_logs"] = value
-    if (value := env.get("METRICS_ENABLED")):
-        data.setdefault("observability", {})["metrics_enabled"] = value
-    if (value := env.get("OBSERVABILITY_METRICS_ENABLED")):
-        data.setdefault("observability", {})["metrics_enabled"] = value
-    if (value := env.get("METRICS_BEARER_TOKEN")):
-        data.setdefault("observability", {})["metrics_bearer_token"] = value
-    if (value := env.get("HEALTHZ_OMIT_VERSION")):
-        data.setdefault("observability", {})["healthz_omit_version"] = value
-
-    # Hardening
-    if (value := env.get("RATE_LIMIT_ENABLED")):
-        data.setdefault("hardening", {}).setdefault("rate_limit", {})["enabled"] = value
-    if (value := env.get("RATE_LIMIT_RPS")):
-        data.setdefault("hardening", {}).setdefault("rate_limit", {})["rps"] = value
-    if (value := env.get("RATE_LIMIT_BURST")):
-        data.setdefault("hardening", {}).setdefault("rate_limit", {})["burst"] = value
-    if (value := env.get("RATE_LIMIT_INCLUDE_METRICS")):
-        data.setdefault("hardening", {}).setdefault("rate_limit", {})["include_metrics"] = value
-    if (value := env.get("RATE_LIMIT_CLIENT_KEY_HEADER")):
-        data.setdefault("hardening", {}).setdefault("rate_limit", {})["client_key_header"] = value
-    if (value := env.get("MAX_BODY_BYTES")):
-        data.setdefault("hardening", {}).setdefault("body_size_limit", {})["max_bytes"] = value
-    if (value := env.get("HARDENING_WEBHOOK_ALLOW_UNSIGNED")):
-        data.setdefault("hardening", {}).setdefault("webhook", {})["allow_unsigned"] = value
-    if (value := env.get("HARDENING_WEBHOOK_ALLOW_UNSIGNED_WHEN_NO_SECRET")):
-        data.setdefault("hardening", {}).setdefault("webhook", {})[
-            "allow_unsigned_when_no_secret"
-        ] = value
-    if (value := env.get("HARDENING_WEBHOOK_REQUIRE_DELIVERY_ID")):
-        data.setdefault("hardening", {}).setdefault("webhook", {})["require_delivery_id"] = value
-    if (value := env.get("HARDENING_TRANSPORT_TRUST_ENV")):
-        data.setdefault("hardening", {}).setdefault("transport", {})["trust_env"] = value
-    if (value := env.get("HARDENING_TRANSPORT_ALLOW_INSECURE_HTTP")):
-        data.setdefault("hardening", {}).setdefault("transport", {})["allow_insecure_http"] = value
-    if (value := env.get("HARDENING_TRANSPORT_ALLOW_INSECURE_TLS")):
-        data.setdefault("hardening", {}).setdefault("transport", {})["allow_insecure_tls"] = value
-    if (value := env.get("HARDENING_TRANSPORT_ALLOW_LOCAL_UPSTREAMS")):
-        data.setdefault("hardening", {}).setdefault("transport", {})["allow_local_upstreams"] = (
-            value
-        )
-
-    return data

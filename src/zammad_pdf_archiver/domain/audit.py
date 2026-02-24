@@ -30,26 +30,19 @@ def _safe_get_service_version(dist_name: str) -> str | None:
         return None
 
 
-def _extract_cert_fingerprint_sha256(signing_settings: Any) -> str | None:
+def _extract_cert_fingerprint(settings: Any) -> str | None:
     """
     Best-effort extraction of a signing certificate fingerprint (SHA-256 hex).
-
-    Never raises: failures return None.
     """
     try:
-        enabled = bool(getattr(signing_settings, "enabled", False))
-        if not enabled:
-            return None
-
-        # Import lazily so non-signing deployments don't need crypto deps at import time.
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.serialization import pkcs12
 
-        pfx_path = getattr(signing_settings, "pfx_path", None)
+        pfx_path = getattr(settings, "pfx_path", None)
         if pfx_path is not None:
-            password_secret = getattr(signing_settings, "pfx_password", None)
-            if isinstance(password_secret, SecretStr):
+            password_secret = getattr(settings, "pfx_password", None)
+            if hasattr(password_secret, "get_secret_value"):
                 password_str: str | None = password_secret.get_secret_value()
             elif isinstance(password_secret, str):
                 password_str = password_secret
@@ -65,7 +58,7 @@ def _extract_cert_fingerprint_sha256(signing_settings: Any) -> str | None:
                 return None
             return cert.fingerprint(hashes.SHA256()).hex()
 
-        pades = getattr(signing_settings, "pades", None)
+        pades = getattr(settings, "pades", None)
         cert_path = getattr(pades, "cert_path", None) if pades is not None else None
         if cert_path is not None:
             raw = Path(cert_path).read_bytes()
@@ -77,6 +70,12 @@ def _extract_cert_fingerprint_sha256(signing_settings: Any) -> str | None:
     except Exception:
         return None
     return None
+
+
+def _get_fingerprint(signing_settings: Any) -> str | None:
+    if not signing_settings or not getattr(signing_settings, "enabled", False):
+        return None
+    return _extract_cert_fingerprint(signing_settings)
 
 
 def build_audit_record(
@@ -98,7 +97,7 @@ def build_audit_record(
     timestamp = getattr(signing_settings, "timestamp", None) if signing_settings else None
     tsa_used = bool(getattr(timestamp, "enabled", False)) if timestamp is not None else False
     cert_fingerprint = (
-        _extract_cert_fingerprint_sha256(signing_settings) if signing_settings else None
+        _get_fingerprint(signing_settings) if signing_settings else None
     )
 
     signing: dict[str, Any] = {"enabled": signing_enabled, "tsa_used": tsa_used}

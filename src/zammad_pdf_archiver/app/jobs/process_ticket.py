@@ -2,20 +2,29 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
+import uuid
 from datetime import UTC, datetime
 from html import escape
+from pathlib import Path
 from time import perf_counter
 from typing import Any
 
 import structlog
 
+from zammad_pdf_archiver._version import VERSION
 from zammad_pdf_archiver.adapters.pdf.render_pdf import render_pdf
 from zammad_pdf_archiver.adapters.signing.sign_pdf import sign_pdf
 from zammad_pdf_archiver.adapters.snapshot.build_snapshot import (
     build_snapshot,
     enrich_attachment_content,
 )
-from zammad_pdf_archiver.adapters.storage.fs_storage import write_atomic_bytes, write_bytes
+from zammad_pdf_archiver.adapters.storage.fs_storage import (
+    ensure_dir,
+    move_file_within_root,
+    write_atomic_bytes,
+    write_bytes,
+)
 from zammad_pdf_archiver.adapters.storage.layout import (
     build_filename_from_pattern,
     build_target_dir,
@@ -30,15 +39,28 @@ from zammad_pdf_archiver.adapters.zammad.errors import (
 from zammad_pdf_archiver.app.jobs.retry_policy import classify
 from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
 from zammad_pdf_archiver.config.settings import Settings
-from zammad_pdf_archiver.domain.audit import (
-    _format_timestamp_utc,
-    build_audit_record,
-    compute_sha256,
-)
 from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
-from zammad_pdf_archiver.domain.idempotency import DeliveryIdStore, InMemoryTTLSet
 from zammad_pdf_archiver.domain.path_policy import sanitize_segment
+from zammad_pdf_archiver.app.constants import REQUEST_ID_KEY
+from zammad_pdf_archiver.app.jobs.ticket_notes import (
+    success_note_html,
+    error_note_html,
+    error_code_and_hint,
+    concise_exc_message,
+    action_hint,
+)
+from zammad_pdf_archiver.app.jobs.ticket_path import (
+    determine_username,
+    parse_archive_path_segments,
+)
+from zammad_pdf_archiver.app.jobs.ticket_stores import (
+    try_claim_delivery_id,
+    try_acquire_ticket,
+    release_ticket,
+)
+from zammad_pdf_archiver.domain.audit import build_audit_record, compute_sha256
 from zammad_pdf_archiver.domain.redis_delivery_id import RedisDeliveryIdStore
+
 from zammad_pdf_archiver.domain.snapshot_models import Snapshot
 from zammad_pdf_archiver.domain.state_machine import (
     PROCESSING_TAG,
@@ -48,305 +70,28 @@ from zammad_pdf_archiver.domain.state_machine import (
     apply_processing,
     should_process,
 )
-from zammad_pdf_archiver.domain.ticket_id import coerce_ticket_id
+from zammad_pdf_archiver.domain.ticket_id import coerce_ticket_id, extract_ticket_id
 from zammad_pdf_archiver.domain.ticket_utils import ticket_custom_fields
+from zammad_pdf_archiver.adapters.zammad.models import Ticket
 from zammad_pdf_archiver.observability.metrics import (
     failed_total,
     processed_total,
     render_seconds,
     sign_seconds,
     total_seconds,
+    skipped_total,
 )
 
-_DELIVERY_ID_SETS: dict[int, InMemoryTTLSet] = {}
-_REDIS_STORES: dict[tuple[str, int], RedisDeliveryIdStore] = {}
-_STORE_GUARD = asyncio.Lock()
-_IN_FLIGHT_TICKETS: set[int] = set()
-_IN_FLIGHT_TICKETS_GUARD = asyncio.Lock()
-_REQUEST_ID_KEY = "_request_id"
-
 log = structlog.get_logger(__name__)
-
-
-def _get_delivery_id_store(settings: Settings) -> DeliveryIdStore | None:
-    """Delivery-ID store or None if idempotency off (ttl<=0). Caller must hold _STORE_GUARD."""
-    ttl = int(settings.workflow.delivery_id_ttl_seconds)
-    if ttl <= 0:
-        return None
-    backend = (settings.workflow.idempotency_backend or "memory").strip().lower()
-    if backend == "redis" and settings.workflow.redis_url:
-        cache_key = (settings.workflow.redis_url, ttl)
-        result: DeliveryIdStore | None = _REDIS_STORES.get(cache_key)
-        if result is None:
-            result = RedisDeliveryIdStore(settings.workflow.redis_url, ttl)
-            _REDIS_STORES[cache_key] = result
-        return result
-    result = _DELIVERY_ID_SETS.get(ttl)
-    if result is None:
-        result = InMemoryTTLSet(ttl_seconds=float(ttl))
-        _DELIVERY_ID_SETS[ttl] = result
-    return result
-
-
-async def _claim_delivery_id(settings: Settings, delivery_id: str) -> bool:
-    """
-    Atomically check and register delivery_id for idempotency.
-    Returns True if this delivery was newly claimed (caller should proceed),
-    False if already seen (caller should skip).
-    """
-    async with _STORE_GUARD:
-        store = _get_delivery_id_store(settings)
-        if store is None:
-            return True
-        return await store.try_claim(delivery_id)
-
-
-async def _try_acquire_ticket(ticket_id: int) -> bool:
-    async with _IN_FLIGHT_TICKETS_GUARD:
-        if ticket_id in _IN_FLIGHT_TICKETS:
-            return False
-        _IN_FLIGHT_TICKETS.add(ticket_id)
-        return True
-
-
-async def _release_ticket(ticket_id: int) -> None:
-    async with _IN_FLIGHT_TICKETS_GUARD:
-        _IN_FLIGHT_TICKETS.discard(ticket_id)
-
-
-def _extract_ticket_id(payload: dict[str, Any]) -> int | None:
-    ticket = payload.get("ticket")
-    if isinstance(ticket, dict):
-        value = ticket.get("id")
-    else:
-        value = payload.get("ticket_id")
-    return coerce_ticket_id(value)
-
-
-def _require_nonempty(value: Any, *, field: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{field} must be a string")
-    out = value.strip()
-    if not out:
-        raise ValueError(f"{field} must be non-empty")
-    return out
-
-
-def _determine_username(
-    *,
-    ticket: Any,
-    payload: dict[str, Any],
-    custom_fields: dict[str, Any],
-    mode_field_name: str,
-    archive_user_field_name: str = "archive_user",
-) -> str:
-    raw_mode = custom_fields.get(mode_field_name)
-    mode = str(raw_mode).strip() if raw_mode is not None else "owner"
-
-    if mode == "owner":
-        owner = getattr(ticket, "owner", None)
-        return _require_nonempty(getattr(owner, "login", None), field="ticket.owner.login")
-
-    if mode == "current_agent":
-        user = payload.get("user")
-        if isinstance(user, dict):
-            login = user.get("login")
-            if isinstance(login, str) and login.strip():
-                return login.strip()
-
-        updated_by = getattr(ticket, "updated_by", None)
-        return _require_nonempty(
-            getattr(updated_by, "login", None),
-            field="ticket.updated_by.login",
-        )
-
-    if mode == "fixed":
-        return _require_nonempty(
-            custom_fields.get(archive_user_field_name),
-            field=f"custom_fields.{archive_user_field_name}",
-        )
-
-    raise ValueError(f"unsupported archive_user_mode: {mode!r}")
-
-
-def _parse_archive_path_segments(value: Any) -> list[str]:
-    if value is None:
-        raise ValueError("custom_fields.archive_path is missing")
-
-    if isinstance(value, str):
-        raw_parts = [p.strip() for p in value.split(">")]
-        parts = [p for p in raw_parts if p]
-    elif isinstance(value, list):
-        parts = []
-        for idx, item in enumerate(value):
-            if not isinstance(item, str):
-                raise ValueError(f"custom_fields.archive_path[{idx}] must be a string")
-            item = item.strip()
-            if item:
-                parts.append(item)
-    else:
-        raise ValueError("custom_fields.archive_path must be a string or list of strings")
-
-    if not parts:
-        raise ValueError(
-            "custom_fields.archive_path must not be empty after sanitization "
-            "(all segments were empty or whitespace-only)"
-        )
-
-    return parts
 
 
 def _now_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def _success_note_html(
-    *,
-    storage_dir: str,
-    filename: str,
-    sidecar_path: str,
-    size_bytes: int,
-    sha256_hex: str,
-    request_id: str | None,
-    delivery_id: str | None,
-    timestamp_utc: str,
-) -> str:
-    storage = escape(storage_dir)
-    fname = escape(filename)
-    sidecar = escape(sidecar_path)
-    sha256 = escape(sha256_hex)
-    rid = escape(request_id or "unknown")
-    did = escape(delivery_id or "none")
-    time_utc = escape(timestamp_utc)
-    return (
-        "<p><strong>PDF archived (v0.1)</strong></p>"
-        "<ul>"
-        f"<li>path: <code>{storage}</code></li>"
-        f"<li>filename: <code>{fname}</code></li>"
-        f"<li>audit_sidecar: <code>{sidecar}</code></li>"
-        f"<li>size_bytes: <code>{size_bytes}</code></li>"
-        f"<li>sha256: <code>{sha256}</code></li>"
-        f"<li>request_id: <code>{rid}</code></li>"
-        f"<li>delivery_id: <code>{did}</code></li>"
-        f"<li>time_utc: <code>{time_utc}</code></li>"
-        "</ul>"
-    )
+def _format_timestamp_utc(dt: datetime) -> str:
+    return dt.isoformat().replace("+00:00", "Z")
 
-
-def _error_code_and_hint(exc: BaseException) -> tuple[str, str]:
-    """Return (stable_code, short_hint) for permanent failures (Bug #7)."""
-    msg = str(exc).strip().lower()
-    if "archive_path is missing" in msg or "archive_path" in msg and "missing" in msg:
-        return ("missing_archive_path", "Set custom_fields.archive_path on the ticket.")
-    if "archive_path must not be empty" in msg or "all segments were empty" in msg:
-        return ("empty_archive_path", "Set archive_path to at least one non-empty segment.")
-    if "archive_path must be a string" in msg or "archive_path[" in msg:
-        return ("invalid_archive_path", "Use a string or list of strings for archive_path.")
-    if "allow_prefixes" in msg and "not allowed" in msg:
-        return ("path_not_allowed", "Check allow_prefixes; archive_path must match a prefix.")
-    if "allow_prefixes is empty" in msg:
-        return (
-            "allow_prefixes_empty",
-            "Configure at least one allow_prefixes entry or leave unset.",
-        )
-    if "owner.login" in msg or "updated_by.login" in msg:
-        return ("missing_user_login", "Ensure ticket has owner/updated_by with login.")
-    if "archive_user" in msg or "archive_user_mode" in msg:
-        return ("missing_archive_user", "Set custom_fields.archive_user for fixed mode.")
-    if "filename" in msg and ("pattern" in msg or "segment" in msg or "must not" in msg):
-        return (
-            "invalid_filename",
-            "Check filename_pattern and path policy (no ., .., separators).",
-        )
-    if "path segment" in msg or "path separators" in msg or "dot segments" in msg:
-        return ("path_validation", "Check archive_path segments (no ., .., empty, or separators).")
-    return ("permanent_error", "")
-
-
-def _error_note_html(
-    *,
-    classification: str,
-    message: str,
-    action: str,
-    request_id: str | None,
-    delivery_id: str | None,
-    timestamp_utc: str,
-    code: str = "",
-    hint: str = "",
-) -> str:
-    rid = escape(request_id or "unknown")
-    did = escape(delivery_id or "none")
-    cls = escape(classification)
-    msg = escape(message)
-    act = escape(action)
-    code_esc = escape(code) if code else ""
-    hint_esc = escape(hint) if hint else ""
-    items = [
-        f"<li>classification: <code>{cls}</code></li>",
-        f"<li>error: <code>{msg}</code></li>",
-        f"<li>action: <code>{act}</code></li>",
-    ]
-    if code_esc:
-        items.append(f"<li>code: <code>{code_esc}</code></li>")
-    if hint_esc:
-        items.append(f"<li>hint: <code>{hint_esc}</code></li>")
-    items.extend(
-        [
-            f"<li>request_id: <code>{rid}</code></li>",
-            f"<li>delivery_id: <code>{did}</code></li>",
-            f"<li>time_utc: <code>{timestamp_utc}</code></li>",
-        ]
-    )
-    return (
-        "<p><strong>PDF archiver error (v0.1)</strong></p>"
-        "<ul>"
-        + "".join(items)
-        + "</ul>"
-    )
-
-
-def _concise_exc_message(exc: BaseException) -> str:
-    text = f"{exc.__class__.__name__}: {exc}"
-    text = text.strip()
-    text = scrub_secrets_in_text(text)
-    return text[:500] if len(text) > 500 else text
-
-
-def _action_hint(exc: BaseException, *, classified: TransientError | PermanentError) -> str:
-    if isinstance(classified, TransientError):
-        return (
-            "Transient failure. Verify Zammad/TSA reachability and storage availability; "
-            "the ticket keeps pdf:sign so a retry can be triggered by saving the ticket "
-            "or reapplying the macro."
-        )
-
-    # PermanentError: aim for a concrete operator action.
-    if isinstance(exc, AuthError):
-        return "Fix Zammad API token/permissions (HTTP 401/403), then reapply the pdf:sign macro."
-    if isinstance(exc, NotFoundError):
-        return (
-            "Ticket/resource not found in Zammad. Verify the ticket still exists, then reapply "
-            "pdf:sign."
-        )
-    if isinstance(exc, (ServerError, RateLimitError)):
-        return (
-            "Upstream Zammad error was treated as permanent by policy. "
-            "If the issue is resolved, reapply the pdf:sign macro to reprocess."
-        )
-    if isinstance(exc, PermissionError):
-        return (
-            "Storage permission denied. Check network share mount options, ownership, and ACLs, "
-            "then reapply the pdf:sign macro."
-        )
-    if isinstance(exc, (ValueError, TypeError)):
-        return (
-            "Fix ticket fields / path policy validation, then reapply the pdf:sign macro "
-            "(and optionally remove pdf:error for clarity)."
-        )
-    return (
-        "Non-retryable failure by policy. Fix the underlying issue and reapply the pdf:sign macro "
-        "(and optionally remove pdf:error)."
-    )
 
 
 async def process_ticket(
@@ -354,12 +99,13 @@ async def process_ticket(
     payload: dict[str, Any],
     settings: Settings,
 ) -> None:
-    ticket_id = _extract_ticket_id(payload)
+    request_id = payload.get(REQUEST_ID_KEY)
+    ticket_id = extract_ticket_id(payload)
     if ticket_id is None:
-        log.info("process_ticket.skip_no_ticket_id")
+        log.info("process_ticket.skip_no_ticket_id", request_id=request_id)
+        skipped_total.labels(reason="no_ticket_id").inc()
         return
 
-    request_id = payload.get(_REQUEST_ID_KEY)
     if not isinstance(request_id, str) or not request_id.strip():
         request_id = None
 
@@ -373,23 +119,25 @@ async def process_ticket(
         trigger_tag = str(settings.workflow.trigger_tag).strip() or TRIGGER_TAG
         require_trigger_tag = bool(settings.workflow.require_tag)
 
-        acquired = await _try_acquire_ticket(ticket_id)
+        acquired = await try_acquire_ticket(settings, ticket_id)
         if not acquired:
             log.info(
                 "process_ticket.skip_ticket_in_flight",
                 ticket_id=ticket_id,
                 delivery_id=delivery_id,
             )
+            skipped_total.labels(reason="in_flight").inc()
             return
 
         try:
             if delivery_id:
-                if not await _claim_delivery_id(settings, delivery_id):
+                if not await try_claim_delivery_id(settings, delivery_id):
                     log.info(
                         "process_ticket.skip_delivery_id_seen",
                         ticket_id=ticket_id,
                         delivery_id=delivery_id,
                     )
+                    skipped_total.labels(reason="idempotency").inc()
                     return
 
             async with AsyncZammadClient(
@@ -416,12 +164,13 @@ async def process_ticket(
                             ticket_id=ticket_id,
                             tags=tags.root,
                         )
+                        skipped_total.labels(reason="not_triggered").inc()
                         return
 
                     await apply_processing(client, ticket_id, trigger_tag=trigger_tag)
 
                     custom_fields = ticket_custom_fields(ticket)
-                    username = _determine_username(
+                    username = determine_username(
                         ticket=ticket,
                         payload=payload,
                         custom_fields=custom_fields,
@@ -429,7 +178,7 @@ async def process_ticket(
                         archive_user_field_name=settings.fields.archive_user,
                     )
 
-                    segments = _parse_archive_path_segments(
+                    segments = parse_archive_path_segments(
                         custom_fields.get(settings.fields.archive_path)
                     )
                     target_dir = build_target_dir(
@@ -439,7 +188,7 @@ async def process_ticket(
                         allow_prefixes=settings.storage.path_policy.allow_prefixes,
                     )
 
-                    now = _now_utc()
+                    now = datetime.now(UTC)
                     date_iso = now.date().isoformat()
                     filename = build_filename_from_pattern(
                         settings.storage.path_policy.filename_pattern,
@@ -483,6 +232,9 @@ async def process_ticket(
                         snapshot,
                         settings.pdf.template,
                         max_articles=settings.pdf.max_articles,
+                        locale=settings.pdf.locale,
+                        timezone=settings.pdf.timezone,
+                        templates_root=settings.pdf.templates_root,
                     )
                     render_seconds.observe(perf_counter() - render_start)
 
@@ -497,71 +249,123 @@ async def process_ticket(
                     sha256_hex = compute_sha256(pdf_bytes)
                     size_bytes = len(pdf_bytes)
 
+                    # P0: Atomic Archival grouping using a temporary directory.
+                    # We write all files to a transient adjacent folder, then move them to
+                    # their final locations. This ensures a crash mid-job doesn't leave
+                    # a half-archived ticket at the final destination.
+                    temp_archive_root = target_path.parent / f".tmp-archiving-{ticket_id}-{uuid.uuid4().hex[:8]}"
                     attachment_entries: list[dict[str, Any]] = []
-                    attachments_dir = target_path.parent / "attachments"
-                    writer = (
-                        write_atomic_bytes if settings.storage.atomic_write else write_bytes
-                    )
-                    snapshot_articles = getattr(snapshot, "articles", None)
-                    if isinstance(snapshot_articles, list):
-                        for article in snapshot_articles:
-                            for att in article.attachments:
-                                if att.content is None:
-                                    continue
-                                safe_name = sanitize_segment(
-                                    f"{article.id}_{att.attachment_id or 0}_{att.filename or 'bin'}"
-                                ) or f"article_{article.id}_{att.attachment_id or 0}"
-                                attach_path = attachments_dir / safe_name
-                                writer(
-                                    attach_path,
-                                    att.content,
-                                    fsync=settings.storage.fsync,
-                                    storage_root=settings.storage.root,
-                                )
-                                attachment_entries.append(
-                                    {
-                                        "storage_path": str(attach_path),
-                                        "article_id": article.id,
-                                        "attachment_id": att.attachment_id,
-                                        "filename": att.filename,
-                                        "sha256": compute_sha256(att.content),
-                                    }
-                                )
-
                     sidecar_path = target_path.with_name(target_path.name + ".json")
-                    audit_record = build_audit_record(
-                        ticket_id=ticket.id,
-                        ticket_number=ticket.number,
-                        title=ticket.title,
-                        created_at=now,
-                        storage_path=str(target_path),
-                        sha256=sha256_hex,
-                        signing_settings=settings.signing,
-                        attachments=attachment_entries if attachment_entries else None,
-                    )
-                    audit_bytes = (
-                        json.dumps(audit_record, ensure_ascii=False, sort_keys=True, indent=2)
-                        + "\n"
-                    ).encode("utf-8")
 
-                    writer(
-                        target_path,
-                        pdf_bytes,
-                        fsync=settings.storage.fsync,
-                        storage_root=settings.storage.root,
-                    )
-                    writer(
-                        sidecar_path,
-                        audit_bytes,
-                        fsync=settings.storage.fsync,
-                        storage_root=settings.storage.root,
-                    )
+                    try:
+                        ensure_dir(temp_archive_root)
+                        temp_pdf_path = temp_archive_root / target_path.name
+                        temp_sidecar_path = temp_archive_root / sidecar_path.name
+                        temp_attachments_dir = temp_archive_root / "attachments"
+
+                        attachments_dir = target_path.parent / "attachments"
+                        snapshot_articles = getattr(snapshot, "articles", None)
+
+                        if isinstance(snapshot_articles, list) and snapshot_articles:
+                            has_attachments = any(
+                                att.content is not None
+                                for article in snapshot_articles
+                                for att in article.attachments
+                            )
+                            if has_attachments:
+                                ensure_dir(temp_attachments_dir)
+                                for article in snapshot_articles:
+                                    for att in article.attachments:
+                                        if att.content is None:
+                                            continue
+                                        safe_name = sanitize_segment(
+                                            f"{article.id}_{att.attachment_id or 0}_{att.filename or 'bin'}"
+                                        ) or f"article_{article.id}_{att.attachment_id or 0}"
+                                        attach_temp_path = temp_attachments_dir / safe_name
+                                        write_bytes(
+                                            attach_temp_path,
+                                            att.content,
+                                            fsync=settings.storage.fsync,
+                                            storage_root=settings.storage.root,
+                                        )
+                                        attachment_entries.append(
+                                            {
+                                                "storage_path": str(attachments_dir / safe_name),
+                                                "article_id": article.id,
+                                                "attachment_id": att.attachment_id,
+                                                "filename": att.filename,
+                                                "sha256": compute_sha256(att.content),
+                                            }
+                                        )
+
+                        audit_record = build_audit_record(
+                            ticket_id=ticket.id,
+                            ticket_number=ticket.number,
+                            title=ticket.title,
+                            created_at=now,
+                            storage_path=str(target_path),
+                            sha256=sha256_hex,
+                            signing_settings=settings.signing,
+                            attachments=attachment_entries if attachment_entries else None,
+                        )
+                        audit_bytes = (
+                            json.dumps(audit_record, ensure_ascii=False, sort_keys=True, indent=2)
+                            + "\n"
+                        ).encode("utf-8")
+
+                        # Write PDF and sidecar into temp dir
+                        write_bytes(
+                            temp_pdf_path,
+                            pdf_bytes,
+                            fsync=settings.storage.fsync,
+                            storage_root=settings.storage.root,
+                        )
+                        write_bytes(
+                            temp_sidecar_path,
+                            audit_bytes,
+                            fsync=settings.storage.fsync,
+                            storage_root=settings.storage.root,
+                        )
+
+                        # PHASE 2: ATOMIC "COMMIT" (Moves)
+                        # We use move_file_within_root which performs rename (atomic on same FS).
+                        if attachment_entries:
+                            ensure_dir(attachments_dir)
+                            for entry in attachment_entries:
+                                # We need to recalculate the temp path or store it.
+                                # Let's just use the filename from the storage_path.
+                                fname = Path(entry["storage_path"]).name
+                                move_file_within_root(
+                                    temp_attachments_dir / fname,
+                                    attachments_dir / fname,
+                                    storage_root=settings.storage.root,
+                                    fsync=settings.storage.fsync,
+                                )
+
+                        # Move PDF
+                        move_file_within_root(
+                            temp_pdf_path,
+                            target_path,
+                            storage_root=settings.storage.root,
+                            fsync=settings.storage.fsync,
+                        )
+
+                        # Move Sidecar (Last: signals successful archival)
+                        move_file_within_root(
+                            temp_sidecar_path,
+                            sidecar_path,
+                            storage_root=settings.storage.root,
+                            fsync=settings.storage.fsync,
+                        )
+                    finally:
+                        if temp_archive_root.exists():
+                            shutil.rmtree(temp_archive_root, ignore_errors=True)
 
                     if settings.workflow.acknowledge_on_success:
                         await client.create_internal_article(
                             ticket_id,
-                            "PDF archived (v0.1)",
-                            _success_note_html(
+                            f"PDF archived ({VERSION})",
+                            success_note_html(
                                 storage_dir=str(target_path.parent),
                                 filename=target_path.name,
                                 sidecar_path=str(sidecar_path),
@@ -574,10 +378,19 @@ async def process_ticket(
                         )
 
                     try:
-                        await apply_done(client, ticket_id, trigger_tag=trigger_tag)
+                        # Bug #P1-2: State desync. We use a slightly more aggressive retry
+                        # for the final state change to decrease chance of "stuck" tickets.
+                        max_zammad_retries = 3
+                        for attempt in range(max_zammad_retries):
+                            try:
+                                await apply_done(client, ticket_id, trigger_tag=trigger_tag)
+                                break
+                            except Exception:
+                                if attempt == max_zammad_retries - 1:
+                                    raise
+                                await asyncio.sleep(0.5 * (2**attempt))
                     except Exception:
-                        await asyncio.sleep(0.3)
-                        await apply_done(client, ticket_id, trigger_tag=trigger_tag)
+                        log.exception("process_ticket.apply_done_failed", ticket_id=ticket_id)
                     processed_total.inc()
                     log.info(
                         "process_ticket.done",
@@ -597,13 +410,13 @@ async def process_ticket(
                         if classified is not None and isinstance(classified, TransientError)
                         else "Permanent"
                     )
-                    msg = _concise_exc_message(exc)
+                    msg = concise_exc_message(exc)
                     action = (
-                        _action_hint(exc, classified=classified) if classified is not None else ""
+                        action_hint(exc, classified=classified) if classified is not None else ""
                     )
                     code, hint = "", ""
                     if classified is not None and isinstance(classified, PermanentError):
-                        code, hint = _error_code_and_hint(exc)
+                        code, hint = error_code_and_hint(exc)
                     log.exception(
                         "process_ticket.error",
                         ticket_id=ticket_id,
@@ -618,8 +431,8 @@ async def process_ticket(
                     try:
                         await client.create_internal_article(
                             ticket_id,
-                            "PDF archiver error (v0.1)",
-                            _error_note_html(
+                            f"PDF archiver error ({VERSION})",
+                            error_note_html(
                                 classification=classification_label,
                                 message=msg,
                                 action=action,
@@ -687,7 +500,7 @@ async def process_ticket(
         finally:
             # Bug #16: shield so cancellation during release doesn't leave ticket in in-flight set.
             try:
-                await asyncio.shield(_release_ticket(ticket_id))
+                await asyncio.shield(release_ticket(settings, ticket_id))
             except Exception:
                 log.exception(
                     "process_ticket.release_ticket_failed",
@@ -695,3 +508,23 @@ async def process_ticket(
                     request_id=request_id,
                     delivery_id=delivery_id,
                 )
+
+
+async def aclose_redis_stores() -> None:
+    """Close all persistent Redis connections. Called on application shutdown."""
+    global _SHUTTING_DOWN
+    async with _STORE_GUARD:
+        _SHUTTING_DOWN = True
+        for store in _REDIS_STORES.values():
+            try:
+                await store.aclose()
+            except Exception:
+                log.warning("process_ticket.redis_idempotency_aclose_failed")
+        _REDIS_STORES.clear()
+
+        for store in _REDIS_TICKET_LOCK_STORES.values():
+            try:
+                await store.aclose()
+            except Exception:
+                log.warning("process_ticket.redis_lock_aclose_failed")
+        _REDIS_TICKET_LOCK_STORES.clear()

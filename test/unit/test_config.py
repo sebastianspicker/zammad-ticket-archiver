@@ -41,6 +41,10 @@ def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in keys:
         monkeypatch.delenv(key, raising=False)
 
+@pytest.fixture(autouse=True)
+def _clear_env_autouse(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_env(monkeypatch)
+
 
 def test_missing_required_env_vars_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)

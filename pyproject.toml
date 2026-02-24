@@ -9,9 +9,9 @@ description = "FastAPI webhook service to archive Zammad tickets as PDFs (option
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-license-files = ["LICENSE"]
-authors = [{ name = "Maintainers", email = "maintainers@example.invalid" }]
-keywords = ["zammad", "pdf", "pades", "rfc3161", "archiving", "webhook"]
+authors = [
+  { name = "Maintainers", email = "maintainers@example.invalid" },
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -46,15 +46,18 @@ dependencies = [
 dev = [
   "build>=1.2",
   "pytest>=8.0",
+  "pytest-cov>=5.0",
   "respx>=0.21",
   "ruff>=0.4",
   "mypy>=1.10",
   "types-PyYAML",
+  "pre-commit>=3.7",
 ]
 redis = ["redis>=5.0"]
 
 [project.scripts]
 zammad-pdf-archiver = "zammad_pdf_archiver.runtime:main"
+zammad-archiver-cli = "zammad_pdf_archiver.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -84,3 +87,4 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
+addopts = "--ignore=.env.example --ignore=.pytest_cache -p no:cacheprovider"

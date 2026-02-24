@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 from zammad_pdf_archiver.adapters.zammad.models import TagList
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
+from zammad_pdf_archiver.app.jobs import ticket_stores
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.errors import TransientError
 
@@ -29,8 +30,8 @@ def _settings(storage_root: Path) -> Settings:
 def test_skipped_inflight_delivery_id_is_not_poisoned_for_retry(
     monkeypatch, tmp_path: Path
 ) -> None:
-    process_ticket_module._DELIVERY_ID_SETS.clear()
-    process_ticket_module._IN_FLIGHT_TICKETS.clear()
+    ticket_stores._DELIVERY_ID_SETS.clear()
+    ticket_stores._IN_FLIGHT_TICKETS.clear()
 
     class _FakeClient:
         _tags: set[str] = {"pdf:sign"}
@@ -108,7 +109,7 @@ def test_skipped_inflight_delivery_id_is_not_poisoned_for_retry(
 
     calls = {"n": 0}
 
-    def _flaky_render(snapshot, template, max_articles=None):  # noqa: ANN001, ARG001
+    def _flaky_render(snapshot, template, **kwargs):  # noqa: ANN001, ARG001
         calls["n"] += 1
         if calls["n"] == 1:
             raise TransientError("transient-render-failure")

@@ -137,6 +137,13 @@ def sign_pdf(pdf_bytes: bytes, settings: Any) -> bytes:
         pdf_signer.sign_pdf(writer, output=out)
     except (TransientError, PermanentError):
         raise
-    except Exception as exc:  # noqa: BLE001 - map pyHanko errors to PermanentError for callers
+    except Exception as exc:
+        # P2-3: Refine error classification.
+        # If it looks like a network/timeout error (likely from TSA), treat as transient.
+        msg = str(exc).lower()
+        if any(term in msg for term in ("timeout", "connection", "network", "unreachable")):
+            raise TransientError("Failed to sign PDF due to temporary (TSA) network issue") from exc
+        
+        # Mapping remaining pyHanko errors to PermanentError for callers.
         raise PermanentError("Failed to sign PDF") from exc
     return out.getvalue()

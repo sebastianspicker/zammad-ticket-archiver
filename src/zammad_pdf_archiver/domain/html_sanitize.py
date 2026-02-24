@@ -111,6 +111,10 @@ class _AllowlistHTMLSanitizer(HTMLParser):
         if tag not in _ALLOWED_TAGS:
             return
 
+        # Bug #P2-7: Limit nesting depth to prevent resource exhaustion.
+        if len(self._open) >= 50:
+            return
+
         allowed_attrs = _ALLOWED_ATTRS.get(tag, frozenset())
         cleaned: list[tuple[str, str]] = []
         for key, value in attrs:

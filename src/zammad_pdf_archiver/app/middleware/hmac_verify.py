@@ -8,12 +8,13 @@ from typing import Any
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from zammad_pdf_archiver.adapters.http_util import drain_stream
 from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
+from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER
 
 _SIGNATURE_HEADER = "X-Hub-Signature"
 _INGEST_PATH = "/ingest"
-_DELIVERY_ID_HEADER = "X-Zammad-Delivery"
 
 _ALLOWED_ALGORITHMS: dict[str, tuple[int, Any]] = {
     "sha1": (hashlib.sha1().digest_size, hashlib.sha1),
@@ -79,14 +80,7 @@ def _parse_signature(value: str) -> tuple[bytes, type] | None:
     return (digest, digest_ctor)
 
 
-async def _drain_receive(receive: Receive) -> None:
-    """Drain the request body so the connection is left in a clean state (Bug #27)."""
-    while True:
-        message = await receive()
-        if message.get("type") == "http.disconnect":
-            return
-        if message.get("type") == "http.request" and not message.get("more_body", False):
-            return
+
 
 
 async def _read_body(
@@ -158,7 +152,8 @@ class HmacVerifyMiddleware:
         headers = Headers(scope=scope)
 
         # Require non-empty delivery id (missing or blank header → 400).
-        if self._require_delivery_id and not (headers.get(_DELIVERY_ID_HEADER) or "").strip():
+        if self._require_delivery_id and not (headers.get(DELIVERY_ID_HEADER) or "").strip():
+            await drain_stream(receive)
             await _missing_delivery_id()(scope, receive, send)
             return
 
@@ -172,13 +167,13 @@ class HmacVerifyMiddleware:
 
         signature_raw = headers.get(_SIGNATURE_HEADER)
         if not signature_raw:
-            await _drain_receive(receive)
+            await drain_stream(receive)
             await _forbidden()(scope, receive, send)
             return
 
         parsed = _parse_signature(signature_raw)
         if parsed is None:
-            await _drain_receive(receive)
+            await drain_stream(receive)
             await _forbidden()(scope, receive, send)
             return
 
@@ -186,13 +181,13 @@ class HmacVerifyMiddleware:
         mac = hmac.new(self._secret, digestmod=digest_ctor)
         chunks, disconnected = await _read_body(receive, on_chunk=mac.update)
         if disconnected:
-            await _drain_receive(receive)
+            await drain_stream(receive)
             await _forbidden()(scope, receive, send)
             return
 
         expected = mac.digest()
         if not hmac.compare_digest(signature, expected):
-            await _drain_receive(receive)
+            await drain_stream(receive)
             await _forbidden()(scope, receive, send)
             return
 

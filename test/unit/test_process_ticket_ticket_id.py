@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from zammad_pdf_archiver.app.jobs.process_ticket import _extract_ticket_id
+from zammad_pdf_archiver.domain.ticket_id import extract_ticket_id as _extract_ticket_id
 
 
 @pytest.mark.parametrize(

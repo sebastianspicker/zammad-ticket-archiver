@@ -9,7 +9,6 @@ from pathlib import Path
 
 from zammad_pdf_archiver.adapters.pdf.template_engine import render_html, validate_template_name
 from zammad_pdf_archiver.adapters.pdf.url_fetcher import _safe_url_fetcher
-from zammad_pdf_archiver.config.settings import PdfSettings
 from zammad_pdf_archiver.domain.errors import PermanentError
 from zammad_pdf_archiver.domain.snapshot_models import Snapshot
 
@@ -17,28 +16,16 @@ _TEMPLATE_STYLES_MAIN = "styles.css"
 
 
 @contextmanager
-def _template_folder_path(template_name: str):
+def _template_folder_path(template_name: str, templates_root: Path | None = None):
     template_name = validate_template_name(template_name)
 
-    if (value := os.environ.get("TEMPLATES_ROOT")):
-        yield Path(value).expanduser() / template_name
+    if templates_root is not None:
+        yield templates_root.expanduser() / template_name
         return
 
     traversable = resources.files("zammad_pdf_archiver").joinpath("templates", template_name)
     with resources.as_file(traversable) as path:
         yield path
-
-
-def _max_articles() -> int:
-    # Prefer env var to keep PDF rendering usable without loading full Settings.
-    raw = os.environ.get("PDF_MAX_ARTICLES")
-    if raw is None:
-        return PdfSettings().max_articles
-    try:
-        value = int(raw)
-    except ValueError:
-        return PdfSettings().max_articles
-    return value if value >= 0 else PdfSettings().max_articles
 
 
 def _css_file_paths(template_folder: Path) -> list[Path]:
@@ -68,15 +55,21 @@ def _css_file_paths(template_folder: Path) -> list[Path]:
     return files
 
 
-def render_pdf(snapshot: Snapshot, template_name: str, *, max_articles: int | None = None) -> bytes:
+def render_pdf(
+    snapshot: Snapshot,
+    template_name: str,
+    *,
+    max_articles: int = 250,
+    locale: str = "de_DE",
+    timezone: str = "Europe/Berlin",
+    templates_root: Path | None = None,
+) -> bytes:
     """
     Render a Snapshot to PDF bytes using:
       - Jinja2 templates/<template_name>/ticket.html
       - WeasyPrint HTML -> PDF
       - CSS loaded from the template folder
     """
-    if max_articles is None:
-        max_articles = _max_articles()
     if max_articles < 0:
         raise ValueError("max_articles must be >= 0")
     # 0 means "disabled/unlimited" (documented in ops runbook).
@@ -85,8 +78,8 @@ def render_pdf(snapshot: Snapshot, template_name: str, *, max_articles: int | No
             f"snapshot has too many articles ({len(snapshot.articles)} > {max_articles})"
         )
 
-    with _template_folder_path(template_name) as template_folder:
-        html = render_html(snapshot, template_name)
+    with _template_folder_path(template_name, templates_root=templates_root) as template_folder:
+        html = render_html(snapshot, template_name, locale=locale, timezone=timezone)
 
         css_paths = _css_file_paths(template_folder)
         css_bytes = b"".join(p.read_bytes() for p in css_paths)
