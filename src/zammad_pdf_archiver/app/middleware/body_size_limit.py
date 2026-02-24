@@ -17,10 +17,6 @@ class _BodyTooLarge(Exception):
 def _too_large():
     return api_error(413, "request_too_large", code="request_too_large")
 
-
-
-
-
 class BodySizeLimitMiddleware:
     def __init__(self, app: ASGIApp, *, settings: Settings | None) -> None:
         self.app = app
@@ -69,6 +65,5 @@ class BodySizeLimitMiddleware:
         try:
             await self.app(scope, limited_receive, send)
         except _BodyTooLarge:
-            await _drain_body(receive)
+            await drain_stream(receive)
             await _too_large()(scope, receive, send)
-

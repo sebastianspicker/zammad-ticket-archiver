@@ -14,10 +14,8 @@ from typing import Any
 
 import structlog
 
-from zammad_pdf_archiver.config.env_aliases import _DEPRECATED_ALIASES, get_flat_env_settings_source
+from zammad_pdf_archiver.config.env_aliases import _DEPRECATED_ALIASES
 from zammad_pdf_archiver.config.load import load_settings
-from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
-from zammad_pdf_archiver.config.settings import Settings
 
 log = structlog.get_logger(__name__)
 
@@ -36,7 +34,7 @@ def _redact_settings_dict(data: dict[str, Any]) -> dict[str, Any]:
         "pfx_password", "key_password", "password", "metrics_bearer_token",
     }
     
-    result = {}
+    result: dict[str, Any] = {}
     for key, value in data.items():
         if isinstance(value, dict):
             result[key] = _redact_settings_dict(value)

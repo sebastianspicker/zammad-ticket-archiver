@@ -6,18 +6,18 @@ import hmac
 
 from fastapi.testclient import TestClient
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _settings(storage_root: str, *, secret: str | None = "test-secret") -> Settings:
-    zammad: dict[str, object] = {
-        "base_url": "https://zammad.example.local",
-        "api_token": "test-token",
-    }
-    if secret is not None:
-        zammad["webhook_hmac_secret"] = secret
-    return Settings.from_mapping({"zammad": zammad, "storage": {"root": storage_root}})
+    return make_settings(
+        storage_root,
+        secret=secret,
+        allow_unsigned=False,
+        allow_unsigned_when_no_secret=False,
+    )
 
 
 def _sign(body: bytes, secret: str) -> str:
@@ -66,4 +66,4 @@ def test_nfr1_valid_signature_returns_202(tmp_path, monkeypatch) -> None:
         headers={"Content-Type": "application/json", "X-Hub-Signature": _sign(body, "test-secret")},
     )
     assert response.status_code == 202
-    assert response.json() == {"accepted": True, "ticket_id": 456}
+    assert response.json() == {"status": "accepted", "ticket_id": 456}

@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
-from jinja2 import Environment, FileSystemLoader, PackageLoader, select_autoescape, pass_context
+from jinja2 import (
+    Environment,
+    FileSystemLoader,
+    PackageLoader,
+    pass_context,
+    select_autoescape,
+)
 from jinja2.loaders import BaseLoader
-from typing import Any
 
 from zammad_pdf_archiver.domain.snapshot_models import Snapshot
 
@@ -41,12 +46,14 @@ def _env_for(template_name: str, templates_root: Path | None = None) -> Environm
 
     loader: BaseLoader
     if templates_root is not None:
+        if not templates_root.exists() or not templates_root.is_dir():
+            raise FileNotFoundError(f"Template root folder not found: {templates_root}")
         template_dir = templates_root / template_name
         if not template_dir.exists() or not template_dir.is_dir():
             raise FileNotFoundError(f"Template folder not found: {template_dir}")
-        loader = FileSystemLoader(str(template_dir))
+        loader = FileSystemLoader(str(templates_root))
     else:
-        loader = PackageLoader("zammad_pdf_archiver", f"templates/{template_name}")
+        loader = PackageLoader("zammad_pdf_archiver", "templates")
 
     env = Environment(
         loader=loader,
@@ -99,7 +106,7 @@ def render_html(
     ticket, and articles are passed; no config, request, or full object graph.
     """
     env = _env_for(template_name, templates_root=templates_root)
-    template = env.get_template(_TEMPLATE_FILE)
+    template = env.get_template(f"{template_name}/{_TEMPLATE_FILE}")
     return template.render(
         snapshot=snapshot,
         ticket=snapshot.ticket,

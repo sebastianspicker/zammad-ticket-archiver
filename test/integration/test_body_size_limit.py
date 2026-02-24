@@ -2,21 +2,20 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _test_settings(storage_root: str) -> Settings:
-    return Settings.from_mapping(
-        {
-            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
-            "storage": {"root": storage_root},
+    return make_settings(
+        storage_root,
+        overrides={
             "hardening": {
                 "rate_limit": {"enabled": False, "rps": 1, "burst": 1},
                 "body_size_limit": {"max_bytes": 10},
-                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
-            },
-        }
+            }
+        },
     )
 
 

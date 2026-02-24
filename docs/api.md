@@ -29,7 +29,7 @@ Example payload:
 #### Success response
 
 - status: `202`
-- body: `{"accepted": true, "ticket_id": 123}`
+- body: `{"status":"accepted","ticket_id":123}`
 - header: `X-Request-Id` is always returned
 
 #### Error responses
@@ -40,6 +40,68 @@ Example payload:
 - `413` `{"detail":"request_too_large"}`
 - `429` `{"detail":"rate_limited"}`
 - `503` `{"detail":"webhook_auth_not_configured"}`
+
+### `POST /ingest/batch`
+
+Batch webhook ingestion endpoint.
+
+#### Request body
+
+JSON array of ingest payload objects. Each item must contain either:
+- `ticket.id`
+- `ticket_id`
+
+#### Success response
+
+- status: `202`
+- body: `{"status":"accepted","count":<int>}`
+- header: `X-Request-Id` is always returned
+
+#### Error responses
+
+- `403` `{"detail":"forbidden"}`
+- `422` invalid body (e.g. missing or invalid ticket id in an item)
+- `413` `{"detail":"request_too_large"}`
+- `429` `{"detail":"rate_limited"}`
+- `503` `{"detail":"webhook_auth_not_configured"}` or `{"detail":"shutting_down"}`
+
+### `POST /retry/{ticket_id}`
+
+Schedules one retry run for a specific ticket ID.
+
+#### Path parameters
+
+- `ticket_id` (int, required)
+
+#### Success response
+
+- status: `202`
+- body: `{"status":"accepted","ticket_id":<int>}`
+
+#### Error responses
+
+- `503` `{"detail":"settings_not_configured"}` or `{"detail":"shutting_down"}`
+
+### `GET /jobs/{ticket_id}`
+
+Returns process-local job status for one ticket.
+
+#### Response
+
+- status: `200`
+- body:
+
+```json
+{
+  "ticket_id": 123,
+  "in_flight": false,
+  "shutting_down": false
+}
+```
+
+Notes:
+- `in_flight` is process-local and non-persistent.
+- Status is reset on process restart.
 
 ### `GET /healthz`
 

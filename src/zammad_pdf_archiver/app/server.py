@@ -5,27 +5,35 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from zammad_pdf_archiver._version import __version__
+from zammad_pdf_archiver.app.jobs.shutdown import (
+    clear_shutting_down,
+    set_shutting_down,
+    wait_for_tasks,
+)
+from zammad_pdf_archiver.app.jobs.ticket_stores import aclose_stores
 from zammad_pdf_archiver.app.middleware.body_size_limit import BodySizeLimitMiddleware
 from zammad_pdf_archiver.app.middleware.hmac_verify import HmacVerifyMiddleware
 from zammad_pdf_archiver.app.middleware.rate_limit import RateLimitMiddleware
 from zammad_pdf_archiver.app.middleware.request_id import RequestIdMiddleware
+from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.app.routes.healthz import router as healthz_router
 from zammad_pdf_archiver.app.routes.ingest import router as ingest_router
-from zammad_pdf_archiver.app.jobs.process_ticket import aclose_redis_stores
-from zammad_pdf_archiver.app.jobs.shutdown import set_shutting_down, wait_for_tasks
-from zammad_pdf_archiver.app.responses import api_error
+from zammad_pdf_archiver.app.routes.jobs import router as jobs_router
 from zammad_pdf_archiver.config.settings import Settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    clear_shutting_down()
     yield
     set_shutting_down()
     await wait_for_tasks()
-    await aclose_redis_stores()
+    await aclose_stores()
+
 
 async def _global_exception_handler(request, exc):
     from zammad_pdf_archiver.app.middleware.request_id import _REQUEST_ID_HEADER
+
     request_id = getattr(request.state, "request_id", None)
     headers = {_REQUEST_ID_HEADER: request_id} if request_id else None
     return api_error(
@@ -47,6 +55,7 @@ def _wire_app(app: FastAPI, *, settings: Settings | None) -> None:
 
     app.include_router(healthz_router)
     app.include_router(ingest_router)
+    app.include_router(jobs_router)
     if settings is not None and settings.observability.metrics_enabled:
         from zammad_pdf_archiver.app.routes.metrics import router as metrics_router
 
@@ -54,10 +63,9 @@ def _wire_app(app: FastAPI, *, settings: Settings | None) -> None:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    if settings is None:
-        settings = Settings()
     app = FastAPI(title="zammad-pdf-archiver", version=__version__, lifespan=lifespan)
     _wire_app(app, settings=settings)
     return app
+
 
 app = create_app()

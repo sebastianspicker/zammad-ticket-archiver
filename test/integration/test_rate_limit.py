@@ -2,26 +2,31 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _test_settings(storage_root: str) -> Settings:
-    return Settings.from_mapping(
-        {
-            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
-            "storage": {"root": storage_root},
+    return make_settings(
+        storage_root,
+        overrides={
             "hardening": {
                 "rate_limit": {"enabled": True, "rps": 0, "burst": 2},
                 "body_size_limit": {"max_bytes": 1024 * 1024},
-                "webhook": {"allow_unsigned": True, "allow_unsigned_when_no_secret": True},
-            },
-        }
+            }
+        },
     )
 
 
-def test_rate_limit_triggers_on_ingest(tmp_path) -> None:
+def test_rate_limit_triggers_on_ingest(tmp_path, monkeypatch) -> None:
+    async def _stub_process_ticket(delivery_id, payload, settings) -> None:  # noqa: ANN001, ARG001
+        return None
+
     app = create_app(_test_settings(str(tmp_path)))
+    import zammad_pdf_archiver.app.routes.ingest as ingest_route
+
+    monkeypatch.setattr(ingest_route, "process_ticket", _stub_process_ticket)
     client = TestClient(app)
 
     payload = {"ticket": {"id": 1}}

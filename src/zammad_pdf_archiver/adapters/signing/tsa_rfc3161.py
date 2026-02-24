@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import httpx
 from asn1crypto import tsp  # type: ignore[import-untyped]
+from pydantic import SecretStr
 from pyhanko.sign.timestamps.api import TimeStamper
 from pyhanko.sign.timestamps.common_utils import set_tsp_headers
 
@@ -58,11 +58,12 @@ def _load_tsa_config(settings: Any) -> _TsaConfig:
 
     user = getattr(tsa_settings, "user", None)
     password_secret = getattr(tsa_settings, "password", None)
-    password = (
-        password_secret.get_secret_value()
-        if hasattr(password_secret, "get_secret_value")
-        else password_secret
-    )
+    if isinstance(password_secret, SecretStr):
+        password = password_secret.get_secret_value()
+    elif isinstance(password_secret, str):
+        password = password_secret
+    else:
+        password = None
 
     auth: tuple[str, str] | None
     if user or password:
@@ -146,5 +147,4 @@ def build_timestamper(settings: Any) -> TimeStamper:
     """
     config = _load_tsa_config(settings)
     return _HttpxRFC3161TimeStamper(config)
-
 

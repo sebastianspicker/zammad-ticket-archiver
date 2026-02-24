@@ -109,7 +109,10 @@ Processing is asynchronous (202 Accepted); path and security are configurable an
 | ID | Requirement | Priority |
 |----|-------------|----------|
 | F1 | Accept `POST /ingest` with JSON body (schema requires ticket id); extract ticket ID from `ticket.id` or `ticket_id`. | P0 |
-| F2 | Return `202 Accepted` and process work in background; response body `{"accepted": true, "ticket_id": <id>}`. | P0 |
+| F2 | Return `202 Accepted` and process work in background; response body `{"status":"accepted","ticket_id":<id\|null>}`. | P0 |
+| F2a | Support `POST /ingest/batch` for batch acceptance; response body `{"status":"accepted","count":<int>}`. | P1 |
+| F2b | Support `POST /retry/{ticket_id}` for explicit retry scheduling; response body `{"status":"accepted","ticket_id":<id>}`. | P1 |
+| F2c | Support `GET /jobs/{ticket_id}` to expose process-local in-flight and shutdown status. | P1 |
 | F3 | Support configurable trigger tag (default `pdf:sign`); require trigger tag when `workflow.require_tag=true`. | P0 |
 | F4 | Skip processing when ticket already has `pdf:signed`. | P0 |
 | F5 | Apply tag state machine: processing → remove done/error/trigger, add `pdf:processing`; success → add `pdf:signed`; failure → add `pdf:error`, optionally keep trigger for retry. | P0 |
@@ -257,7 +260,6 @@ Verification: dedicated NFR tests in `test/nfr/` and integration/unit coverage.
 
 ## 11. References
 
-- [00 - Overview](00-overview.md)
 - [01 - Architecture](01-architecture.md)
 - [02 - Zammad Setup](02-zammad-setup.md)
 - [03 - Data Model](03-data-model.md)

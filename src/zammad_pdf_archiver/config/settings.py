@@ -235,7 +235,19 @@ class Settings(BaseSettings):
 
         Useful in tests where we want to pass nested dicts and keep mypy happy.
         """
-        return cls.model_validate(dict(data))
+        class _InitOnlySettings(Settings):
+            @classmethod
+            def settings_customise_sources(
+                cls,
+                settings_cls,
+                init_settings,
+                env_settings,
+                dotenv_settings,
+                file_secret_settings,
+            ):
+                return (init_settings,)
+
+        return _InitOnlySettings(**dict(data))
 
     @classmethod
     def settings_customise_sources(

@@ -106,5 +106,5 @@ Operational controls required:
 
 ## 6. See also
 
-- [`docs/BUGS_AND_FIXES.md`](BUGS_AND_FIXES.md) – known bugs and required fixes (including security-related items).
 - [`docs/release-checklist.md`](release-checklist.md) – release and deployment safety checks.
+- [`docs/api.md`](api.md) – public API and webhook contract.

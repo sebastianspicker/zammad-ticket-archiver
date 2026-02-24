@@ -25,6 +25,9 @@ This repository provides:
 
 - FastAPI service endpoints:
   - `POST /ingest`
+  - `POST /ingest/batch`
+  - `POST /retry/{ticket_id}`
+  - `GET /jobs/{ticket_id}`
   - `GET /healthz`
   - `GET /metrics` (when enabled)
 - End-to-end ticket processing:
@@ -164,6 +167,9 @@ bash scripts/ci/smoke-test.sh
 
 Endpoints:
 - `POST /ingest`
+- `POST /ingest/batch`
+- `POST /retry/{ticket_id}`
+- `GET /jobs/{ticket_id}`
 - `GET /healthz`
 - `GET /metrics` (only when enabled)
 
@@ -208,7 +214,9 @@ Operational docs:
 |--------|--------|
 | Lint | `make lint` (ruff) |
 | Test | `make test` (pytest) |
+| Test (fast) | `make test-fast` (static + unit) |
 | Type-check | `mypy . --config-file pyproject.toml` |
+| Full QA | `make qa` (lint + mypy + static + unit + integration + nfr) |
 | Build | `python -m build` (sdist + wheel) |
 | Smoke test | `bash scripts/ci/smoke-test.sh` (optional; needs env) |
 | Dev run | `make dev` (Docker Compose dev stack) |

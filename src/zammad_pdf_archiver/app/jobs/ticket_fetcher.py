@@ -23,7 +23,7 @@ class TicketData:
 
 
 async def fetch_ticket_data(
-    client: "AsyncZammadClient",
+    client: AsyncZammadClient,
     ticket_id: int,
 ) -> TicketData:
     """Fetch all required ticket data from Zammad.

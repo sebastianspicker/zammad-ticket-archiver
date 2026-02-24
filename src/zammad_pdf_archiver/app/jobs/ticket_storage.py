@@ -46,6 +46,7 @@ def compute_storage_paths(
     storage_root: Path,
     username: str,
     archive_path_segments: list[str],
+    allow_prefixes: list[str] | None,
     filename_pattern: str,
     ticket_number: str,
     date_iso: str,
@@ -72,7 +73,7 @@ def compute_storage_paths(
         storage_root,
         username,
         archive_path_segments,
-        allow_prefixes=None,  # Will be validated separately
+        allow_prefixes=allow_prefixes,
     )
     
     filename = build_filename_from_pattern(
@@ -93,11 +94,11 @@ def compute_storage_paths(
 
 def store_ticket_files(
     pdf_bytes: bytes,
-    snapshot: "Snapshot",
+    snapshot: Snapshot,
     paths: StoragePaths,
     ticket_id: int,
     now: Any,  # datetime
-    settings: "Settings",
+    settings: Settings,
 ) -> StorageResult:
     """Atomically store PDF, sidecar, and attachments.
     
@@ -119,7 +120,9 @@ def store_ticket_files(
     size_bytes = len(pdf_bytes)
     
     # Create temp directory for atomic writes
-    temp_archive_root = paths.target_path.parent / f".tmp-archiving-{ticket_id}-{uuid.uuid4().hex[:8]}"
+    temp_archive_root = (
+        paths.target_path.parent / f".tmp-archiving-{ticket_id}-{uuid.uuid4().hex[:8]}"
+    )
     attachment_entries: list[dict[str, Any]] = []
     
     try:

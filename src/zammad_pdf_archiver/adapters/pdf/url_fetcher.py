@@ -44,6 +44,10 @@ class _SafeURLFetcher:
             return URLFetcherResponse(url=url, body=body, status=200)
         raise FatalURLFetchingError(f"URL scheme not allowed: {scheme!r}")
 
+    def __call__(self, url: str, *args, **kwargs):
+        headers = kwargs.get("headers") or kwargs.get("http_headers")
+        return self.fetch(url, headers=headers)
+
 
 def _safe_url_fetcher(template_root: Path) -> _SafeURLFetcher:
     """Return a WeasyPrint url_fetcher that only allows data: and file under template_root."""

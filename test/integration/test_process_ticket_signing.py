@@ -9,6 +9,7 @@ import httpx
 import pytest
 import respx
 
+from zammad_pdf_archiver._version import VERSION
 from zammad_pdf_archiver.adapters.storage.layout import build_filename_from_pattern
 from zammad_pdf_archiver.app.jobs import process_ticket as process_ticket_module
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
@@ -279,7 +280,7 @@ def test_process_ticket_signing_with_unreachable_tsa_is_transient_and_keeps_trig
 
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
-        assert "PDF archiver error (v0.1)" in req["subject"]
+        assert f"PDF archiver error ({VERSION})" in req["subject"]
         assert "Transient" in req["body"]
 
 
@@ -363,7 +364,7 @@ def test_process_ticket_signing_with_invalid_pfx_password_is_permanent_and_drops
 
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
-        assert "PDF archiver error (v0.1)" in req["subject"]
+        assert f"PDF archiver error ({VERSION})" in req["subject"]
         assert "Permanent" in req["body"]
         assert "PKCS#12" in req["body"]
 
@@ -449,6 +450,6 @@ def test_process_ticket_signing_with_tsa_http_503_is_transient_and_keeps_trigger
 
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
-        assert "PDF archiver error (v0.1)" in req["subject"]
+        assert f"PDF archiver error ({VERSION})" in req["subject"]
         assert "Transient" in req["body"]
         assert "HTTP 503" in req["body"]

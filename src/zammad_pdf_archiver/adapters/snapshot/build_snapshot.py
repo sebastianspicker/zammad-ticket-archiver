@@ -244,13 +244,15 @@ async def enrich_attachment_content(
     for article in snapshot.articles:
         new_attachments: list[AttachmentMeta] = []
         for att in article.attachments:
-            content = content_map.get((article.id, att.attachment_id))
+            content = None
+            if att.attachment_id is not None:
+                content = content_map.get((article.id, att.attachment_id))
             if content:
                 if total_so_far + len(content) <= max_total_attachment_bytes:
                     total_so_far += len(content)
                 else:
                     content = None
-            
+
             new_attachments.append(
                 AttachmentMeta(
                     article_id=att.article_id,

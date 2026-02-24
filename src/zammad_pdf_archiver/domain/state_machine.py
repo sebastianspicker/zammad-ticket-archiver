@@ -28,7 +28,9 @@ def should_process(
     return True
 
 
-async def apply_processing(client: TicketTagger, ticket_id: int, *, trigger_tag: str = TRIGGER_TAG) -> None:
+async def apply_processing(
+    client: TicketTagger, ticket_id: int, *, trigger_tag: str = TRIGGER_TAG
+) -> None:
     # Deterministic, idempotent transition: any state -> processing
     await client.remove_tag(ticket_id, DONE_TAG)
     await client.remove_tag(ticket_id, ERROR_TAG)
@@ -36,7 +38,9 @@ async def apply_processing(client: TicketTagger, ticket_id: int, *, trigger_tag:
     await client.add_tag(ticket_id, PROCESSING_TAG)
 
 
-async def apply_done(client: TicketTagger, ticket_id: int, *, trigger_tag: str = TRIGGER_TAG) -> None:
+async def apply_done(
+    client: TicketTagger, ticket_id: int, *, trigger_tag: str = TRIGGER_TAG
+) -> None:
     # Deterministic, idempotent transition: any state -> done
     await client.remove_tag(ticket_id, PROCESSING_TAG)
     await client.remove_tag(ticket_id, ERROR_TAG)

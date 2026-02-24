@@ -5,21 +5,18 @@ import hmac
 
 from fastapi.testclient import TestClient
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _test_settings(storage_root: str) -> Settings:
-    return Settings.from_mapping(
-        {
-            "zammad": {
-                "base_url": "https://zammad.example.local",
-                "api_token": "test-token",
-                "webhook_hmac_secret": "test-secret",
-            },
-            "storage": {"root": storage_root},
-            "hardening": {"body_size_limit": {"max_bytes": 10}},
-        }
+    return make_settings(
+        storage_root,
+        secret="test-secret",
+        allow_unsigned=False,
+        allow_unsigned_when_no_secret=False,
+        overrides={"hardening": {"body_size_limit": {"max_bytes": 10}}},
     )
 
 
@@ -47,4 +44,3 @@ def test_body_size_limit_triggers_before_hmac_verification(tmp_path) -> None:
 
     assert response.status_code == 413
     assert response.json() == {"detail": "request_too_large", "code": "request_too_large"}
-

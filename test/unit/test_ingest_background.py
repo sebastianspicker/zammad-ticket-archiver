@@ -2,21 +2,16 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import BackgroundTasks
 from starlette.requests import Request
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.routes.ingest import IngestPayload
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _test_settings(storage_root: str) -> Settings:
-    return Settings.from_mapping(
-        {
-            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
-            "storage": {"root": storage_root},
-        }
-    )
+    return make_settings(storage_root)
 
 
 def test_ingest_does_not_block_on_processing(tmp_path, monkeypatch) -> None:
@@ -56,4 +51,3 @@ def test_ingest_does_not_block_on_processing(tmp_path, monkeypatch) -> None:
     # We don't strictly assert called == [] here because asyncio.create_task 
     # might have started the task before _call returned. 
     # The lack of timeout is the primary proof of non-blocking behavior.
-

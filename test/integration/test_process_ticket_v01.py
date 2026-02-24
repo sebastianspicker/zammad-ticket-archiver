@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import respx
 
+from zammad_pdf_archiver._version import VERSION
 from zammad_pdf_archiver.adapters.storage.layout import build_filename_from_pattern
 from zammad_pdf_archiver.app.jobs import process_ticket as process_ticket_module
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
@@ -143,7 +144,7 @@ def test_process_ticket_v01_happy_path_writes_pdf_and_updates_tags(tmp_path, mon
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
         assert req["ticket_id"] == 123
-        assert "PDF archived (v0.1)" in req["subject"]
+        assert f"PDF archived ({VERSION})" in req["subject"]
         assert str(expected_path.parent) in req["body"]
         assert expected_path.name in req["body"]
         assert str(len(written)) in req["body"]
@@ -163,7 +164,7 @@ def test_process_ticket_v01_failure_sets_error_tag_and_posts_note(tmp_path, monk
     def _boom(*_args, **_kwargs) -> None:
         raise PermissionError("no-write")
 
-    monkeypatch.setattr(process_ticket_module, "write_atomic_bytes", _boom)
+    monkeypatch.setattr(process_ticket_module, "store_ticket_files", _boom)
 
     with respx.mock:
         respx.get("https://zammad.example.local/api/v1/tickets/123").mock(
@@ -244,7 +245,7 @@ def test_process_ticket_v01_failure_sets_error_tag_and_posts_note(tmp_path, monk
 
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
-        assert "PDF archiver error (v0.1)" in req["subject"]
+        assert f"PDF archiver error ({VERSION})" in req["subject"]
         assert "Permanent" in req["body"]
         assert "PermissionError" in req["body"]
 
@@ -264,7 +265,7 @@ def test_process_ticket_v01_transient_failure_keeps_trigger_and_posts_note(
     def _boom(*_args, **_kwargs) -> None:
         raise OSError(errno.EAGAIN, "try again")
 
-    monkeypatch.setattr(process_ticket_module, "write_atomic_bytes", _boom)
+    monkeypatch.setattr(process_ticket_module, "store_ticket_files", _boom)
 
     with respx.mock:
         respx.get("https://zammad.example.local/api/v1/tickets/123").mock(
@@ -336,7 +337,7 @@ def test_process_ticket_v01_transient_failure_keeps_trigger_and_posts_note(
 
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
-        assert "PDF archiver error (v0.1)" in req["subject"]
+        assert f"PDF archiver error ({VERSION})" in req["subject"]
         assert "Transient" in req["body"]
 
 
@@ -404,7 +405,7 @@ def test_process_ticket_v01_invalid_archive_path_is_permanent_and_writes_no_file
 
         assert article_route.called
         req = json.loads(article_route.calls[0].request.content.decode("utf-8"))
-        assert "PDF archiver error (v0.1)" in req["subject"]
+        assert f"PDF archiver error ({VERSION})" in req["subject"]
         assert "Permanent" in req["body"]
         assert "ValueError" in req["body"]
 

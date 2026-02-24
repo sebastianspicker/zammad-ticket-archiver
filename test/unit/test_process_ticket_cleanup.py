@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 from zammad_pdf_archiver.adapters.zammad.models import TagList
-from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.app.jobs import ticket_stores
+from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.errors import TransientError
 from zammad_pdf_archiver.domain.state_machine import PROCESSING_TAG
@@ -31,8 +31,7 @@ def _settings(storage_root: Path) -> Settings:
 def test_process_ticket_logs_processing_tag_cleanup_failures(
     monkeypatch, tmp_path: Path
 ) -> None:
-    ticket_stores._DELIVERY_ID_SETS.clear()
-    ticket_stores._IN_FLIGHT_TICKETS.clear()
+    ticket_stores.reset_for_tests()
 
     class _FakeClient:
         def __init__(self, **kwargs) -> None:  # noqa: ANN003, ARG002
@@ -87,15 +86,12 @@ def test_process_ticket_logs_processing_tag_cleanup_failures(
         def exception(self, event: str, **kwargs) -> None:  # noqa: ANN003
             self.exception_events.append(event)
 
-    async def _fake_build_snapshot(client, ticket_id, *, ticket=None, tags=None):  # noqa: ANN001, ARG001
-        return object()
-
     async def _fake_apply_error(
         client, ticket_id: int, *, keep_trigger: bool = True, trigger_tag: str = "pdf:sign"  # noqa: ANN001, ARG001
     ) -> None:
         return None
 
-    def _raise_transient(*args, **kwargs) -> bytes:  # noqa: ANN002, ANN003
+    async def _raise_transient(*args, **kwargs):  # noqa: ANN002, ANN003
         raise TransientError("render-failed")
 
     capturing_log = _CapturingLog()
@@ -105,14 +101,13 @@ def test_process_ticket_logs_processing_tag_cleanup_failures(
         _FakeClient,
     )
     monkeypatch.setattr(
-        "zammad_pdf_archiver.app.jobs.process_ticket.build_snapshot",
-        _fake_build_snapshot,
-    )
-    monkeypatch.setattr(
         "zammad_pdf_archiver.app.jobs.process_ticket.apply_error",
         _fake_apply_error,
     )
-    monkeypatch.setattr("zammad_pdf_archiver.app.jobs.process_ticket.render_pdf", _raise_transient)
+    monkeypatch.setattr(
+        "zammad_pdf_archiver.app.jobs.process_ticket.build_and_render_pdf",
+        _raise_transient,
+    )
 
     settings = _settings(tmp_path)
     payload = {"ticket": {"id": 321}}

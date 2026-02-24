@@ -5,8 +5,16 @@ This runbook is for deployment, monitoring, troubleshooting, and recovery.
 ## 1. Endpoint Semantics
 
 - `POST /ingest`
-  - returns `202` on accepted payload
+  - returns `202` with `{"status":"accepted","ticket_id":...}` on accepted payload
   - processing happens asynchronously in background
+- `POST /ingest/batch`
+  - returns `202` with `{"status":"accepted","count":...}`
+  - schedules one background task per payload
+- `POST /retry/{ticket_id}`
+  - returns `202` with `{"status":"accepted","ticket_id":...}`
+  - schedules one explicit retry job without delivery-ID dedupe
+- `GET /jobs/{ticket_id}`
+  - returns process-local status: `ticket_id`, `in_flight`, `shutting_down`
 - `GET /healthz`
   - basic liveness/status payload (optionally omit version/service via `HEALTHZ_OMIT_VERSION`)
 - `GET /metrics`
@@ -94,7 +102,7 @@ Use this procedure after failed runs:
   - remove stale `pdf:processing` if present
   - ensure trigger tag is present
   - remove `pdf:signed` only if you intentionally want a new archive output
-4. Trigger a fresh ticket update/macro to emit a new webhook.
+4. Trigger a fresh ticket update/macro to emit a new webhook, or call `POST /retry/{ticket_id}`.
 5. Confirm final state (`pdf:signed` or new `pdf:error` with updated note).
 
 ## 6. Troubleshooting Matrix

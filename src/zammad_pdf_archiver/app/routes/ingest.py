@@ -8,12 +8,12 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, model_validator
 from starlette.responses import JSONResponse
 
-from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER, REQUEST_ID_KEY
+from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.app.jobs.shutdown import is_shutting_down, track_task
 from zammad_pdf_archiver.app.responses import api_error
-from zammad_pdf_archiver.domain.ticket_id import extract_ticket_id
 from zammad_pdf_archiver.config.settings import Settings
+from zammad_pdf_archiver.domain.ticket_id import extract_ticket_id
 
 router = APIRouter()
 
@@ -81,7 +81,10 @@ async def ingest_webhook(
 
     ticket_id = payload.resolved_ticket_id()
     if dry_run:
-        return JSONResponse(status_code=202, content={"status": "dry_run_accepted", "ticket_id": ticket_id})
+        return JSONResponse(
+            status_code=202,
+            content={"status": "dry_run_accepted", "ticket_id": ticket_id},
+        )
 
     if ticket_id is not None:
         delivery_id_raw = request.headers.get(DELIVERY_ID_HEADER)
@@ -114,7 +117,10 @@ async def batch_ingest(
         return api_error(503, "settings not configured", code="settings_not_configured")
 
     if dry_run:
-        return JSONResponse(status_code=202, content={"status": "dry_run_accepted", "count": len(payloads)})
+        return JSONResponse(
+            status_code=202,
+            content={"status": "dry_run_accepted", "count": len(payloads)},
+        )
 
     accepted = 0
     for payload in payloads:

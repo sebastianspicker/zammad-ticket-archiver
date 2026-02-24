@@ -4,10 +4,9 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 from zammad_pdf_archiver.adapters.zammad.models import TagList
-from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.app.jobs import ticket_stores
+from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.errors import TransientError
 
@@ -30,8 +29,7 @@ def _settings(storage_root: Path) -> Settings:
 def test_skipped_inflight_delivery_id_is_not_poisoned_for_retry(
     monkeypatch, tmp_path: Path
 ) -> None:
-    ticket_stores._DELIVERY_ID_SETS.clear()
-    ticket_stores._IN_FLIGHT_TICKETS.clear()
+    ticket_stores.reset_for_tests()
 
     class _FakeClient:
         _tags: set[str] = {"pdf:sign"}
@@ -89,33 +87,36 @@ def test_skipped_inflight_delivery_id_is_not_poisoned_for_retry(
         _FakeClient,
     )
 
-    _fake_snapshot = object()
-
-    async def _fake_build_snapshot(client, ticket_id, *, ticket=None, tags=None):  # noqa: ANN001, ARG001
-        return _fake_snapshot
-
-    monkeypatch.setattr(
-        "zammad_pdf_archiver.app.jobs.process_ticket.build_snapshot",
-        _fake_build_snapshot,
-    )
-
-    async def _fake_enrich_attachment_content(snapshot, client, *args, **kwargs):  # noqa: ANN001, ARG002
-        return snapshot
-
-    monkeypatch.setattr(
-        "zammad_pdf_archiver.app.jobs.process_ticket.enrich_attachment_content",
-        _fake_enrich_attachment_content,
-    )
-
     calls = {"n": 0}
 
-    def _flaky_render(snapshot, template, **kwargs):  # noqa: ANN001, ARG001
+    async def _flaky_build_and_render_pdf(
+        client, ticket, tags, ticket_id: int, settings  # noqa: ANN001, ARG001
+    ) -> SimpleNamespace:
         calls["n"] += 1
         if calls["n"] == 1:
             raise TransientError("transient-render-failure")
-        return b"%PDF-1.7\n%%EOF\n"
+        return SimpleNamespace(
+            pdf_bytes=b"%PDF-1.7\n%%EOF\n",
+            snapshot=SimpleNamespace(ticket=ticket),
+        )
 
-    monkeypatch.setattr("zammad_pdf_archiver.app.jobs.process_ticket.render_pdf", _flaky_render)
+    def _fake_store_ticket_files(*args, **kwargs) -> SimpleNamespace:  # noqa: ANN002, ANN003
+        target_path = tmp_path / "archived.pdf"
+        return SimpleNamespace(
+            target_path=target_path,
+            sidecar_path=target_path.with_suffix(".pdf.json"),
+            sha256_hex="deadbeef",
+            size_bytes=42,
+        )
+
+    monkeypatch.setattr(
+        "zammad_pdf_archiver.app.jobs.process_ticket.build_and_render_pdf",
+        _flaky_build_and_render_pdf,
+    )
+    monkeypatch.setattr(
+        "zammad_pdf_archiver.app.jobs.process_ticket.store_ticket_files",
+        _fake_store_ticket_files,
+    )
 
     settings = _settings(tmp_path)
     payload = {"ticket": {"id": 321}}

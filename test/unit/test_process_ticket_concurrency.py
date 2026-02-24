@@ -4,10 +4,9 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 from zammad_pdf_archiver.adapters.zammad.models import TagList
-from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.app.jobs import ticket_stores
+from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
 from zammad_pdf_archiver.config.settings import Settings
 
 
@@ -29,8 +28,7 @@ def _settings(storage_root: Path) -> Settings:
 def test_process_ticket_serializes_same_ticket_concurrent_runs(
     monkeypatch, tmp_path: Path
 ) -> None:
-    ticket_stores._DELIVERY_ID_SETS.clear()
-    ticket_stores._IN_FLIGHT_TICKETS.clear()
+    ticket_stores.reset_for_tests()
 
     class _FakeClient:
         _tags: set[str] = {"pdf:sign"}
@@ -86,16 +84,30 @@ def test_process_ticket_serializes_same_ticket_concurrent_runs(
         _FakeClient,
     )
 
-    async def _fake_build_snapshot(client, ticket_id, *, ticket=None, tags=None):  # noqa: ANN001, ARG001
-        return object()
+    async def _fake_build_and_render_pdf(
+        client, ticket, tags, ticket_id: int, settings  # noqa: ANN001, ARG001
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            pdf_bytes=b"%PDF-1.7\n%%EOF\n",
+            snapshot=SimpleNamespace(ticket=ticket),
+        )
+
+    def _fake_store_ticket_files(*args, **kwargs) -> SimpleNamespace:  # noqa: ANN002, ANN003
+        target_path = tmp_path / "archived.pdf"
+        return SimpleNamespace(
+            target_path=target_path,
+            sidecar_path=target_path.with_suffix(".pdf.json"),
+            sha256_hex="deadbeef",
+            size_bytes=42,
+        )
 
     monkeypatch.setattr(
-        "zammad_pdf_archiver.app.jobs.process_ticket.build_snapshot",
-        _fake_build_snapshot,
+        "zammad_pdf_archiver.app.jobs.process_ticket.build_and_render_pdf",
+        _fake_build_and_render_pdf,
     )
     monkeypatch.setattr(
-        "zammad_pdf_archiver.app.jobs.process_ticket.render_pdf",
-        lambda snapshot, template, max_articles=None: b"%PDF-1.7\n%%EOF\n",  # noqa: ARG005
+        "zammad_pdf_archiver.app.jobs.process_ticket.store_ticket_files",
+        _fake_store_ticket_files,
     )
 
     settings = _settings(tmp_path)

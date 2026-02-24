@@ -9,7 +9,6 @@ def test_nfr8_key_docs_exist() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     docs = repo_root / "docs"
     required = [
-        "00-overview.md",
         "01-architecture.md",
         "02-zammad-setup.md",
         "03-data-model.md",
@@ -22,6 +21,7 @@ def test_nfr8_key_docs_exist() -> None:
         "api.md",
         "config-reference.md",
         "faq.md",
+        "PRD.md",
     ]
     missing = [f for f in required if not (docs / f).is_file()]
     assert not missing, f"Missing docs: {missing}"

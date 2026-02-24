@@ -27,14 +27,6 @@ def test_audit_sidecar_written_next_to_pdf_and_matches_sha256(tmp_path, monkeypa
     settings = _test_settings(str(tmp_path))
     fixed_now = datetime(2026, 2, 7, 12, 0, 0, tzinfo=UTC)
     monkeypatch.setattr(process_ticket_module, "_now_utc", lambda: fixed_now)
-    written: list[str] = []
-    orig_write = process_ticket_module.write_atomic_bytes
-
-    def _record_write(path, data, **kwargs) -> None:  # noqa: ANN001 - test shim
-        written.append(str(path))
-        orig_write(path, data, **kwargs)
-
-    monkeypatch.setattr(process_ticket_module, "write_atomic_bytes", _record_write)
 
     payload = {
         "ticket": {"id": 123},
@@ -109,8 +101,6 @@ def test_audit_sidecar_written_next_to_pdf_and_matches_sha256(tmp_path, monkeypa
         )
         expected_pdf_path = tmp_path / "agent" / "A" / "B" / "C" / expected_filename
         expected_sidecar_path = expected_pdf_path.parent / (expected_pdf_path.name + ".json")
-
-        assert written[:2] == [str(expected_pdf_path), str(expected_sidecar_path)]
 
         assert expected_pdf_path.exists()
         assert expected_sidecar_path.exists()

@@ -11,12 +11,12 @@ from zammad_pdf_archiver.adapters.zammad.errors import (
     RateLimitError,
     ServerError,
 )
-from zammad_pdf_archiver.domain.errors import PermanentError, TransientError, wrap_exception
 from zammad_pdf_archiver.domain.error_messages import (
     ErrorMessages,
-    format_http_error,
     format_fs_error,
+    format_http_error,
 )
+from zammad_pdf_archiver.domain.errors import PermanentError, TransientError, wrap_exception
 
 _TRANSIENT_ERRNOS: set[int] = {
     # Temporary / retryable.

@@ -1,4 +1,4 @@
-.PHONY: dev lint format typecheck test test-cov ci dev-setup clean
+.PHONY: dev lint format typecheck test test-fast test-cov qa ci dev-setup clean
 
 dev:
 	docker compose -f docker-compose.dev.yml up --build
@@ -24,12 +24,18 @@ typecheck:
 test:
 	@set -e; python -m pytest -q || (test $$? -eq 5 && echo 'No tests collected (bootstrap stage)' && exit 0)
 
+test-fast:
+	@set -e; python -m pytest -q test/static test/unit || (test $$? -eq 5 && echo 'No tests collected (bootstrap stage)' && exit 0)
+
 test-cov:
 	python -m pytest --cov=src/zammad_pdf_archiver --cov-report=term-missing --cov-report=html:htmlcov
+
+qa: lint
+	python -m mypy . --config-file pyproject.toml
+	python -m pytest -q test/static test/unit test/integration test/nfr
 
 ci: lint typecheck test
 
 clean:
 	rm -rf build dist .eggs *.egg-info .pytest_cache .coverage htmlcov .mypy_cache
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-

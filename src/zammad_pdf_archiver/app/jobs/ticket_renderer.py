@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import TYPE_CHECKING
 
+import structlog
+
 from zammad_pdf_archiver.adapters.pdf.render_pdf import render_pdf
 from zammad_pdf_archiver.adapters.signing.sign_pdf import sign_pdf
 from zammad_pdf_archiver.adapters.snapshot.build_snapshot import (
@@ -24,6 +26,8 @@ if TYPE_CHECKING:
     from zammad_pdf_archiver.adapters.zammad.models import TagList, Ticket
     from zammad_pdf_archiver.config.settings import Settings
 
+log = structlog.get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class RenderResult:
@@ -33,11 +37,11 @@ class RenderResult:
 
 
 async def build_and_render_pdf(
-    client: "AsyncZammadClient",
-    ticket: "Ticket",
-    tags: "TagList",
+    client: AsyncZammadClient,
+    ticket: Ticket,
+    tags: TagList,
     ticket_id: int,
-    settings: "Settings",
+    settings: Settings,
 ) -> RenderResult:
     """Build snapshot and render PDF with optional signing.
     
@@ -72,6 +76,12 @@ async def build_and_render_pdf(
         and max_articles > 0
         and len(snapshot.articles) > max_articles
     ):
+        log.warning(
+            "process_ticket.article_limit_capped",
+            ticket_id=ticket_id,
+            total=len(snapshot.articles),
+            cap=max_articles,
+        )
         snapshot = Snapshot(
             ticket=snapshot.ticket,
             articles=snapshot.articles[:max_articles],

@@ -3,14 +3,14 @@ from html import escape
 import structlog
 
 from zammad_pdf_archiver._version import VERSION
-from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
-from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
 from zammad_pdf_archiver.adapters.zammad.errors import (
     AuthError,
     NotFoundError,
     RateLimitError,
     ServerError,
 )
+from zammad_pdf_archiver.config.redact import scrub_secrets_in_text
+from zammad_pdf_archiver.domain.errors import PermanentError, TransientError
 
 log = structlog.get_logger(__name__)
 

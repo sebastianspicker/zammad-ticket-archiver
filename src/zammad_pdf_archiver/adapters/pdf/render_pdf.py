@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import warnings
 from contextlib import contextmanager
 from importlib import resources

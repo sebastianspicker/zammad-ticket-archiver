@@ -42,7 +42,7 @@ def _extract_cert_fingerprint(settings: Any) -> str | None:
         pfx_path = getattr(settings, "pfx_path", None)
         if pfx_path is not None:
             password_secret = getattr(settings, "pfx_password", None)
-            if hasattr(password_secret, "get_secret_value"):
+            if isinstance(password_secret, SecretStr):
                 password_str: str | None = password_secret.get_secret_value()
             elif isinstance(password_secret, str):
                 password_str = password_secret

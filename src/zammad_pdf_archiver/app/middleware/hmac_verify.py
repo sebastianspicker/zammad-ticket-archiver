@@ -9,9 +9,9 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from zammad_pdf_archiver.adapters.http_util import drain_stream
+from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER
 from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
-from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER
 
 _SIGNATURE_HEADER = "X-Hub-Signature"
 _INGEST_PATH = "/ingest"
@@ -181,13 +181,11 @@ class HmacVerifyMiddleware:
         mac = hmac.new(self._secret, digestmod=digest_ctor)
         chunks, disconnected = await _read_body(receive, on_chunk=mac.update)
         if disconnected:
-            await drain_stream(receive)
             await _forbidden()(scope, receive, send)
             return
 
         expected = mac.digest()
         if not hmac.compare_digest(signature, expected):
-            await drain_stream(receive)
             await _forbidden()(scope, receive, send)
             return
 

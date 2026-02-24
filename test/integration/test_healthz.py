@@ -4,17 +4,13 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _test_settings(storage_root: str) -> Settings:
-    return Settings.from_mapping(
-        {
-            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
-            "storage": {"root": storage_root},
-        }
-    )
+    return make_settings(storage_root)
 
 
 def test_healthz_ok(tmp_path) -> None:
@@ -34,12 +30,9 @@ def test_healthz_ok(tmp_path) -> None:
 
 
 def test_healthz_omit_version(tmp_path) -> None:
-    settings = Settings.from_mapping(
-        {
-            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
-            "storage": {"root": str(tmp_path)},
-            "observability": {"healthz_omit_version": True},
-        }
+    settings = make_settings(
+        str(tmp_path),
+        overrides={"observability": {"healthz_omit_version": True}},
     )
     app = create_app(settings)
     client = TestClient(app)

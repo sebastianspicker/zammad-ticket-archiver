@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 import httpx
 import respx
 
+from zammad_pdf_archiver.app.jobs import ticket_stores
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.load import load_settings
 from zammad_pdf_archiver.domain.state_machine import (
@@ -44,7 +45,7 @@ def test_e2e_smoke_ingest_happy_path_writes_pdf_and_updates_zammad(tmp_path, mon
 
     import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 
-    process_ticket_module._DELIVERY_ID_SETS.clear()
+    ticket_stores.reset_for_tests()
     fixed_now = datetime(2026, 2, 7, 12, 0, 0, tzinfo=UTC)
     monkeypatch.setattr(process_ticket_module, "_now_utc", lambda: fixed_now)
 
@@ -123,7 +124,7 @@ def test_e2e_smoke_ingest_happy_path_writes_pdf_and_updates_zammad(tmp_path, mon
         response = asyncio.run(_call_ingest())
 
         assert response.status_code == 202
-        assert response.json() == {"accepted": True, "ticket_id": 123}
+        assert response.json() == {"status": "accepted", "ticket_id": 123}
 
         date_iso = fixed_now.date().isoformat()
         expected_path = (
@@ -161,8 +162,7 @@ def test_e2e_smoke_ingest_duplicate_delivery_id_is_idempotent(tmp_path, monkeypa
 
     import zammad_pdf_archiver.app.jobs.process_ticket as process_ticket_module
 
-    process_ticket_module._DELIVERY_ID_SETS.clear()
-    process_ticket_module._IN_FLIGHT_TICKETS.clear()
+    ticket_stores.reset_for_tests()
     fixed_now = datetime(2026, 2, 7, 12, 0, 0, tzinfo=UTC)
     monkeypatch.setattr(process_ticket_module, "_now_utc", lambda: fixed_now)
 
@@ -224,8 +224,8 @@ def test_e2e_smoke_ingest_duplicate_delivery_id_is_idempotent(tmp_path, monkeypa
 
         assert first.status_code == 202
         assert second.status_code == 202
-        assert first.json() == {"accepted": True, "ticket_id": 123}
-        assert second.json() == {"accepted": True, "ticket_id": 123}
+        assert first.json() == {"status": "accepted", "ticket_id": 123}
+        assert second.json() == {"status": "accepted", "ticket_id": 123}
 
         assert ticket_route.call_count == 1
         assert tags_route.call_count == 1

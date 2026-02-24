@@ -3,6 +3,8 @@ Requires optional dependency: pip install zammad-pdf-archiver[redis]."""
 
 from __future__ import annotations
 
+from typing import Any
+
 _REDIS_PREFIX = "zammad:delivery_id:"
 
 
@@ -20,11 +22,11 @@ class RedisDeliveryIdStore:
         self._redis_url = redis_url
         self._ttl_seconds = ttl_seconds
         self._prefix = prefix
-        self._redis: object | None = None
+        self._redis: Any | None = None
 
     def _client(self):  # noqa: ANN201
         try:
-            from redis.asyncio import Redis  # type: ignore
+            from redis.asyncio import Redis
         except ImportError as e:
             raise RuntimeError(
                 "Redis backend requires the redis package. "
@@ -67,5 +69,5 @@ class RedisDeliveryIdStore:
         """Close the Redis connection if it was opened."""
         if self._redis is not None:
             # redis.asyncio.Redis has an aclose method (alias for close in some versions).
-            await self._redis.aclose()  # type: ignore
+            await self._redis.aclose()
             self._redis = None

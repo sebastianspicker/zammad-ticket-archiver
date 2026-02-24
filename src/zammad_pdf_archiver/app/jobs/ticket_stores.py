@@ -1,12 +1,11 @@
 import asyncio
-from typing import Any
 
 import structlog
 
+from zammad_pdf_archiver.app.jobs.shutdown import is_shutting_down
 from zammad_pdf_archiver.config.settings import Settings
 from zammad_pdf_archiver.domain.idempotency import DeliveryIdStore, InMemoryTTLSet
 from zammad_pdf_archiver.domain.redis_delivery_id import RedisDeliveryIdStore
-from zammad_pdf_archiver.app.jobs.shutdown import is_shutting_down
 
 log = structlog.get_logger(__name__)
 
@@ -97,7 +96,10 @@ async def try_acquire_ticket(settings: Settings, ticket_id: int) -> bool:
                     return False
             except Exception:
                 # If Redis fails, we fall back to local lock only (warn if needed)
-                log.warning("process_ticket.redis_lock_failed_fallback_to_local", ticket_id=ticket_id)
+                log.warning(
+                    "process_ticket.redis_lock_failed_fallback_to_local",
+                    ticket_id=ticket_id,
+                )
 
     return True
 
@@ -115,3 +117,34 @@ async def release_ticket(settings: Settings, ticket_id: int) -> None:
     # 2. Local process lock
     async with _IN_FLIGHT_TICKETS_GUARD:
         _IN_FLIGHT_TICKETS.discard(ticket_id)
+
+
+async def aclose_stores() -> None:
+    """Close all persistent Redis stores and clear local caches."""
+    async with _STORE_GUARD:
+        for store in _REDIS_STORES.values():
+            try:
+                await store.aclose()
+            except Exception:
+                log.warning("process_ticket.redis_store_aclose_failed")
+        _REDIS_STORES.clear()
+        _DELIVERY_ID_SETS.clear()
+
+    async with _IN_FLIGHT_TICKETS_GUARD:
+        _IN_FLIGHT_TICKETS.clear()
+
+
+def reset_for_tests() -> None:
+    """
+    Clear in-memory caches used by idempotency and local in-flight guards.
+
+    Intended for tests that need deterministic start state.
+    """
+    _DELIVERY_ID_SETS.clear()
+    _REDIS_STORES.clear()
+    _IN_FLIGHT_TICKETS.clear()
+
+
+def is_ticket_in_flight(ticket_id: int) -> bool:
+    """Best-effort process-local visibility of in-flight ticket state."""
+    return ticket_id in _IN_FLIGHT_TICKETS

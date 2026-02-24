@@ -6,32 +6,26 @@ import hmac
 import pytest
 from fastapi.testclient import TestClient
 
+from test.support.settings_factory import make_settings
 from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
 def _test_settings(storage_root: str, *, secret: str | None) -> Settings:
-    zammad: dict[str, object] = {
-        "base_url": "https://zammad.example.local",
-        "api_token": "test-token",
-    }
-    if secret is not None:
-        zammad["webhook_hmac_secret"] = secret
-    return Settings.from_mapping({"zammad": zammad, "storage": {"root": storage_root}})
+    return make_settings(
+        storage_root,
+        secret=secret,
+        allow_unsigned=False,
+        allow_unsigned_when_no_secret=False,
+    )
 
 
 def _test_settings_unsigned_ok(storage_root: str) -> Settings:
-    return Settings.from_mapping(
-        {
-            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
-            "storage": {"root": storage_root},
-            "hardening": {
-                "webhook": {
-                    "allow_unsigned": True,
-                    "allow_unsigned_when_no_secret": True,
-                }
-            },
-        }
+    return make_settings(
+        storage_root,
+        secret=None,
+        allow_unsigned=True,
+        allow_unsigned_when_no_secret=True,
     )
 
 
@@ -74,7 +68,7 @@ def test_valid_signature_passes(tmp_path, monkeypatch) -> None:
         },
     )
     assert response.status_code == 202
-    assert response.json() == {"accepted": True, "ticket_id": 123}
+    assert response.json() == {"status": "accepted", "ticket_id": 123}
 
 
 def test_valid_sha256_signature_passes(tmp_path, monkeypatch) -> None:
@@ -98,7 +92,7 @@ def test_valid_sha256_signature_passes(tmp_path, monkeypatch) -> None:
         },
     )
     assert response.status_code == 202
-    assert response.json() == {"accepted": True, "ticket_id": 456}
+    assert response.json() == {"status": "accepted", "ticket_id": 456}
 
 
 def test_invalid_signature_is_rejected(tmp_path) -> None:
@@ -136,8 +130,16 @@ def test_missing_signature_is_allowed_when_secret_unset(tmp_path) -> None:
     assert response.status_code == 503
 
 
-def test_missing_signature_is_allowed_only_when_allow_unsigned_enabled(tmp_path) -> None:
+def test_missing_signature_is_allowed_only_when_allow_unsigned_enabled(
+    tmp_path, monkeypatch
+) -> None:
+    async def _stub_process_ticket(delivery_id, payload, settings) -> None:  # noqa: ANN001, ARG001
+        return None
+
     app = create_app(_test_settings_unsigned_ok(str(tmp_path)))
+    import zammad_pdf_archiver.app.routes.ingest as ingest_route
+
+    monkeypatch.setattr(ingest_route, "process_ticket", _stub_process_ticket)
     client = TestClient(app)
 
     response = client.post("/ingest", json={"ticket": {"id": 1}})
@@ -228,4 +230,4 @@ def test_valid_signature_passes_with_legacy_shared_secret(tmp_path, monkeypatch)
         },
     )
     assert response.status_code == 202
-    assert response.json() == {"accepted": True, "ticket_id": 123}
+    assert response.json() == {"status": "accepted", "ticket_id": 123}

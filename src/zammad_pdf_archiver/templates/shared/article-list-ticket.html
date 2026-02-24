@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ticket {{ ticket.number }}{% if ticket.title %} – {{ ticket.title }}{% endif %}</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body{% block body_class %}{% endblock %}>
+  {% macro fmt_dt(value) -%}
+  {%- if not value -%}
+  —
+  {%- else -%}
+  {{- value | format_dt_local -}}
+  {%- endif -%}
+  {%- endmacro %}
+
+  <header class="header">
+    <h1 class="title">
+      Ticket {{ ticket.number }}{% if ticket.title %}<span class="subject">— {{ ticket.title }}</span>{% endif %}
+    </h1>
+  </header>
+
+  <main aria-label="Ticket articles">
+    {% for article in articles %}
+    <article class="article">
+      <header class="article-header">
+        <span class="timestamp">{{ fmt_dt(article.created_at) }}</span>
+        <span class="dot" aria-hidden="true">·</span>
+        <span class="sender">{{ article.sender if article.sender else "—" }}</span>
+        <span class="badge {{ 'badge--internal' if article.internal else 'badge--external' }}">
+          {{ "Internal" if article.internal else "External" }}
+        </span>
+      </header>
+
+      <div class="body">
+        {% if article.body_html %}
+        {{ article.body_html | safe }}
+        {% elif article.body_text %}
+        {{ article.body_text | e | replace("\n", "<br />") | safe }}
+        {% else %}
+        <p class="muted">—</p>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <p class="muted">No articles.</p>
+    {% endfor %}
+  </main>
+</body>
+
+</html>
