@@ -39,7 +39,6 @@ RUN addgroup --system --gid 10001 app \
 
 COPY --from=builder --chown=app:app /opt/venv /opt/venv
 
-COPY --chown=app:app templates/ /app/templates/
 COPY --chown=app:app config/ /app/config/
 
 USER app:app

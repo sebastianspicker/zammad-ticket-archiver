@@ -14,4 +14,4 @@ services:
       STORAGE_ROOT: "${STORAGE_ROOT:-/mnt/archive}"
     volumes:
       - ./:/app
-    command: ["bash", "-lc", "PYTHONPATH=/app/src python -m main"]
+    command: ["bash", "-lc", "PYTHONPATH=/app/src python -m zammad_pdf_archiver"]
