@@ -31,8 +31,7 @@ Optional helper field for Zammad-side gating:
 - `archive_request` (boolean)
 
 Important mapping notes:
-- `archive_path` and `archive_user_mode` names are configurable in archiver settings.
-- `archive_user` field name is fixed in code (`custom_fields.archive_user`).
+- `archive_path`, `archive_user_mode`, and `archive_user` field names are configurable in archiver settings.
 
 Suggested field definitions:
 

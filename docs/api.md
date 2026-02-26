@@ -103,6 +103,91 @@ Notes:
 - `in_flight` is process-local and non-persistent.
 - Status is reset on process restart.
 
+### `GET /jobs/queue/stats`
+
+Returns queue status for the configured execution backend.
+
+#### Response (in-process backend)
+
+```json
+{
+  "execution_backend": "inprocess",
+  "queue_enabled": false
+}
+```
+
+### `GET /jobs/history`
+
+Returns processing history events from Redis history stream.
+Requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`.
+
+Query parameters:
+- `limit` (optional, default `100`, max `5000`)
+- `ticket_id` (optional int filter)
+
+Error responses:
+- `401` missing/invalid bearer token
+- `503` ops token missing or history backend unavailable
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "count": 2,
+  "items": [
+    {
+      "id": "1710000000000-0",
+      "status": "processed",
+      "ticket_id": 123,
+      "classification": null,
+      "message": "",
+      "delivery_id": "delivery-1",
+      "request_id": "req-1",
+      "created_at": 1710000000.0
+    }
+  ]
+}
+```
+
+### `POST /jobs/queue/dlq/drain`
+
+Drain dead-letter queue entries from Redis stream.
+Requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`.
+
+Query parameters:
+- `limit` (optional, default `100`, max `1000`)
+
+Error responses:
+- `401` missing/invalid bearer token
+- `503` ops token missing or DLQ backend unavailable
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "drained": 12
+}
+```
+
+#### Response (redis queue backend)
+
+```json
+{
+  "execution_backend": "redis_queue",
+  "queue_enabled": true,
+  "stream": "zammad:jobs",
+  "group": "zammad:jobs:workers",
+  "consumer": "host-12345",
+  "queue_depth": 0,
+  "pending": 0,
+  "dlq_stream": "zammad:jobs:dlq",
+  "dlq_depth": 0,
+  "retry_max_attempts": 3
+}
+```
+
 ### `GET /healthz`
 
 Always available.
@@ -128,6 +213,22 @@ Only mounted when `observability.metrics_enabled=true`. When `METRICS_BEARER_TOK
 
 Response format:
 - Prometheus text exposition (`text/plain`)
+
+### `GET /admin`
+
+Returns a lightweight admin dashboard HTML shell.
+
+### Admin API (`/admin/api/*`)
+
+All admin API endpoints require:
+- `admin.enabled=true`
+- `Authorization: Bearer <ADMIN_BEARER_TOKEN>`
+
+Endpoints:
+- `GET /admin/api/queue/stats`
+- `GET /admin/api/history`
+- `POST /admin/api/retry/{ticket_id}`
+- `POST /admin/api/dlq/drain`
 
 ## 2. Webhook Security Contract
 
@@ -160,7 +261,8 @@ Optional strict mode:
 
 `X-Zammad-Delivery` is used for best-effort dedupe:
 - duplicate delivery IDs are skipped for `workflow.delivery_id_ttl_seconds`
-- dedupe state is in-memory only and not durable across restarts
+- dedupe state is in-memory by default and not durable across restarts
+- with `workflow.idempotency_backend=redis`, dedupe is durable across restarts/multiple workers
 
 ## 4. Example Signed Request
 

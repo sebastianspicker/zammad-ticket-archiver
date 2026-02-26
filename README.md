@@ -28,6 +28,11 @@ This repository provides:
   - `POST /ingest/batch`
   - `POST /retry/{ticket_id}`
   - `GET /jobs/{ticket_id}`
+  - `GET /jobs/queue/stats`
+  - `GET /jobs/history` (requires Bearer token via `ADMIN_BEARER_TOKEN`)
+  - `POST /jobs/queue/dlq/drain` (requires Bearer token via `ADMIN_BEARER_TOKEN`)
+  - `GET /admin` (when `admin.enabled=true`)
+  - `GET /admin/api/*` (when `admin.enabled=true`)
   - `GET /healthz`
   - `GET /metrics` (when enabled)
 - End-to-end ticket processing:
@@ -51,7 +56,7 @@ Out of scope by design:
 
 - exporting attachment binary payloads by default (attachments are metadata-only in snapshot/PDF; optional `pdf.include_attachment_binary` can write binaries to disk and the sidecar)
 - archive browsing/search UI
-- distributed durable queue
+- distributed durable queue by default (optional Redis queue backend is available)
 - durable distributed idempotency store (default; optional Redis backend available)
 - built-in retention/WORM policy engine
 - built-in encryption-at-rest management
@@ -170,6 +175,11 @@ Endpoints:
 - `POST /ingest/batch`
 - `POST /retry/{ticket_id}`
 - `GET /jobs/{ticket_id}`
+- `GET /jobs/queue/stats`
+- `GET /jobs/history` (requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`)
+- `POST /jobs/queue/dlq/drain` (requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`)
+- `GET /admin` (optional)
+- `GET /admin/api/*` (optional)
 - `GET /healthz`
 - `GET /metrics` (only when enabled)
 
@@ -198,7 +208,7 @@ Configuration references:
   - `TSA_USER`
   - `TSA_PASS`
 - Delivery ID dedupe is in-memory only and resets on process restart. For consistent deduplication across restarts or multiple instances, use Redis (`workflow.idempotency_backend=redis`, `workflow.redis_url`); see [Operations](docs/08-operations.md).
-- Processing after `202` is **best-effort**: there is no guaranteed retry and work may be lost on process restart. A durable queue is a possible future feature. See [Processing and Idempotency](docs/08-operations.md#4-processing-and-idempotency-behavior).
+- Processing after `202` is **best-effort** in default `inprocess` mode. For durable retries and dead-letter handling, enable `workflow.execution_backend=redis_queue` with `workflow.redis_url`; see [Processing and Idempotency](docs/08-operations.md#4-processing-and-idempotency-behavior).
 - If a ticket is stuck in `pdf:processing` after a crash, see [Stuck in pdf:processing](docs/faq.md#why-is-a-ticket-stuck-with-pdfprocessing) in the FAQ.
 
 Operational docs:
@@ -216,8 +226,10 @@ Operational docs:
 | Test | `make test` (pytest) |
 | Test (fast) | `make test-fast` (static + unit) |
 | Type-check | `mypy . --config-file pyproject.toml` |
+| Smoke | `make smoke` |
 | Full QA | `make qa` (lint + mypy + static + unit + integration + nfr) |
 | Build | `python -m build` (sdist + wheel) |
+| Verify | `make verify` (qa + build) |
 | Smoke test | `bash scripts/ci/smoke-test.sh` (optional; needs env) |
 | Dev run | `make dev` (Docker Compose dev stack) |
 

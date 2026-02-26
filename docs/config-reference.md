@@ -54,8 +54,19 @@ Required unless overridden by explicit unsafe/test options:
 | `workflow.require_tag` | `true` | `WORKFLOW_REQUIRE_TAG` | require trigger tag for processing |
 | `workflow.acknowledge_on_success` | `true` | none | create success note on ticket |
 | `workflow.delivery_id_ttl_seconds` | `3600` | `WORKFLOW_DELIVERY_ID_TTL_SECONDS` | in-memory dedupe TTL |
+| `workflow.execution_backend` | `inprocess` | `WORKFLOW_EXECUTION_BACKEND` | execution backend: `inprocess` or `redis_queue` |
 | `workflow.idempotency_backend` | `memory` | `IDEMPOTENCY_BACKEND` | delivery-ID store: `memory` or `redis` |
-| `workflow.redis_url` | `null` | `REDIS_URL` | Redis URL when `idempotency_backend=redis` |
+| `workflow.redis_url` | `null` | `REDIS_URL` | Redis URL when `idempotency_backend=redis` or `execution_backend=redis_queue` |
+| `workflow.queue_stream` | `zammad:jobs` | `WORKFLOW_QUEUE_STREAM` | Redis stream name for queued jobs |
+| `workflow.queue_group` | `zammad:jobs:workers` | `WORKFLOW_QUEUE_GROUP` | consumer group name |
+| `workflow.queue_consumer` | `null` | `WORKFLOW_QUEUE_CONSUMER` | static consumer name (auto-generated when unset) |
+| `workflow.queue_read_block_ms` | `1000` | `WORKFLOW_QUEUE_READ_BLOCK_MS` | blocking read timeout for worker loop |
+| `workflow.queue_read_count` | `10` | `WORKFLOW_QUEUE_READ_COUNT` | max messages read per poll |
+| `workflow.queue_retry_max_attempts` | `3` | `WORKFLOW_QUEUE_RETRY_MAX_ATTEMPTS` | transient retry attempts before DLQ |
+| `workflow.queue_retry_backoff_seconds` | `2.0` | `WORKFLOW_QUEUE_RETRY_BACKOFF_SECONDS` | retry backoff base seconds |
+| `workflow.queue_dlq_stream` | `zammad:jobs:dlq` | `WORKFLOW_QUEUE_DLQ_STREAM` | dead-letter stream name |
+| `workflow.history_stream` | `zammad:jobs:history` | `WORKFLOW_HISTORY_STREAM` | Redis stream for processing history events |
+| `workflow.history_retention_maxlen` | `5000` | `WORKFLOW_HISTORY_RETENTION_MAXLEN` | approximate max history entries (`0` disables) |
 
 ### `fields`
 
@@ -158,6 +169,7 @@ Env-only TSA auth keys:
 | Key | Default | Flat env alias | Description |
 |---|---|---|---|
 | `hardening.webhook.allow_unsigned` | `false` | `HARDENING_WEBHOOK_ALLOW_UNSIGNED` | allow unsigned webhooks |
+| `hardening.webhook.allow_unsigned_when_no_secret` | `false` | `HARDENING_WEBHOOK_ALLOW_UNSIGNED_WHEN_NO_SECRET` | explicit opt-in for unsigned mode when no secret is configured |
 | `hardening.webhook.require_delivery_id` | `false` | `HARDENING_WEBHOOK_REQUIRE_DELIVERY_ID` | require `X-Zammad-Delivery` header |
 
 ### `hardening.transport`
@@ -169,11 +181,18 @@ Env-only TSA auth keys:
 | `hardening.transport.allow_insecure_tls` | `false` | `HARDENING_TRANSPORT_ALLOW_INSECURE_TLS` | allow TLS verify disable |
 | `hardening.transport.allow_local_upstreams` | `false` | `HARDENING_TRANSPORT_ALLOW_LOCAL_UPSTREAMS` | allow loopback/link-local upstreams |
 
+### `admin`
+
+| Key | Default | Flat env alias | Description |
+|---|---|---|---|
+| `admin.enabled` | `false` | `ADMIN_ENABLED` | mount `/admin` UI and `/admin/api/*` endpoints |
+| `admin.bearer_token` | `null` | `ADMIN_BEARER_TOKEN` | required when `admin.enabled=true`; used for Bearer auth on admin API |
+| `admin.history_limit` | `100` | `ADMIN_HISTORY_LIMIT` | default history page size in admin API/UI |
+
 ## 4. Non-schema Runtime Environment Keys
 
 These are used by runtime/deployment but not part of `Settings` model:
 - `CONFIG_PATH` (YAML config path)
-- `TEMPLATES_ROOT` (template base directory override)
 - `TSA_USER`, `TSA_PASS` (TSA basic auth)
 
 ## 5. Nested Environment Examples

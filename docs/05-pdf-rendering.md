@@ -21,6 +21,7 @@ Code paths:
 Built-in variants:
 - `src/zammad_pdf_archiver/templates/default/`
 - `src/zammad_pdf_archiver/templates/minimal/`
+- `src/zammad_pdf_archiver/templates/compact/`
 
 Runtime selection:
 - YAML: `pdf.template_variant`
@@ -87,12 +88,13 @@ Sanitizer implementation:
 
 Setting:
 - `pdf.max_articles` / `PDF_MAX_ARTICLES`
+- `pdf.article_limit_mode` / `PDF_ARTICLE_LIMIT_MODE`
 
 Behavior:
-- `> 0`: hard limit enforced
-- `0`: disables limit
-
-If limit is exceeded, processing fails with a permanent error.
+- `max_articles > 0` and over limit:
+  - `article_limit_mode=fail` -> permanent error
+  - `article_limit_mode=cap_and_continue` -> articles are truncated to the limit and processing continues
+- `max_articles=0`: disables the article count limit
 
 ## 7. PDF Output Contract
 
@@ -102,7 +104,7 @@ If limit is exceeded, processing fails with a permanent error.
 
 ## 8. Customization Workflow
 
-1. Copy a built-in variant (`default` or `minimal`) to a new variant folder.
+1. Copy a built-in variant (`default`, `minimal`, or `compact`) to a new variant folder.
 2. Keep `ticket.html` and at least one CSS file.
 3. Adjust HTML/CSS to your output requirements.
 4. Set `pdf.template_variant` to your variant name.
