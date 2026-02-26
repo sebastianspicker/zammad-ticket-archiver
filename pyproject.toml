@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zammad-pdf-archiver"
-version = "0.1.0"
+version = "0.2.0rc1"
 description = "FastAPI webhook service to archive Zammad tickets as PDFs (optional PAdES signing + RFC3161 timestamp) to filesystem storage."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -88,3 +88,4 @@ exclude = [
 [tool.pytest.ini_options]
 testpaths = ["test"]
 addopts = "--ignore=.env.example --ignore=.pytest_cache -p no:cacheprovider"
+asyncio_default_fixture_loop_scope = "function"
