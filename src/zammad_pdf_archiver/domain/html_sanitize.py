@@ -102,43 +102,15 @@ class _AllowlistHTMLSanitizer(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        if tag in _DROP_WITH_CONTENT:
-            self._skip_depth += 1
+        if self._mark_skip_depth(tag):
             return
         if self._skip_depth:
             return
 
-        if tag not in _ALLOWED_TAGS:
+        if not self._is_allowed_tag(tag):
             return
 
-        # Bug #P2-7: Limit nesting depth to prevent resource exhaustion.
-        if len(self._open) >= 50:
-            return
-
-        allowed_attrs = _ALLOWED_ATTRS.get(tag, frozenset())
-        cleaned: list[tuple[str, str]] = []
-        for key, value in attrs:
-            if not key:
-                continue
-            key_norm = key.lower().strip()
-            if not key_norm or key_norm.startswith("on"):
-                continue
-            if key_norm == "style":
-                continue
-            if key_norm not in allowed_attrs:
-                continue
-            if value is None:
-                continue
-
-            if tag == "a" and key_norm == "href":
-                safe_href = _sanitize_href(value)
-                if safe_href is None:
-                    continue
-                cleaned.append(("href", safe_href))
-                continue
-
-            cleaned.append((key_norm, value))
-
+        cleaned = self._clean_attrs(tag, attrs)
         attr_text = "".join(f' {k}="{escape(v, quote=True)}"' for k, v in cleaned)
         if tag in _VOID_TAGS:
             self._out.append(f"<{tag}{attr_text} />")
@@ -146,6 +118,46 @@ class _AllowlistHTMLSanitizer(HTMLParser):
 
         self._out.append(f"<{tag}{attr_text}>")
         self._open.append(_OpenTag(tag))
+
+    def _mark_skip_depth(self, tag: str) -> bool:
+        if tag in _DROP_WITH_CONTENT:
+            self._skip_depth += 1
+            return True
+        return False
+
+    def _is_allowed_tag(self, tag: str) -> bool:
+        # Bug #P2-7: Limit nesting depth to prevent resource exhaustion.
+        return tag in _ALLOWED_TAGS and len(self._open) < 50
+
+    def _clean_attrs(self, tag: str, attrs: list[tuple[str, str | None]]) -> list[tuple[str, str]]:
+        allowed_attrs = _ALLOWED_ATTRS.get(tag, frozenset())
+        cleaned: list[tuple[str, str]] = []
+        for key, value in attrs:
+            normalized = self._normalized_attr_key(key)
+            if normalized is None or value is None:
+                continue
+            if normalized not in allowed_attrs:
+                continue
+            sanitized = self._sanitize_attr_value(tag, normalized, value)
+            if sanitized is None:
+                continue
+            cleaned.append((normalized, sanitized))
+        return cleaned
+
+    @staticmethod
+    def _normalized_attr_key(key: str | None) -> str | None:
+        if not key:
+            return None
+        key_norm = key.lower().strip()
+        if not key_norm or key_norm.startswith("on") or key_norm == "style":
+            return None
+        return key_norm
+
+    @staticmethod
+    def _sanitize_attr_value(tag: str, key: str, value: str) -> str | None:
+        if tag == "a" and key == "href":
+            return _sanitize_href(value)
+        return value
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         # Normalize <br/> style tags; route through the same allowlist logic.

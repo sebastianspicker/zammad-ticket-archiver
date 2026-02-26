@@ -68,23 +68,23 @@ def validate_segments(
     if len(segments) > max_depth:
         raise ValueError(f"too many path segments (max_depth={max_depth})")
 
-    validated: list[str] = []
-    for seg in segments:
-        if not isinstance(seg, str):
-            raise TypeError("segments must be strings")
-        if seg == "":
-            raise ValueError("empty path segment is not allowed")
-        if seg in {".", ".."}:
-            raise ValueError("dot segments are not allowed")
-        if "\x00" in seg:
-            raise ValueError("null bytes are not allowed")
-        if "/" in seg or "\\" in seg:
-            raise ValueError("path separators are not allowed in segments")
-        if len(seg) > max_length:
-            raise ValueError(f"path segment too long (max_length={max_length})")
-        validated.append(seg)
+    return [_validate_segment(seg, max_length=max_length) for seg in segments]
 
-    return validated
+
+def _validate_segment(seg: str, *, max_length: int) -> str:
+    if not isinstance(seg, str):
+        raise TypeError("segments must be strings")
+    if seg == "":
+        raise ValueError("empty path segment is not allowed")
+    if seg in {".", ".."}:
+        raise ValueError("dot segments are not allowed")
+    if "\x00" in seg:
+        raise ValueError("null bytes are not allowed")
+    if "/" in seg or "\\" in seg:
+        raise ValueError("path separators are not allowed in segments")
+    if len(seg) > max_length:
+        raise ValueError(f"path segment too long (max_length={max_length})")
+    return seg
 
 
 def ensure_within_root(root: Path, target: Path) -> None:

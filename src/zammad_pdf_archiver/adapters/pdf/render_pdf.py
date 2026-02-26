@@ -31,26 +31,49 @@ def _css_file_paths(template_folder: Path) -> list[Path]:
     if not template_folder.exists() or not template_folder.is_dir():
         raise FileNotFoundError(f"Template folder not found: {template_folder}")
 
+    files = _template_css_paths(template_folder)
+
+    if not files:
+        raise FileNotFoundError(f"No CSS files found in template folder: {template_folder}")
+
+    return _prepend_shared_css(template_folder, files)
+
+
+def _template_css_paths(template_folder: Path) -> list[Path]:
     files: list[Path] = []
     main = template_folder / _TEMPLATE_STYLES_MAIN
     if main.exists() and main.is_file():
         files.append(main)
 
-    # Add any additional CSS files in deterministic order.
+    files.extend(_sibling_css_paths(template_folder))
+    files.extend(_nested_css_paths(template_folder / "css"))
+    return files
+
+
+def _sibling_css_paths(template_folder: Path) -> list[Path]:
+    files: list[Path] = []
     for path in sorted(template_folder.glob("*.css")):
         if path.name == _TEMPLATE_STYLES_MAIN:
             continue
         if path.is_file():
             files.append(path)
+    return files
 
-    css_dir = template_folder / "css"
-    if css_dir.exists() and css_dir.is_dir():
-        for path in sorted(css_dir.rglob("*.css")):
-            if path.is_file():
-                files.append(path)
 
-    if not files:
-        raise FileNotFoundError(f"No CSS files found in template folder: {template_folder}")
+def _nested_css_paths(css_dir: Path) -> list[Path]:
+    if not css_dir.exists() or not css_dir.is_dir():
+        return []
+    return [path for path in sorted(css_dir.rglob("*.css")) if path.is_file()]
+
+
+def _prepend_shared_css(template_folder: Path, files: list[Path]) -> list[Path]:
+    shared_article_css = template_folder.parent / "shared" / "article-list.css"
+    if (
+        shared_article_css.exists()
+        and shared_article_css.is_file()
+        and shared_article_css not in files
+    ):
+        return [shared_article_css, *files]
     return files
 
 
@@ -78,7 +101,13 @@ def render_pdf(
         )
 
     with _template_folder_path(template_name, templates_root=templates_root) as template_folder:
-        html = render_html(snapshot, template_name, locale=locale, timezone=timezone)
+        html = render_html(
+            snapshot,
+            template_name,
+            locale=locale,
+            timezone=timezone,
+            templates_root=templates_root,
+        )
 
         css_paths = _css_file_paths(template_folder)
         css_bytes = b"".join(p.read_bytes() for p in css_paths)

@@ -2,3 +2,4 @@
 
 DELIVERY_ID_HEADER = "X-Zammad-Delivery"
 REQUEST_ID_KEY = "_request_id"
+INGEST_PROTECTED_PATHS: frozenset[str] = frozenset({"/ingest", "/ingest/batch"})

@@ -21,6 +21,7 @@
     <h1 class="title">
       Ticket {{ ticket.number }}{% if ticket.title %}<span class="subject">— {{ ticket.title }}</span>{% endif %}
     </h1>
+    {% block ticket_meta %}{% endblock %}
   </header>
 
   <main aria-label="Ticket articles">
@@ -33,6 +34,9 @@
         <span class="badge {{ 'badge--internal' if article.internal else 'badge--external' }}">
           {{ "Internal" if article.internal else "External" }}
         </span>
+        {% if article.subject %}
+        <span class="article-subject">{{ article.subject }}</span>
+        {% endif %}
       </header>
 
       <div class="body">
@@ -44,10 +48,32 @@
         <p class="muted">—</p>
         {% endif %}
       </div>
+
+      {% if article.attachments %}
+      <aside class="article-attachments" aria-label="Attachments">
+        <h3 class="subheading">Attachments</h3>
+        <ul class="attachment-list">
+          {% for att in article.attachments %}
+          <li class="attachment-item">
+            <span class="attachment-name">{{ att.filename if att.filename else "Unnamed file" }}</span>
+            <span class="attachment-meta">
+              {% if att.content_type %}{{ att.content_type }}{% endif %}
+              {% if att.size %}{% if att.content_type %} · {% endif %}{{ att.size }} B{% endif %}
+              {% if att.attachment_id %} · id {{ att.attachment_id }}{% endif %}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      </aside>
+      {% endif %}
+
+      {% block article_tail scoped %}{% endblock %}
     </article>
     {% else %}
     <p class="muted">No articles.</p>
     {% endfor %}
+
+    {% block after_articles %}{% endblock %}
   </main>
 </body>
 

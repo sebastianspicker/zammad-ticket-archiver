@@ -196,46 +196,76 @@ class AsyncZammadClient:
                     method, path, params=params, json=json, headers=headers
                 )
             except httpx.TimeoutException as exc:
-                if retry_count >= self._retry.max_retries:
-                    raise ServerError(
-                        f"Zammad API timeout after {max_attempts} attempts at {path}"
-                    ) from exc
-                await self._sleep(self._retry.backoff_seconds(retry_count))
-                retry_count += 1
+                retry_count = await self._retry_after_timeout_or_transport(
+                    retry_count=retry_count,
+                    max_attempts=max_attempts,
+                    exc=exc,
+                    timeout_path=path,
+                )
                 continue
             except httpx.TransportError as exc:
-                if retry_count >= self._retry.max_retries:
-                    raise ServerError(f"Network error after {max_attempts} attempts") from exc
-                await self._sleep(self._retry.backoff_seconds(retry_count))
+                retry_count = await self._retry_after_timeout_or_transport(
+                    retry_count=retry_count,
+                    max_attempts=max_attempts,
+                    exc=exc,
+                )
+                continue
+
+            retry_delay = self._retry_delay_for_response(
+                response,
+                retry_count=retry_count,
+                max_attempts=max_attempts,
+            )
+            if retry_delay is not None:
+                await self._sleep(retry_delay)
                 retry_count += 1
                 continue
 
-            status = response.status_code
-
-            if status >= 500:
-                if retry_count >= self._retry.max_retries:
-                    raise ServerError(
-                        f"Zammad server error (status={status}) after {max_attempts} attempts"
-                    )
-                await self._sleep(self._retry.backoff_seconds(retry_count))
-                retry_count += 1
-                continue
-
-            if status == 429:
-                if retry_count >= self._retry.max_retries:
-                    raise RateLimitError(
-                        f"Zammad rate limit (status=429) after {max_attempts} attempts"
-                    )
-
-                retry_after = _parse_retry_after_seconds(response.headers.get("Retry-After"))
-                await self._sleep(retry_after or self._retry.backoff_seconds(retry_count))
-                retry_count += 1
-                continue
-
-            if 200 <= status < 300:
+            if 200 <= response.status_code < 300:
                 return response
 
             self._raise_for_status(response)
+
+    async def _retry_after_timeout_or_transport(
+        self,
+        *,
+        retry_count: int,
+        max_attempts: int,
+        exc: Exception,
+        timeout_path: str | None = None,
+    ) -> int:
+        if retry_count >= self._retry.max_retries:
+            if isinstance(exc, httpx.TimeoutException):
+                path = timeout_path or "<unknown>"
+                raise ServerError(
+                    f"Zammad API timeout after {max_attempts} attempts at {path}"
+                ) from exc
+            raise ServerError(f"Network error after {max_attempts} attempts") from exc
+        await self._sleep(self._retry.backoff_seconds(retry_count))
+        return retry_count + 1
+
+    def _retry_delay_for_response(
+        self,
+        response: httpx.Response,
+        *,
+        retry_count: int,
+        max_attempts: int,
+    ) -> float | None:
+        status = response.status_code
+        if status >= 500:
+            if retry_count >= self._retry.max_retries:
+                raise ServerError(
+                    f"Zammad server error (status={status}) after {max_attempts} attempts"
+                )
+            return self._retry.backoff_seconds(retry_count)
+        if status == 429:
+            if retry_count >= self._retry.max_retries:
+                raise RateLimitError(
+                    f"Zammad rate limit (status=429) after {max_attempts} attempts"
+                )
+            retry_after = _parse_retry_after_seconds(response.headers.get("Retry-After"))
+            return retry_after or self._retry.backoff_seconds(retry_count)
+        return None
 
     def _raise_for_status(self, response: httpx.Response) -> NoReturn:
         status = response.status_code
@@ -265,5 +295,4 @@ def _parse_retry_after_seconds(value: str | None) -> float | None:
     if seconds < 0:
         return None
     return seconds
-
 

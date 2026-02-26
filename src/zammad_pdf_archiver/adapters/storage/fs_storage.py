@@ -96,43 +96,53 @@ def write_atomic_bytes(
     try:
         fd, tmp_name = tempfile.mkstemp(dir=str(parent), prefix=".tmp-")
         tmp_path = Path(tmp_name)
+        _write_tmp_file(fd, data, fsync=fsync)
+        fd = None
 
-        with os.fdopen(fd, "wb") as f:
-            fd = None
-            f.write(data)
-            f.flush()
-            # Bug #21: set mode on fd before replace so target gets correct permissions.
-            os.fchmod(f.fileno(), 0o640)
-            if fsync:
-                os.fsync(f.fileno())
-
-        try:
-            os.replace(tmp_path, target)
-        except Exception:
-            # If replace fails, ensure tmp_path is cleaned up
-            if tmp_path is not None:
-                try:
-                    tmp_path.unlink()
-                except (FileNotFoundError, OSError):
-                    pass
-            raise
+        _replace_tmp_with_target(tmp_path, target)
 
         if fsync:
             _fsync_dir_best_effort(parent)
     except Exception:
-        if fd is not None:
-            try:
-                os.close(fd)
-            except OSError:
-                pass
-        if tmp_path is not None:
-            try:
-                tmp_path.unlink()
-            except FileNotFoundError:
-                pass
-            except OSError:
-                pass
+        _safe_close(fd)
+        _safe_unlink(tmp_path)
         raise
+
+
+def _write_tmp_file(fd: int, data: bytes, *, fsync: bool) -> None:
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+        f.flush()
+        # Bug #21: set mode on fd before replace so target gets correct permissions.
+        os.fchmod(f.fileno(), 0o640)
+        if fsync:
+            os.fsync(f.fileno())
+
+
+def _replace_tmp_with_target(tmp_path: Path, target: Path) -> None:
+    try:
+        os.replace(tmp_path, target)
+    except Exception:
+        _safe_unlink(tmp_path)
+        raise
+
+
+def _safe_close(fd: int | None) -> None:
+    if fd is None:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def _safe_unlink(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        path.unlink()
+    except (FileNotFoundError, OSError):
+        pass
 
 
 def move_file_within_root(

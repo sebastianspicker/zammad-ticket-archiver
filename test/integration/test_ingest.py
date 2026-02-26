@@ -11,8 +11,8 @@ from zammad_pdf_archiver.app.server import create_app
 from zammad_pdf_archiver.config.settings import Settings
 
 
-def _test_settings(storage_root: str) -> Settings:
-    return make_settings(storage_root)
+def _test_settings(storage_root: str, *, overrides: dict[str, Any] | None = None) -> Settings:
+    return make_settings(storage_root, overrides=overrides)
 
 
 def _test_settings_require_delivery_id(storage_root: str) -> Settings:
@@ -68,6 +68,26 @@ def test_request_id_header_is_preserved(tmp_path, monkeypatch) -> None:
     )
     assert response.status_code == 202
     assert response.headers["X-Request-Id"] == "test-req-id"
+
+
+def test_request_id_header_invalid_value_is_replaced(tmp_path, monkeypatch) -> None:
+    async def _stub_process_ticket(delivery_id, payload, settings) -> None:  # noqa: ANN001, ARG001
+        return None
+
+    app = create_app(_test_settings(str(tmp_path)))
+    import zammad_pdf_archiver.app.routes.ingest as ingest_route
+
+    monkeypatch.setattr(ingest_route, "process_ticket", _stub_process_ticket)
+    client = TestClient(app)
+
+    response = client.post(
+        "/ingest",
+        json={"ticket": {"id": 1}},
+        headers={"X-Request-Id": "bad value with spaces"},
+    )
+    assert response.status_code == 202
+    assert response.headers["X-Request-Id"] != "bad value with spaces"
+    assert response.headers["X-Request-Id"]
 
 
 def test_ingest_passes_delivery_id_header_to_process_ticket(tmp_path, monkeypatch) -> None:
@@ -196,3 +216,53 @@ def test_jobs_endpoint_reports_in_flight_status(tmp_path) -> None:
     finally:
         asyncio.run(ticket_stores.release_ticket(settings, 404))
         ticket_stores.reset_for_tests()
+
+
+def test_ingest_uses_redis_queue_dispatch_when_enabled(tmp_path, monkeypatch) -> None:
+    calls: list[tuple[str | None, dict[str, Any], Settings]] = []
+    enqueued: list[tuple[str | None, dict[str, Any], Settings]] = []
+
+    async def _stub_process_ticket(
+        delivery_id: str | None, payload: dict[str, Any], settings: Settings
+    ) -> None:
+        calls.append((delivery_id, payload, settings))
+
+    async def _stub_enqueue_ticket_job(
+        *, delivery_id: str | None, payload: dict[str, Any], settings: Settings
+    ) -> str:
+        enqueued.append((delivery_id, payload, settings))
+        return "1-0"
+
+    app = create_app(
+        _test_settings(
+            str(tmp_path),
+            overrides={"workflow": {"execution_backend": "redis_queue", "redis_url": "redis://localhost/0"}},
+        )
+    )
+    import zammad_pdf_archiver.app.routes.ingest as ingest_route
+
+    monkeypatch.setattr(ingest_route, "process_ticket", _stub_process_ticket)
+    monkeypatch.setattr(ingest_route, "enqueue_ticket_job", _stub_enqueue_ticket_job)
+    client = TestClient(app)
+
+    response = client.post(
+        "/ingest",
+        json={"ticket": {"id": 123}},
+        headers={"X-Zammad-Delivery": "delivery-redis-1"},
+    )
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted", "ticket_id": 123}
+    assert len(enqueued) == 1
+    assert enqueued[0][0] == "delivery-redis-1"
+    assert calls == []
+
+
+def test_jobs_queue_stats_endpoint_available(tmp_path) -> None:
+    app = create_app(_test_settings(str(tmp_path)))
+    client = TestClient(app)
+
+    response = client.get("/jobs/queue/stats")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["execution_backend"] == "inprocess"
+    assert body["queue_enabled"] is False

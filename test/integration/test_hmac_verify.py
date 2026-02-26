@@ -231,3 +231,37 @@ def test_valid_signature_passes_with_legacy_shared_secret(tmp_path, monkeypatch)
     )
     assert response.status_code == 202
     assert response.json() == {"status": "accepted", "ticket_id": 123}
+
+
+def test_batch_missing_signature_is_rejected_when_secret_configured(tmp_path) -> None:
+    secret = "test-secret"
+    app = create_app(_test_settings(str(tmp_path), secret=secret))
+    client = TestClient(app)
+
+    response = client.post("/ingest/batch", json=[{"ticket": {"id": 123}}])
+    assert response.status_code == 403
+    assert response.headers.get("X-Request-Id")
+
+
+def test_batch_valid_signature_passes(tmp_path, monkeypatch) -> None:
+    secret = "test-secret"
+    app = create_app(_test_settings(str(tmp_path), secret=secret))
+    import zammad_pdf_archiver.app.routes.ingest as ingest_route
+
+    async def _stub_process_ticket(delivery_id, payload, settings) -> None:
+        return None
+
+    monkeypatch.setattr(ingest_route, "process_ticket", _stub_process_ticket)
+    client = TestClient(app)
+
+    body = b'[{"ticket":{"id":123}}]'
+    response = client.post(
+        "/ingest/batch",
+        content=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Hub-Signature": _sign(body, secret),
+        },
+    )
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted", "count": 1}

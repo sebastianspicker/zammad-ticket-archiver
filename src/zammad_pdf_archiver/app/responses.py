@@ -11,6 +11,8 @@ def api_error(
     *,
     code: str | None = None,
     hint: str | None = None,
+    request_id: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> JSONResponse:
     """Return a JSON error response with optional code and hint."""
     content: dict[str, str] = {"detail": detail}
@@ -18,4 +20,6 @@ def api_error(
         content["code"] = code
     if hint is not None:
         content["hint"] = hint
-    return JSONResponse(status_code=status_code, content=content)
+    if request_id is not None:
+        content["request_id"] = request_id
+    return JSONResponse(status_code=status_code, content=content, headers=headers)

@@ -21,10 +21,24 @@ workflow:
   require_tag: true
   acknowledge_on_success: true
   delivery_id_ttl_seconds: 3600
+  execution_backend: "inprocess" # WORKFLOW_EXECUTION_BACKEND: inprocess|redis_queue
+  idempotency_backend: "memory" # IDEMPOTENCY_BACKEND: memory|redis
+  redis_url: null               # REDIS_URL (required when idempotency_backend=redis)
+  queue_stream: "zammad:jobs"   # WORKFLOW_QUEUE_STREAM
+  queue_group: "zammad:jobs:workers" # WORKFLOW_QUEUE_GROUP
+  queue_consumer: null          # WORKFLOW_QUEUE_CONSUMER
+  queue_read_block_ms: 1000     # WORKFLOW_QUEUE_READ_BLOCK_MS
+  queue_read_count: 10          # WORKFLOW_QUEUE_READ_COUNT
+  queue_retry_max_attempts: 3   # WORKFLOW_QUEUE_RETRY_MAX_ATTEMPTS
+  queue_retry_backoff_seconds: 2.0 # WORKFLOW_QUEUE_RETRY_BACKOFF_SECONDS
+  queue_dlq_stream: "zammad:jobs:dlq" # WORKFLOW_QUEUE_DLQ_STREAM
+  history_stream: "zammad:jobs:history" # WORKFLOW_HISTORY_STREAM
+  history_retention_maxlen: 5000 # WORKFLOW_HISTORY_RETENTION_MAXLEN
 
 fields:
   archive_path: "archive_path"
   archive_user_mode: "archive_user_mode"
+  archive_user: "archive_user"
 
 storage:
   root: "/mnt/archive"   # STORAGE_ROOT
@@ -40,10 +54,15 @@ storage:
     filename_pattern: "Ticket-{ticket_number}_{timestamp_utc}.pdf"
 
 pdf:
-  template_variant: "default"   # default|minimal
+  template_variant: "default"   # default|minimal|compact
+  templates_root: null          # TEMPLATES_ROOT
   locale: "de_DE"
   timezone: "Europe/Berlin"
   max_articles: 250
+  article_limit_mode: "fail"    # fail|cap_and_continue
+  include_attachment_binary: false        # PDF_INCLUDE_ATTACHMENT_BINARY
+  max_attachment_bytes_per_file: 10485760 # PDF_MAX_ATTACHMENT_BYTES_PER_FILE
+  max_total_attachment_bytes: 52428800    # PDF_MAX_TOTAL_ATTACHMENT_BYTES
 
 signing:
   enabled: false                  # SIGNING_ENABLED
@@ -64,6 +83,8 @@ observability:
   log_format: null               # LOG_FORMAT (json|human)
   json_logs: false               # LOG_JSON (legacy)
   metrics_enabled: false         # METRICS_ENABLED
+  metrics_bearer_token: null     # METRICS_BEARER_TOKEN
+  healthz_omit_version: false    # HEALTHZ_OMIT_VERSION
 
 hardening:
   rate_limit:
@@ -71,13 +92,20 @@ hardening:
     rps: 5.0                     # RATE_LIMIT_RPS
     burst: 10                    # RATE_LIMIT_BURST
     include_metrics: false       # RATE_LIMIT_INCLUDE_METRICS
+    client_key_header: null      # RATE_LIMIT_CLIENT_KEY_HEADER
   body_size_limit:
     max_bytes: 1048576           # MAX_BODY_BYTES
   webhook:
     allow_unsigned: false        # HARDENING_WEBHOOK_ALLOW_UNSIGNED
+    allow_unsigned_when_no_secret: false # HARDENING_WEBHOOK_ALLOW_UNSIGNED_WHEN_NO_SECRET
     require_delivery_id: false   # HARDENING_WEBHOOK_REQUIRE_DELIVERY_ID
   transport:
     trust_env: false             # HARDENING_TRANSPORT_TRUST_ENV
     allow_insecure_http: false   # HARDENING_TRANSPORT_ALLOW_INSECURE_HTTP
     allow_insecure_tls: false    # HARDENING_TRANSPORT_ALLOW_INSECURE_TLS
     allow_local_upstreams: false # HARDENING_TRANSPORT_ALLOW_LOCAL_UPSTREAMS
+
+admin:
+  enabled: false                 # ADMIN_ENABLED
+  bearer_token: null             # ADMIN_BEARER_TOKEN
+  history_limit: 100             # ADMIN_HISTORY_LIMIT

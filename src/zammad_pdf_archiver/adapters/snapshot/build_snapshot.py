@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Awaitable
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any, Protocol
@@ -200,7 +201,10 @@ async def enrich_attachment_content(
     max_total_attachment_bytes: int,
 ) -> Snapshot:
     """Fetch attachment binaries and set AttachmentMeta.content when within limits (PRD §8.2)."""
-    if not include_attachment_binary or max_total_attachment_bytes <= 0:
+    if not _attachment_enrichment_enabled(
+        include_attachment_binary=include_attachment_binary,
+        max_total_attachment_bytes=max_total_attachment_bytes,
+    ):
         return snapshot
 
     ticket_id = snapshot.ticket.id
@@ -227,52 +231,111 @@ async def enrich_attachment_content(
             except Exception:
                 return article_id, att.attachment_id, None
 
-    targets = []
-    for article in snapshot.articles:
-        for att in article.attachments:
-            targets.append(_fetch_one(article.id, att))
+    targets = _attachment_fetch_targets(snapshot, fetch_one=_fetch_one)
 
     if not targets:
         return snapshot
 
     results = await asyncio.gather(*targets)
-    # Map for easy lookup: (article_id, attachment_id) -> content
-    content_map = {(r[0], r[1]): r[2] for r in results if r[1] is not None and r[2] is not None}
+    content_map = _attachment_content_map(results)
+    return _snapshot_with_attachment_content(
+        snapshot=snapshot,
+        content_map=content_map,
+        max_total_attachment_bytes=max_total_attachment_bytes,
+    )
 
+
+def _attachment_enrichment_enabled(
+    *,
+    include_attachment_binary: bool,
+    max_total_attachment_bytes: int,
+) -> bool:
+    return include_attachment_binary and max_total_attachment_bytes > 0
+
+
+def _attachment_fetch_targets(
+    snapshot: Snapshot,
+    *,
+    fetch_one,
+) -> list[Awaitable[tuple[int, int | None, bytes | None]]]:
+    targets: list[Awaitable[tuple[int, int | None, bytes | None]]] = []
+    for article in snapshot.articles:
+        for att in article.attachments:
+            targets.append(fetch_one(article.id, att))
+    return targets
+
+
+def _attachment_content_map(
+    results: list[tuple[int, int | None, bytes | None]]
+) -> dict[tuple[int, int], bytes]:
+    out: dict[tuple[int, int], bytes] = {}
+    for article_id, attachment_id, content in results:
+        if attachment_id is None or content is None:
+            continue
+        out[(article_id, attachment_id)] = content
+    return out
+
+
+def _snapshot_with_attachment_content(
+    *,
+    snapshot: Snapshot,
+    content_map: dict[tuple[int, int], bytes],
+    max_total_attachment_bytes: int,
+) -> Snapshot:
     total_so_far = 0
     new_articles: list[Article] = []
     for article in snapshot.articles:
         new_attachments: list[AttachmentMeta] = []
         for att in article.attachments:
-            content = None
-            if att.attachment_id is not None:
-                content = content_map.get((article.id, att.attachment_id))
-            if content:
-                if total_so_far + len(content) <= max_total_attachment_bytes:
-                    total_so_far += len(content)
-                else:
-                    content = None
-
-            new_attachments.append(
-                AttachmentMeta(
-                    article_id=att.article_id,
-                    attachment_id=att.attachment_id,
-                    filename=att.filename,
-                    size=att.size,
-                    content_type=att.content_type,
-                    content=content,
-                )
+            content, total_so_far = _bounded_content_for_attachment(
+                article_id=article.id,
+                attachment=att,
+                content_map=content_map,
+                total_so_far=total_so_far,
+                max_total_attachment_bytes=max_total_attachment_bytes,
             )
-        new_articles.append(
-            Article(
-                id=article.id,
-                created_at=article.created_at,
-                internal=article.internal,
-                sender=article.sender,
-                subject=article.subject,
-                body_html=article.body_html,
-                body_text=article.body_text,
-                attachments=new_attachments,
-            )
-        )
+            new_attachments.append(_copy_attachment(att, content=content))
+        new_articles.append(_copy_article(article, attachments=new_attachments))
     return Snapshot(ticket=snapshot.ticket, articles=new_articles)
+
+
+def _bounded_content_for_attachment(
+    *,
+    article_id: int,
+    attachment: AttachmentMeta,
+    content_map: dict[tuple[int, int], bytes],
+    total_so_far: int,
+    max_total_attachment_bytes: int,
+) -> tuple[bytes | None, int]:
+    if attachment.attachment_id is None:
+        return None, total_so_far
+    content = content_map.get((article_id, attachment.attachment_id))
+    if not content:
+        return None, total_so_far
+    if total_so_far + len(content) > max_total_attachment_bytes:
+        return None, total_so_far
+    return content, total_so_far + len(content)
+
+
+def _copy_attachment(att: AttachmentMeta, *, content: bytes | None) -> AttachmentMeta:
+    return AttachmentMeta(
+        article_id=att.article_id,
+        attachment_id=att.attachment_id,
+        filename=att.filename,
+        size=att.size,
+        content_type=att.content_type,
+        content=content,
+    )
+
+
+def _copy_article(article: Article, *, attachments: list[AttachmentMeta]) -> Article:
+    return Article(
+        id=article.id,
+        created_at=article.created_at,
+        internal=article.internal,
+        sender=article.sender,
+        subject=article.subject,
+        body_html=article.body_html,
+        body_text=article.body_text,
+        attachments=attachments,
+    )

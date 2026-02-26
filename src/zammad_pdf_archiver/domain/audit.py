@@ -2,25 +2,20 @@ from __future__ import annotations
 
 import hashlib
 import sys
-from datetime import UTC, datetime
+from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 from typing import Any
 
 from pydantic import SecretStr
 
+from zammad_pdf_archiver.domain.time_utils import format_timestamp_utc
+
 
 def compute_sha256(data: bytes) -> str:
     if not isinstance(data, (bytes, bytearray)):
         raise TypeError("data must be bytes")
     return hashlib.sha256(data).hexdigest()
-
-
-def _format_timestamp_utc(dt: datetime) -> str:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    dt_utc = dt.astimezone(UTC)
-    return dt_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _safe_get_service_version(dist_name: str) -> str | None:
@@ -115,7 +110,7 @@ def build_audit_record(
         "ticket_id": int(ticket_id),
         "ticket_number": str(ticket_number),
         "title": (title or "").strip(),
-        "created_at": _format_timestamp_utc(created_at),
+        "created_at": format_timestamp_utc(created_at),
         "storage_path": str(storage_path),
         "sha256": str(sha256),
         "signing": signing,

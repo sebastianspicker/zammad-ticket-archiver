@@ -34,15 +34,38 @@ class WorkflowSettings(_BaseSection):
     require_tag: bool = True
     acknowledge_on_success: bool = True
     delivery_id_ttl_seconds: int = Field(default=3600, ge=0)
+    execution_backend: str = "inprocess"  # inprocess|redis_queue
     # Durable idempotency (PRD §8.2): "memory" (default) or "redis"
     idempotency_backend: str = "memory"
     redis_url: str | None = None
+    queue_stream: str = "zammad:jobs"
+    queue_group: str = "zammad:jobs:workers"
+    queue_consumer: str | None = None
+    queue_read_block_ms: int = Field(default=1000, ge=100, le=60000)
+    queue_read_count: int = Field(default=10, ge=1, le=1000)
+    queue_retry_max_attempts: int = Field(default=3, ge=0, le=50)
+    queue_retry_backoff_seconds: float = Field(default=2.0, gt=0)
+    queue_dlq_stream: str = "zammad:jobs:dlq"
+    history_stream: str = "zammad:jobs:history"
+    history_retention_maxlen: int = Field(default=5000, ge=0, le=1_000_000)
 
     @model_validator(mode="after")
     def _redis_required_when_backend_redis(self) -> WorkflowSettings:
-        if self.idempotency_backend == "redis" and not (self.redis_url and self.redis_url.strip()):
+        backend = (self.idempotency_backend or "").strip().lower()
+        if backend not in {"memory", "redis"}:
+            raise ValueError("workflow.idempotency_backend must be 'memory' or 'redis'")
+
+        execution_backend = (self.execution_backend or "").strip().lower()
+        if execution_backend not in {"inprocess", "redis_queue"}:
+            raise ValueError("workflow.execution_backend must be 'inprocess' or 'redis_queue'")
+
+        if backend == "redis" and not (self.redis_url and self.redis_url.strip()):
             raise ValueError(
                 "workflow.idempotency_backend is 'redis' but workflow.redis_url is not set"
+            )
+        if execution_backend == "redis_queue" and not (self.redis_url and self.redis_url.strip()):
+            raise ValueError(
+                "workflow.execution_backend is 'redis_queue' but workflow.redis_url is not set"
             )
         return self
 
@@ -209,6 +232,12 @@ class HardeningSettings(_BaseSection):
     transport: TransportHardeningSettings = Field(default_factory=TransportHardeningSettings)
 
 
+class AdminSettings(_BaseSection):
+    enabled: bool = False
+    bearer_token: SecretStr | None = None
+    history_limit: int = Field(default=100, ge=1, le=5000)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -227,6 +256,7 @@ class Settings(BaseSettings):
     signing: SigningSettings = Field(default_factory=SigningSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     hardening: HardeningSettings = Field(default_factory=HardeningSettings)
+    admin: AdminSettings = Field(default_factory=AdminSettings)
 
     @classmethod
     def from_mapping(cls, data: Mapping[str, Any]) -> Settings:
