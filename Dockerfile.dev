@@ -16,10 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md LICENSE CHANGELOG.md /app/
+COPY src/ /app/src/
 
 RUN python -m pip install --no-cache-dir -U pip \
-  && python -m pip install --no-cache-dir ".[dev]"
+  && python -m pip install --no-cache-dir ".[dev,redis]"
 
 EXPOSE 8080
 
-CMD ["bash", "-lc", "PYTHONPATH=/app/src python -m main"]
+CMD ["bash", "-lc", "PYTHONPATH=/app/src python -m zammad_pdf_archiver"]

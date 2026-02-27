@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "name": "Mock University",
+    "version": "1.0",
+    "description": "Local deterministic demo dataset for archiver screenshots"
+  },
+  "tickets": [
+    {
+      "id": 1101,
+      "number": "UNI-1101",
+      "title": "Admissions: transcript review",
+      "group": "Admissions",
+      "owner_login": "alice.admissions",
+      "updated_by_login": "alice.admissions",
+      "customer": {
+        "id": 501,
+        "login": "student.one",
+        "email": "student.one@example.edu"
+      },
+      "tags": ["pdf:sign", "admissions"],
+      "custom_fields": {
+        "archive_path": "Admissions > Applications > 2026",
+        "archive_user_mode": "owner"
+      },
+      "articles": [
+        {
+          "id": 5001,
+          "subject": "Application received",
+          "body": "Student submitted all required documents.",
+          "content_type": "text/plain",
+          "internal": false,
+          "from": "admissions@mock-university.edu"
+        },
+        {
+          "id": 5002,
+          "subject": "Internal note",
+          "body": "<p>Initial review completed.</p>",
+          "content_type": "text/html",
+          "internal": true,
+          "from": "alice.admissions"
+        }
+      ]
+    },
+    {
+      "id": 1102,
+      "number": "UNI-1102",
+      "title": "IT Helpdesk: laptop enrollment",
+      "group": "IT Helpdesk",
+      "owner_login": "bob.it",
+      "updated_by_login": "bob.it",
+      "customer": {
+        "id": 502,
+        "login": "student.two",
+        "email": "student.two@example.edu"
+      },
+      "tags": ["pdf:sign", "it-helpdesk"],
+      "custom_fields": {
+        "archive_path": "IT > Devices > Onboarding",
+        "archive_user_mode": "current_agent"
+      },
+      "articles": [
+        {
+          "id": 5003,
+          "subject": "Issue opened",
+          "body": "Need enrollment for new laptop.",
+          "content_type": "text/plain",
+          "internal": false,
+          "from": "helpdesk@mock-university.edu"
+        }
+      ]
+    },
+    {
+      "id": 1103,
+      "number": "UNI-1103",
+      "title": "Finance: tuition adjustment",
+      "group": "Finance",
+      "owner_login": "carol.finance",
+      "updated_by_login": "carol.finance",
+      "customer": {
+        "id": 503,
+        "login": "student.three",
+        "email": "student.three@example.edu"
+      },
+      "tags": ["pdf:sign", "finance"],
+      "custom_fields": {
+        "archive_user_mode": "owner"
+      },
+      "articles": [
+        {
+          "id": 5004,
+          "subject": "Adjustment requested",
+          "body": "Missing archive path should trigger permanent failure.",
+          "content_type": "text/plain",
+          "internal": false,
+          "from": "finance@mock-university.edu"
+        }
+      ]
+    },
+    {
+      "id": 1104,
+      "number": "UNI-1104",
+      "title": "Facilities: projector maintenance",
+      "group": "Facilities",
+      "owner_login": "dave.facilities",
+      "updated_by_login": "dave.facilities",
+      "customer": {
+        "id": 504,
+        "login": "staff.one",
+        "email": "staff.one@example.edu"
+      },
+      "tags": ["facilities"],
+      "custom_fields": {
+        "archive_path": "Facilities > Classrooms > Projectors",
+        "archive_user_mode": "owner"
+      },
+      "articles": [
+        {
+          "id": 5005,
+          "subject": "Maintenance request",
+          "body": "No trigger tag, should be skipped.",
+          "content_type": "text/plain",
+          "internal": false,
+          "from": "facilities@mock-university.edu"
+        }
+      ]
+    },
+    {
+      "id": 1105,
+      "number": "UNI-1105",
+      "title": "Admissions: scholarship verification",
+      "group": "Admissions",
+      "owner_login": "erin.admissions",
+      "updated_by_login": "erin.admissions",
+      "customer": {
+        "id": 505,
+        "login": "student.four",
+        "email": "student.four@example.edu"
+      },
+      "tags": ["pdf:sign", "admissions"],
+      "custom_fields": {
+        "archive_path": "Admissions > Scholarships",
+        "archive_user_mode": "fixed"
+      },
+      "articles": [
+        {
+          "id": 5006,
+          "subject": "Verification pending",
+          "body": "Missing custom_fields.archive_user should trigger permanent failure.",
+          "content_type": "text/plain",
+          "internal": true,
+          "from": "erin.admissions"
+        }
+      ]
+    },
+    {
+      "id": 1106,
+      "number": "UNI-1106",
+      "title": "IT Helpdesk: VPN access",
+      "group": "IT Helpdesk",
+      "owner_login": "frank.it",
+      "updated_by_login": "frank.it",
+      "customer": {
+        "id": 506,
+        "login": "staff.two",
+        "email": "staff.two@example.edu"
+      },
+      "tags": ["pdf:sign", "it-helpdesk"],
+      "custom_fields": {
+        "archive_path": "IT > Access > VPN",
+        "archive_user_mode": "owner"
+      },
+      "articles": [
+        {
+          "id": 5007,
+          "subject": "VPN setup",
+          "body": "<div><strong>Setup done</strong> and documented.</div>",
+          "content_type": "text/html",
+          "internal": true,
+          "from": "frank.it"
+        }
+      ]
+    },
+    {
+      "id": 1107,
+      "number": "UNI-1107",
+      "title": "Finance: receipt request",
+      "group": "Finance",
+      "owner_login": "gina.finance",
+      "updated_by_login": "gina.finance",
+      "customer": {
+        "id": 507,
+        "login": "student.five",
+        "email": "student.five@example.edu"
+      },
+      "tags": ["pdf:signed", "finance"],
+      "custom_fields": {
+        "archive_path": "Finance > Receipts > 2026",
+        "archive_user_mode": "owner"
+      },
+      "articles": [
+        {
+          "id": 5008,
+          "subject": "Receipt copy",
+          "body": "Already signed, should be skipped.",
+          "content_type": "text/plain",
+          "internal": false,
+          "from": "finance@mock-university.edu"
+        }
+      ]
+    },
+    {
+      "id": 1108,
+      "number": "UNI-1108",
+      "title": "Facilities: parking access",
+      "group": "Facilities",
+      "owner_login": "henry.facilities",
+      "updated_by_login": "henry.facilities",
+      "customer": {
+        "id": 508,
+        "login": "staff.three",
+        "email": "staff.three@example.edu"
+      },
+      "tags": ["pdf:sign", "facilities"],
+      "custom_fields": {
+        "archive_path": "Facilities > Parking > Permits",
+        "archive_user_mode": "owner"
+      },
+      "articles": [
+        {
+          "id": 5009,
+          "subject": "Permit granted",
+          "body": "Permit issued successfully.",
+          "content_type": "text/plain",
+          "internal": false,
+          "from": "facilities@mock-university.edu"
+        }
+      ]
+    }
+  ],
+  "seed_plan": [
+    {
+      "ticket_id": 1101,
+      "delivery_id": "demo-delivery-1101",
+      "user_login": "demo.agent",
+      "expected_status": "processed"
+    },
+    {
+      "ticket_id": 1102,
+      "delivery_id": "demo-delivery-1102",
+      "user_login": "demo.agent",
+      "expected_status": "processed"
+    },
+    {
+      "ticket_id": 1103,
+      "delivery_id": "demo-delivery-1103",
+      "user_login": "demo.agent",
+      "expected_status": "failed_permanent"
+    },
+    {
+      "ticket_id": 1104,
+      "delivery_id": "demo-delivery-1104",
+      "user_login": "demo.agent",
+      "expected_status": "skipped_not_triggered"
+    },
+    {
+      "ticket_id": 1105,
+      "delivery_id": "demo-delivery-1105",
+      "user_login": "demo.agent",
+      "expected_status": "failed_permanent"
+    },
+    {
+      "ticket_id": 1106,
+      "delivery_id": "demo-delivery-1106",
+      "user_login": "demo.agent",
+      "expected_status": "processed"
+    },
+    {
+      "ticket_id": 1107,
+      "delivery_id": "demo-delivery-1107",
+      "user_login": "demo.agent",
+      "expected_status": "skipped_not_triggered"
+    },
+    {
+      "ticket_id": 1108,
+      "delivery_id": "demo-delivery-1108",
+      "user_login": "demo.agent",
+      "expected_status": "processed"
+    }
+  ]
+}

@@ -1,52 +1,117 @@
 :root {
-  --fg: #111;
-  --muted: #666;
-  --border: #ddd;
-  --bg: #fff;
+  --fg: #0f172a;
+  --muted: #475569;
+  --border: #dbe1ea;
   --accent: #0b57d0;
+  --card-bg: #f8fafc;
   --internal: #8b2c2c;
   --external: #165b1a;
-  /* Branding variables - can be overridden via custom CSS */
   --brand-color: #0b57d0;
   --brand-logo-height: 24px;
 }
 
-html,
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  font-size: 12px;
-  line-height: 1.45;
+  font-family: "IBM Plex Sans", "Segoe UI", Roboto, Arial, sans-serif;
   color: var(--fg);
-  background: var(--bg);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
-a:visited {
-  color: var(--accent);
+  background: #fff;
+  line-height: 1.45;
 }
 
 .muted {
   color: var(--muted);
 }
 
-/* Branding header */
+.header {
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+}
+
+.title {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.subject {
+  color: var(--fg);
+}
+
+.ticket-meta {
+  margin-top: 8px;
+}
+
+.meta-grid {
+  margin: 0;
+  padding: 0;
+}
+
+.meta-item {
+  display: flex;
+  margin: 0 0 7px 0;
+}
+
+.meta-item dt {
+  width: 150px;
+  flex: 0 0 150px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.meta-item dd {
+  margin: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.meta-item--wide dt {
+  width: 150px;
+}
+
+.article {
+  border-top-color: var(--border);
+}
+
+.badge {
+  border-color: var(--border);
+}
+
+.badge--internal {
+  border-color: #e7c5c5;
+  color: var(--internal);
+}
+
+.badge--external {
+  border-color: #c4e0c4;
+  color: var(--external);
+}
+
+.body pre {
+  border-color: var(--border);
+  background: var(--card-bg);
+}
+
+.section {
+  margin-top: 18px;
+}
+
+.section-title {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.footer {
+  margin-top: 22px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 11px;
+}
+
 .brand-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--brand-color);
 }
@@ -62,310 +127,15 @@ a:visited {
   color: var(--brand-color);
 }
 
-.ticket-header {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-  margin-bottom: 16px;
-}
-
-.ticket-title {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  line-height: 1.25;
-  font-weight: 600;
-}
-
-.ticket-number {
-  white-space: nowrap;
-}
-
-.ticket-subject {
-  font-weight: 600;
-}
-
-.ticket-meta {
-  margin-top: 8px;
-}
-
-.meta-grid {
-  margin: 0;
-  padding: 0;
-}
-
-.meta-item {
-  display: flex;
-  margin: 0 0 8px 0;
-}
-
-.meta-item dt {
-  width: 140px;
-  flex: 0 0 140px;
-}
-
-.meta-item dt {
-  color: var(--muted);
-  margin: 0;
-}
-
-.meta-item dd {
-  margin: 0;
-  flex: 1 1 auto;
-  overflow-wrap: anywhere;
-}
-
-.content {
-  margin-top: 16px;
-}
-
-.section {
-  margin: 18px 0;
-}
-
-.section-title {
-  margin: 0 0 10px 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.article {
-  padding-top: 12px;
-  margin-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.article:first-of-type {
-  border-top: none;
-  margin-top: 0;
-  padding-top: 0;
-}
-
-.article-header {
-  margin-bottom: 10px;
-}
-
-.article-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.article-meta > * + * {
-  margin-left: 10px;
-}
-
-.article-primary,
-.article-secondary {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-
-.article-primary > * + *,
-.article-secondary > * + * {
-  margin-left: 6px;
-}
-
-.dot {
-  color: var(--muted);
-}
-
-.article-timestamp {
-  font-variant-numeric: tabular-nums;
-}
-
-.article-sender {
-  font-weight: 600;
-}
-
-.article-subject {
-  color: var(--muted);
-}
-
-.badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.badge--internal {
-  border-color: #d8bcbc;
-  color: var(--internal);
-}
-
-.badge--external {
-  border-color: #bcd6bc;
-  color: var(--external);
-}
-
-.article-body {
-  overflow-wrap: anywhere;
-}
-
-.article-body p {
-  margin: 0 0 10px 0;
-}
-
-.article-body p:last-child {
-  margin-bottom: 0;
-}
-
-.article-body pre,
-.article-body code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 11px;
-}
-
-.article-body pre {
-  white-space: pre-wrap;
-  border: 1px solid var(--border);
-  padding: 10px;
-  border-radius: 6px;
-}
-
-.article-body blockquote {
-  margin: 10px 0;
-  padding-left: 12px;
-  border-left: 3px solid var(--border);
-  color: var(--muted);
-}
-
-.subheading {
-  margin: 12px 0 6px 0;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.attachment-list,
-.attachment-index {
-  margin: 0;
-  padding-left: 16px;
-}
-
-.attachment-item,
-.attachment-index-item {
-  margin: 0 0 4px 0;
-}
-
-.attachment-name {
-  font-weight: 600;
-}
-
-.attachment-meta {
-  color: var(--muted);
-}
-
-.footer {
-  margin-top: 24px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  font-size: 11px;
-}
-
-/* QR Code styling */
-.qr-code {
-  display: inline-block;
-  padding: 8px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
-.qr-code img {
-  width: 80px;
-  height: 80px;
-}
-
-.qr-code-label {
-  font-size: 10px;
-  color: var(--muted);
-  text-align: center;
-  margin-top: 4px;
-}
-
-/* Page header/footer for PDF */
-.page-header {
-  display: none;
-  font-size: 10px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 4px;
-  margin-bottom: 8px;
-}
-
-.page-footer {
-  display: none;
-  font-size: 10px;
-  color: var(--muted);
-  border-top: 1px solid var(--border);
-  padding-top: 4px;
-  margin-top: 8px;
-}
-
-/* Ticket link box */
-.ticket-link-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: #f8f9fa;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  margin-top: 12px;
-}
-
-.ticket-link-box .link-info {
-  flex: 1;
-}
-
-.ticket-link-box .link-url {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 11px;
-  color: var(--accent);
-  word-break: break-all;
-}
-
 @media print {
   @page {
-    margin: 16mm;
-    @top-center {
-      content: "Ticket " counter(page);
-      font-size: 10px;
-      color: var(--muted);
-    }
-    @bottom-center {
-      content: "Generated by zammad-pdf-archiver";
-      font-size: 10px;
-      color: var(--muted);
-    }
+    margin: 14mm;
   }
 
-  a {
-    color: var(--fg);
-    text-decoration: underline;
-  }
-
-  .ticket-header {
-    margin-bottom: 10px;
-  }
-
-  .article {
+  .section,
+  .article,
+  .ticket-meta {
     break-inside: avoid-page;
     page-break-inside: avoid;
-  }
-
-  .footer {
-    border-top: none;
-  }
-
-  .page-header {
-    display: block;
-  }
-
-  .page-footer {
-    display: block;
   }
 }

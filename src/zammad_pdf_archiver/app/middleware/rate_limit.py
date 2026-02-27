@@ -6,10 +6,10 @@ from time import monotonic
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from zammad_pdf_archiver.app.constants import INGEST_PROTECTED_PATHS
 from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
 
-_INGEST_PATH = "/ingest"
 _METRICS_PATH = "/metrics"
 
 
@@ -119,7 +119,7 @@ class RateLimitMiddleware:
         config = settings.hardening.rate_limit
         self._enabled = bool(config.enabled)
         self._paths = frozenset(
-            {_INGEST_PATH, _METRICS_PATH} if config.include_metrics else {_INGEST_PATH}
+            set(INGEST_PROTECTED_PATHS) | ({_METRICS_PATH} if config.include_metrics else set())
         )
         self._client_key_header: str | None = getattr(
             config, "client_key_header", None
@@ -146,4 +146,3 @@ class RateLimitMiddleware:
             return
 
         await self.app(scope, receive, send)
-

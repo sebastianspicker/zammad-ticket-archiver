@@ -1,0 +1,79 @@
+# Local demo stack only (non-production).
+services:
+  redis-demo:
+    image: redis:7-alpine
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 3s
+
+  zammad-mock:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "18090:8090"
+    volumes:
+      - ./:/app
+    command:
+      [
+        "bash",
+        "-lc",
+        "PYTHONPATH=/app/src python scripts/demo/mock_zammad_api.py --host 0.0.0.0 --port 8090 --dataset /app/examples/demo/mock_university_dataset.json --token demo-token",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz', timeout=2).read()\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  archiver-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./:/app
+      - demo-archive:/tmp/archive
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "8080"
+      STORAGE_ROOT: "/tmp/archive"
+      ZAMMAD_BASE_URL: "http://zammad-mock:8090"
+      ZAMMAD_API_TOKEN: "demo-token"
+      WORKFLOW_EXECUTION_BACKEND: "redis_queue"
+      REDIS_URL: "redis://redis-demo:6379/0"
+      ADMIN_ENABLED: "true"
+      ADMIN_BEARER_TOKEN: "demo-admin-token"
+      HARDENING_WEBHOOK_ALLOW_UNSIGNED: "true"
+      HARDENING_WEBHOOK_ALLOW_UNSIGNED_WHEN_NO_SECRET: "true"
+      HARDENING_TRANSPORT_ALLOW_INSECURE_HTTP: "true"
+    command: ["bash", "-lc", "PYTHONPATH=/app/src python -m zammad_pdf_archiver"]
+    depends_on:
+      redis-demo:
+        condition: service_healthy
+      zammad-mock:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).read()\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  demo-archive:

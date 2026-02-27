@@ -28,6 +28,11 @@ This repository provides:
   - `POST /ingest/batch`
   - `POST /retry/{ticket_id}`
   - `GET /jobs/{ticket_id}`
+  - `GET /jobs/queue/stats`
+  - `GET /jobs/history` (requires Bearer token via `ADMIN_BEARER_TOKEN`)
+  - `POST /jobs/queue/dlq/drain` (requires Bearer token via `ADMIN_BEARER_TOKEN`)
+  - `GET /admin` (when `admin.enabled=true`)
+  - `GET /admin/api/*` (when `admin.enabled=true`)
   - `GET /healthz`
   - `GET /metrics` (when enabled)
 - End-to-end ticket processing:
@@ -51,7 +56,7 @@ Out of scope by design:
 
 - exporting attachment binary payloads by default (attachments are metadata-only in snapshot/PDF; optional `pdf.include_attachment_binary` can write binaries to disk and the sidecar)
 - archive browsing/search UI
-- distributed durable queue
+- distributed durable queue by default (optional Redis queue backend is available)
 - durable distributed idempotency store (default; optional Redis backend available)
 - built-in retention/WORM policy engine
 - built-in encryption-at-rest management
@@ -98,16 +103,21 @@ The field names for `archive_path`, `archive_user_mode`, and `archive_user` are 
 
 ```mermaid
 flowchart LR
-  Z["Zammad"] -->|POST /ingest| I["FastAPI ingress"]
-  I --> J["Background job: process_ticket"]
-  J --> ZA["Zammad adapter"]
+  Z["Zammad"] -->|"Webhook: POST /ingest"| I["FastAPI ingress"]
+  I --> D{"workflow.execution_backend"}
+  D -->|"inprocess"| J["process_ticket worker"]
+  D -->|"redis_queue"| Q["Redis stream: zammad:jobs"]
+  Q --> W["Queue worker"]
+  W --> J
+  J --> ZA["Zammad API adapter"]
   ZA --> SN["Snapshot builder"]
   SN --> PDF["Jinja2 + WeasyPrint"]
   PDF --> SG["pyHanko signer (optional)"]
   SG --> TSA["RFC3161 TSA (optional)"]
   PDF --> ST["Storage adapter"]
   SG --> ST
-  ST --> ZA
+  J --> H["Redis history stream (optional)"]
+  J --> ZA
 ```
 
 Detailed architecture and state diagrams:
@@ -117,11 +127,16 @@ Detailed architecture and state diagrams:
 
 ```mermaid
 flowchart TD
-  A["Agent applies macro (adds pdf:sign)"] --> B["Zammad trigger sends webhook"]
+  A["Agent macro adds trigger tag (pdf:sign)"] --> B["Zammad trigger sends webhook"]
   B --> C["POST /ingest returns 202"]
-  C --> D["Background processing job"]
-  D --> E["PDF + sidecar written"]
-  E --> F["Ticket note + final tags"]
+  C --> D{"Execution backend"}
+  D --> E["In-process worker"]
+  D --> F["Redis queue + queue worker"]
+  E --> G["Ticket processing pipeline"]
+  F --> G
+  G --> H["PDF + sidecar written"]
+  G --> I["History event recorded (optional)"]
+  G --> J["Ticket note + final tags"]
 ```
 
 ## Quickstart (Development)
@@ -165,11 +180,31 @@ Optional smoke test (requires env and optional services):
 bash scripts/ci/smoke-test.sh
 ```
 
+Local mock demo (fully self-contained):
+
+```bash
+make demo-up
+make demo-seed
+make demo-shots
+make demo-down
+```
+
+Representative demo screenshots:
+
+![Admin queue stats](docs/assets/demo/02-admin-queue-stats.png)
+![Admin backend unavailable (503)](docs/assets/demo/09-api-503-backend-unavailable.png)
+![Admin mobile viewport](docs/assets/demo/10-admin-mobile-viewport.png)
+
 Endpoints:
 - `POST /ingest`
 - `POST /ingest/batch`
 - `POST /retry/{ticket_id}`
 - `GET /jobs/{ticket_id}`
+- `GET /jobs/queue/stats`
+- `GET /jobs/history` (requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`)
+- `POST /jobs/queue/dlq/drain` (requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`)
+- `GET /admin` (optional)
+- `GET /admin/api/*` (optional)
 - `GET /healthz`
 - `GET /metrics` (only when enabled)
 
@@ -198,7 +233,7 @@ Configuration references:
   - `TSA_USER`
   - `TSA_PASS`
 - Delivery ID dedupe is in-memory only and resets on process restart. For consistent deduplication across restarts or multiple instances, use Redis (`workflow.idempotency_backend=redis`, `workflow.redis_url`); see [Operations](docs/08-operations.md).
-- Processing after `202` is **best-effort**: there is no guaranteed retry and work may be lost on process restart. A durable queue is a possible future feature. See [Processing and Idempotency](docs/08-operations.md#4-processing-and-idempotency-behavior).
+- Processing after `202` is **best-effort** in default `inprocess` mode. For durable retries and dead-letter handling, enable `workflow.execution_backend=redis_queue` with `workflow.redis_url`; see [Processing and Idempotency](docs/08-operations.md#4-processing-and-idempotency-behavior).
 - If a ticket is stuck in `pdf:processing` after a crash, see [Stuck in pdf:processing](docs/faq.md#why-is-a-ticket-stuck-with-pdfprocessing) in the FAQ.
 
 Operational docs:
@@ -216,8 +251,10 @@ Operational docs:
 | Test | `make test` (pytest) |
 | Test (fast) | `make test-fast` (static + unit) |
 | Type-check | `mypy . --config-file pyproject.toml` |
+| Smoke | `make smoke` |
 | Full QA | `make qa` (lint + mypy + static + unit + integration + nfr) |
 | Build | `python -m build` (sdist + wheel) |
+| Verify | `make verify` (qa + build) |
 | Smoke test | `bash scripts/ci/smoke-test.sh` (optional; needs env) |
 | Dev run | `make dev` (Docker Compose dev stack) |
 
@@ -239,6 +276,7 @@ Operational docs:
 - [`docs/faq.md`](docs/faq.md)
 - [`docs/release-checklist.md`](docs/release-checklist.md) – Release and deployment checklist
 - [`docs/deploy.md`](docs/deploy.md) – Production deployment
+- [`docs/demo-mock-university.md`](docs/demo-mock-university.md) – Local mock university demo stack and screenshot workflow
 
 ## Glossary
 

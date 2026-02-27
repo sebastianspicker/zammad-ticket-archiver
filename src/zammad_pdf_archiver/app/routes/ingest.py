@@ -10,6 +10,7 @@ from starlette.responses import JSONResponse
 
 from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER, REQUEST_ID_KEY
 from zammad_pdf_archiver.app.jobs.process_ticket import process_ticket
+from zammad_pdf_archiver.app.jobs.redis_queue import enqueue_ticket_job
 from zammad_pdf_archiver.app.jobs.shutdown import is_shutting_down, track_task
 from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
@@ -67,17 +68,52 @@ async def _run_process_ticket_background(
         structlog.contextvars.unbind_contextvars(*bound.keys())
 
 
+def _resolve_settings_or_error(request: Request) -> tuple[Settings | None, JSONResponse | None]:
+    if is_shutting_down():
+        return None, api_error(503, "Service is shutting down", code="shutting_down")
+    settings: Settings | None = getattr(request.app.state, "settings", None)
+    if settings is None:
+        return None, api_error(503, "settings not configured", code="settings_not_configured")
+    return settings, None
+
+
+def _execution_backend(settings: Settings) -> str:
+    return (settings.workflow.execution_backend or "inprocess").strip().lower()
+
+
+async def _dispatch_ticket(
+    *,
+    delivery_id: str | None,
+    payload_for_job: dict[str, Any],
+    settings: Settings,
+) -> None:
+    if _execution_backend(settings) == "redis_queue":
+        await enqueue_ticket_job(
+            delivery_id=delivery_id,
+            payload=payload_for_job,
+            settings=settings,
+        )
+        return
+
+    task = asyncio.create_task(
+        _run_process_ticket_background(
+            delivery_id=delivery_id,
+            payload=payload_for_job,
+            settings=settings,
+        )
+    )
+    track_task(task)
+
+
 @router.post("/ingest", status_code=202)
 async def ingest_webhook(
     request: Request,
     payload: IngestPayload,
     dry_run: bool = False,
 ) -> JSONResponse:
-    if is_shutting_down():
-        return api_error(503, "Service is shutting down", code="shutting_down")
-    settings: Settings | None = getattr(request.app.state, "settings", None)
-    if settings is None:
-        return api_error(503, "settings not configured", code="settings_not_configured")
+    settings, error = _resolve_settings_or_error(request)
+    if error is not None:
+        return error
 
     ticket_id = payload.resolved_ticket_id()
     if dry_run:
@@ -91,15 +127,12 @@ async def ingest_webhook(
         delivery_id = (delivery_id_raw or "").strip() or None
         payload_for_job = payload.model_dump()
         payload_for_job[REQUEST_ID_KEY] = getattr(request.state, "request_id", None)
-
-        task = asyncio.create_task(
-            _run_process_ticket_background(
-                delivery_id=delivery_id,
-                payload=payload_for_job,
-                settings=settings,
-            )
+        assert settings is not None
+        await _dispatch_ticket(
+            delivery_id=delivery_id,
+            payload_for_job=payload_for_job,
+            settings=settings,
         )
-        track_task(task)
 
     return JSONResponse(status_code=202, content={"status": "accepted", "ticket_id": ticket_id})
 
@@ -110,11 +143,9 @@ async def batch_ingest(
     payloads: list[IngestPayload],
     dry_run: bool = False,
 ) -> JSONResponse:
-    if is_shutting_down():
-        return api_error(503, "Service is shutting down", code="shutting_down")
-    settings: Settings | None = getattr(request.app.state, "settings", None)
-    if settings is None:
-        return api_error(503, "settings not configured", code="settings_not_configured")
+    settings, error = _resolve_settings_or_error(request)
+    if error is not None:
+        return error
 
     if dry_run:
         return JSONResponse(
@@ -128,14 +159,12 @@ async def batch_ingest(
         if ticket_id is not None:
             payload_for_job = payload.model_dump()
             payload_for_job[REQUEST_ID_KEY] = getattr(request.state, "request_id", None)
-            task = asyncio.create_task(
-                _run_process_ticket_background(
-                    delivery_id=None,
-                    payload=payload_for_job,
-                    settings=settings,
-                )
+            assert settings is not None
+            await _dispatch_ticket(
+                delivery_id=None,
+                payload_for_job=payload_for_job,
+                settings=settings,
             )
-            track_task(task)
             accepted += 1
 
     return JSONResponse(status_code=202, content={"status": "accepted", "count": accepted})
@@ -146,22 +175,17 @@ async def retry_ticket(
     request: Request,
     ticket_id: int,
 ) -> JSONResponse:
-    if is_shutting_down():
-        return api_error(503, "Service is shutting down", code="shutting_down")
-    settings: Settings | None = getattr(request.app.state, "settings", None)
-    if settings is None:
-        return api_error(503, "settings not configured", code="settings_not_configured")
+    settings, error = _resolve_settings_or_error(request)
+    if error is not None:
+        return error
 
     payload_for_job: dict[str, Any] = {"ticket_id": ticket_id}
     payload_for_job[REQUEST_ID_KEY] = getattr(request.state, "request_id", None)
-
-    task = asyncio.create_task(
-        _run_process_ticket_background(
-            delivery_id=None,  # Retry does not need deduplication
-            payload=payload_for_job,
-            settings=settings,
-        )
+    assert settings is not None
+    await _dispatch_ticket(
+        delivery_id=None,  # Retry does not need deduplication
+        payload_for_job=payload_for_job,
+        settings=settings,
     )
-    track_task(task)
 
     return JSONResponse(status_code=202, content={"status": "accepted", "ticket_id": ticket_id})

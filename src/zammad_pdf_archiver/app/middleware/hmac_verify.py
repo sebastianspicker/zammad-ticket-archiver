@@ -9,12 +9,11 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from zammad_pdf_archiver.adapters.http_util import drain_stream
-from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER
+from zammad_pdf_archiver.app.constants import DELIVERY_ID_HEADER, INGEST_PROTECTED_PATHS
 from zammad_pdf_archiver.app.responses import api_error
 from zammad_pdf_archiver.config.settings import Settings
 
 _SIGNATURE_HEADER = "X-Hub-Signature"
-_INGEST_PATH = "/ingest"
 
 _ALLOWED_ALGORITHMS: dict[str, tuple[int, Any]] = {
     "sha1": (hashlib.sha1().digest_size, hashlib.sha1),
@@ -145,7 +144,7 @@ class HmacVerifyMiddleware:
             await self.app(scope, receive, send)
             return
 
-        if scope.get("method") != "POST" or scope.get("path") != _INGEST_PATH:
+        if scope.get("method") != "POST" or scope.get("path") not in INGEST_PROTECTED_PATHS:
             await self.app(scope, receive, send)
             return
 

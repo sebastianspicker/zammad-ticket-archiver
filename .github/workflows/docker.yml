@@ -39,7 +39,12 @@ jobs:
 
       - name: Determine whether to push
         id: push
-        run: echo "enabled=${{ secrets.GHCR_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+        run: |
+          enabled="${{ secrets.GHCR_TOKEN != '' }}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == *"-rc."* ]]; then
+            enabled="false"
+          fi
+          echo "enabled=${enabled}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR (optional)
         if: steps.push.outputs.enabled == 'true'

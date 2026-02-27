@@ -5,9 +5,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from zammad_pdf_archiver._version import __version__
+from zammad_pdf_archiver.app.jobs.redis_queue import (
+    aclose_queue_clients,
+    start_queue_worker,
+    stop_queue_worker,
+)
 from zammad_pdf_archiver.app.jobs.shutdown import (
     clear_shutting_down,
     set_shutting_down,
+    track_task,
     wait_for_tasks,
 )
 from zammad_pdf_archiver.app.jobs.ticket_stores import aclose_stores
@@ -25,10 +31,18 @@ from zammad_pdf_archiver.config.settings import Settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     clear_shutting_down()
+    settings = getattr(app.state, "settings", None)
+    if settings is not None:
+        worker = await start_queue_worker(settings)
+        if worker is not None:
+            track_task(worker)
     yield
     set_shutting_down()
+    if settings is not None:
+        await stop_queue_worker(settings)
     await wait_for_tasks()
     await aclose_stores()
+    await aclose_queue_clients()
 
 
 async def _global_exception_handler(request, exc):
@@ -56,6 +70,10 @@ def _wire_app(app: FastAPI, *, settings: Settings | None) -> None:
     app.include_router(healthz_router)
     app.include_router(ingest_router)
     app.include_router(jobs_router)
+    if settings is not None and settings.admin.enabled:
+        from zammad_pdf_archiver.app.routes.admin import router as admin_router
+
+        app.include_router(admin_router)
     if settings is not None and settings.observability.metrics_enabled:
         from zammad_pdf_archiver.app.routes.metrics import router as metrics_router
 

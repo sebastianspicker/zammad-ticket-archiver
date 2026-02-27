@@ -4,7 +4,8 @@ This directory contains the service implementation.
 
 High-level layout:
 
-- `src/main.py` – entry point (loads config, configures logging, runs Uvicorn)
+- `src/zammad_pdf_archiver/runtime.py` – CLI/runtime entry point (loads config, configures logging, runs Uvicorn)
+- `src/zammad_pdf_archiver/asgi.py` – ASGI app module for `uvicorn zammad_pdf_archiver.asgi:app`
 - `src/zammad_pdf_archiver/app/` – FastAPI app wiring, middleware, routes
   - `routes/ingest.py` – `POST /ingest` webhook endpoint (always returns 202; runs best-effort processing)
   - `routes/healthz.py` – `GET /healthz`

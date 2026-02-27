@@ -15,10 +15,20 @@ This runbook is for deployment, monitoring, troubleshooting, and recovery.
   - schedules one explicit retry job without delivery-ID dedupe
 - `GET /jobs/{ticket_id}`
   - returns process-local status: `ticket_id`, `in_flight`, `shutting_down`
+- `GET /jobs/queue/stats`
+  - returns queue state (disabled for `inprocess`, depth/pending/DLQ for `redis_queue`)
+- `GET /jobs/history`
+  - returns Redis-backed processing history (`processed`, `failed_*`, `skipped_*`)
+  - requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`
+- `POST /jobs/queue/dlq/drain`
+  - drains dead-letter stream entries (bounded by `limit`)
+  - requires `Authorization: Bearer <ADMIN_BEARER_TOKEN>`
 - `GET /healthz`
   - basic liveness/status payload (optionally omit version/service via `HEALTHZ_OMIT_VERSION`)
 - `GET /metrics`
   - available only when `observability.metrics_enabled=true`; optional Bearer auth via `METRICS_BEARER_TOKEN`
+- `GET /admin` and `/admin/api/*`
+  - optional admin dashboard/API (requires `admin.enabled=true` + Bearer token)
 
 Common ingest error responses:
 - `403` invalid/missing HMAC signature when signed mode is active
@@ -52,13 +62,18 @@ Primary signals:
 - structured service logs (`request_id`, `ticket_id`, optional `delivery_id`)
 - ticket internal notes (`PDF archived...` / `PDF archiver error...`)
 - ticket tags (`pdf:sign`, `pdf:processing`, `pdf:signed`, `pdf:error`)
-- metrics (`processed_total`, `failed_total`, timing histograms)
+- metrics (`processed_total`, `failed_total`, timing histograms, and queue metrics when enabled)
 
 ## 4. Processing and Idempotency Behavior
 
 ### Background processing (202)
 
-After `POST /ingest` returns `202`, work is run asynchronously in process. This is **best-effort**: there is no guaranteed retry (e.g. no durable queue). If the process restarts or exits before the job finishes, that work is lost; the ticket will not be updated and no PDF is written. Operators can re-trigger by saving the ticket or reapplying the macro so a new webhook is sent. A durable queue for accepted payloads is a possible future improvement.
+Execution mode is controlled by `workflow.execution_backend`:
+
+- `inprocess` (default): best-effort in-process tasks. If the process restarts before completion, work can be lost.
+- `redis_queue`: accepted jobs are enqueued in Redis stream, processed by worker loop, retried with backoff on transient failures, and moved to DLQ on permanent failures or retry exhaustion.
+
+In `inprocess` mode operators can re-trigger by saving the ticket or reapplying the macro. In `redis_queue` mode use queue metrics and `GET /jobs/queue/stats` for queue health.
 
 ### Tag transitions
 
@@ -78,8 +93,9 @@ After `POST /ingest` returns `202`, work is run asynchronously in process. This 
 
 - dedupe key: `X-Zammad-Delivery`
 - repeated delivery IDs are skipped for `workflow.delivery_id_ttl_seconds`
-- dedupe store is in-memory only
-- restart clears dedupe history
+- dedupe store depends on backend:
+  - `idempotency_backend=memory`: in-memory only (restart clears dedupe history)
+  - `idempotency_backend=redis`: durable across process restarts and multi-worker deployments
 
 ### Workflow and idempotency limitations (Bugs #32–#37)
 

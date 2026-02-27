@@ -1,6 +1,8 @@
 # 01 - Architecture
 
-`zammad-pdf-archiver` is a single-service architecture: HTTP ingest plus asynchronous in-process job execution.
+`zammad-pdf-archiver` is a single API service with two execution modes:
+- in-process background worker (`workflow.execution_backend=inprocess`)
+- Redis queue worker (`workflow.execution_backend=redis_queue`)
 
 ## Runtime Flow
 
@@ -9,6 +11,9 @@ sequenceDiagram
   autonumber
   participant Z as Zammad
   participant I as POST /ingest
+  participant D as Dispatcher
+  participant R as Redis Queue
+  participant W as Queue Worker
   participant J as process_ticket
   participant ZA as Zammad Adapter
   participant SN as Snapshot Builder
@@ -16,10 +21,19 @@ sequenceDiagram
   participant SIG as Signing Adapter
   participant TSA as TSA (RFC3161)
   participant ST as Storage Adapter
+  participant H as History Stream
 
   Z->>I: Webhook JSON (+ optional headers)
   I-->>Z: 202 Accepted
-  I->>J: schedule background task
+  I->>D: dispatch job
+
+  alt workflow.execution_backend == inprocess
+    D->>J: schedule background task
+  else workflow.execution_backend == redis_queue
+    D->>R: enqueue (XADD)
+    W->>R: consume (XREADGROUP)
+    W->>J: process queued ticket
+  end
 
   J->>ZA: get_ticket + list_tags
   J->>ZA: apply_processing tags
@@ -39,6 +53,9 @@ sequenceDiagram
   J->>ST: write audit sidecar JSON
   J->>ZA: create internal note
   J->>ZA: apply_done/apply_error tags
+  opt history enabled
+    J->>H: record processed/failed/skipped event
+  end
 ```
 
 ## Tag State Machine
@@ -46,7 +63,7 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
   [*] --> Idle
-  Idle --> SignRequested: Trigger tag added (default pdf-sign)
+  Idle --> SignRequested: Trigger tag added (default pdf:sign)
   SignRequested --> Processing: apply_processing()
   Processing --> Signed: Success -> apply_done()
   Processing --> ErrorTransient: Transient failure -> apply_error(keep_trigger=true)

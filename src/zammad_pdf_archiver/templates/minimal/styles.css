@@ -1,1 +1,27 @@
-@import url("../shared/article-list.css");
+:root {
+  --text: #111827;
+  --muted: #4b5563;
+  --border: #e5e7eb;
+}
+
+.header {
+  border-bottom-width: 1px;
+}
+
+.title {
+  font-size: 15px;
+}
+
+.article-header {
+  gap: 5px;
+}
+
+.badge {
+  border-radius: 5px;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+}

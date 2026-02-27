@@ -75,7 +75,20 @@ def _validate_upstream_host(
 
 def validate_settings(settings: Settings) -> None:
     issues: list[ConfigValidationIssue] = []
+    transport = settings.hardening.transport
 
+    _validate_log_level(settings, issues)
+    _validate_primary_transport(settings, transport=transport, issues=issues)
+    _validate_webhook_auth(settings, issues)
+    _validate_delivery_id_requirement(settings, issues)
+    _validate_tsa_transport(settings, transport=transport, issues=issues)
+    _validate_admin_settings(settings, issues)
+
+    if issues:
+        raise ConfigValidationError(issues)
+
+
+def _validate_log_level(settings: Settings, issues: list[ConfigValidationIssue]) -> None:
     log_level = settings.observability.log_level.upper()
     allowed_levels = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
     if log_level not in allowed_levels:
@@ -89,7 +102,13 @@ def validate_settings(settings: Settings) -> None:
             )
         )
 
-    transport = settings.hardening.transport
+
+def _validate_primary_transport(
+    settings: Settings,
+    *,
+    transport,
+    issues: list[ConfigValidationIssue],
+) -> None:
     if (
         str(settings.zammad.base_url).lower().startswith("http://")
         and not transport.allow_insecure_http
@@ -122,6 +141,8 @@ def validate_settings(settings: Settings) -> None:
         issues=issues,
     )
 
+
+def _validate_webhook_auth(settings: Settings, issues: list[ConfigValidationIssue]) -> None:
     # Webhook auth safety: by default, /ingest must be authenticated with a configured secret.
     if not settings.hardening.webhook.allow_unsigned:
         secret = getattr(settings.zammad, "webhook_hmac_secret", None)
@@ -139,6 +160,10 @@ def validate_settings(settings: Settings) -> None:
                 )
             )
 
+
+def _validate_delivery_id_requirement(
+    settings: Settings, issues: list[ConfigValidationIssue]
+) -> None:
     if settings.hardening.webhook.require_delivery_id:
         if int(settings.workflow.delivery_id_ttl_seconds) <= 0:
             issues.append(
@@ -151,6 +176,13 @@ def validate_settings(settings: Settings) -> None:
                 )
             )
 
+
+def _validate_tsa_transport(
+    settings: Settings,
+    *,
+    transport,
+    issues: list[ConfigValidationIssue],
+) -> None:
     # If timestamping is enabled, enforce secure transport for the TSA as well.
     if settings.signing.timestamp.enabled:
         tsa_url = settings.signing.timestamp.rfc3161.tsa_url
@@ -173,5 +205,18 @@ def validate_settings(settings: Settings) -> None:
                 issues=issues,
             )
 
-    if issues:
-        raise ConfigValidationError(issues)
+
+def _validate_admin_settings(settings: Settings, issues: list[ConfigValidationIssue]) -> None:
+    if settings.admin.enabled:
+        token = settings.admin.bearer_token
+        token_value = token.get_secret_value().strip() if token is not None else ""
+        if not token_value:
+            issues.append(
+                ConfigValidationIssue(
+                    path="admin.bearer_token",
+                    message=(
+                        "admin.enabled=true requires admin.bearer_token "
+                        "(set ADMIN_BEARER_TOKEN)."
+                    ),
+                )
+            )

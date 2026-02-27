@@ -6,11 +6,13 @@ This document summarizes the service threat model and implemented mitigations.
 
 ```mermaid
 flowchart LR
-  Z["Zammad"] -->|Webhook| I["Ingress: /ingest"]
-  I -->|API token| ZA["Zammad API"]
-  I -->|Write output| FS["Archive filesystem"]
-  I -->|Optional RFC3161| TSA["TSA endpoint"]
-  OP["Operators"] -->|Config + secrets| I
+  Z["Zammad"] -->|"Webhook"| I["Ingress: /ingest"]
+  OP["Operators"] -->|"Config + secrets"| I
+  A["Admin / Ops clients"] -->|"Bearer auth: /admin/api/* + /jobs/history + /jobs/queue/dlq/drain"| I
+  I -->|"API token"| ZA["Zammad API"]
+  I -->|"Queue + history streams"| R["Redis (optional)"]
+  I -->|"Write output"| FS["Archive filesystem"]
+  I -->|"Optional RFC3161"| TSA["TSA endpoint"]
 ```
 
 ## 2. Security-Relevant Assets

@@ -2,20 +2,34 @@
 
 This project uses SemVer and a Keep-a-Changelog style `CHANGELOG.md`.
 
+## Release modes
+
+- Stable release example:
+  - version: `0.2.0`
+  - tag: `v0.2.0`
+- RC release example:
+  - version: `0.2.0rc1` (PEP440)
+  - tag: `v0.2.0-rc.1`
+
 ## 0) Preconditions
 
 - You are on the default branch (`main`) with a clean working tree.
 - CI is green for the commit you intend to release.
 - Security workflow (`.github/workflows/security.yml`) is green on `main`.
-- You know the target version (e.g. `0.1.0`) and tag (e.g. `v0.1.0`).
+- You know the target version and tag format for the selected release mode.
 
 ## 1) Version + changelog
 
-1. Pick the new version `X.Y.Z`.
+1. Pick the new version:
+   - stable: `X.Y.Z`
+   - RC: `X.Y.ZrcN`
 2. Update `pyproject.toml`:
-   - `project.version = "X.Y.Z"`
+   - stable: `project.version = "X.Y.Z"`
+   - RC: `project.version = "X.Y.ZrcN"`
 3. Update `CHANGELOG.md`:
-   - Move entries from `[Unreleased]` into `## [X.Y.Z] - YYYY-MM-DD`
+   - Move entries from `[Unreleased]` into:
+     - stable: `## [X.Y.Z] - YYYY-MM-DD`
+     - RC: `## [X.Y.Z-rc.N] - YYYY-MM-DD`
    - Leave an empty `[Unreleased]` section at the top for future changes
 
 ## 2) Local validation (before tagging)
@@ -23,10 +37,11 @@ This project uses SemVer and a Keep-a-Changelog style `CHANGELOG.md`.
 Run:
 
 ```bash
-make lint
-make test
-bash scripts/ci/smoke-test.sh
-mypy . --config-file pyproject.toml
+python -m ruff check .
+python -m ruff check src --select C901
+python -m mypy . --config-file pyproject.toml
+python -m pytest -q
+make docs-check
 python -m build
 ```
 
@@ -106,29 +121,37 @@ Perform these checks in the target runtime environment before promoting the rele
 1. Create the tag locally:
 
 ```bash
-git tag vX.Y.Z
+git tag vX.Y.Z        # stable
+git tag vX.Y.Z-rc.N   # RC
 ```
 
 2. Push the tag:
 
 ```bash
 git push origin vX.Y.Z
+git push origin vX.Y.Z-rc.N
 ```
 
 Expected:
 - `.github/workflows/ci.yml` uploads `dist/` artifacts for the tag build.
-- `.github/workflows/docker.yml` builds a Docker image for the tag (and pushes to GHCR if configured).
+- `.github/workflows/rc-release.yml` creates a GitHub prerelease for RC tags and attaches:
+  - `dist/*.whl`
+  - `dist/*.tar.gz`
+  - `dist/SHA256SUMS`
+- `.github/workflows/docker.yml` does not push GHCR images for RC tags.
 - `.github/workflows/security.yml` continues running on PRs/`main` and on schedule (`pip-audit` policy).
 
 ## 4) GitHub Release
 
-1. Create a GitHub Release for `vX.Y.Z`.
-2. Use the `CHANGELOG.md` section for `X.Y.Z` as the release notes.
-3. Attach build artifacts if desired:
-   - `dist/*.whl`
-   - `dist/*.tar.gz`
+1. For RC tags (`vX.Y.Z-rc.N`), verify the prerelease was created by CI.
+2. For stable tags (`vX.Y.Z`), create/verify GitHub Release as usual.
+3. Use the matching `CHANGELOG.md` section as release notes.
 
 ## 5) Publish (optional)
+
+For RC mode in this repo, keep publishing disabled by default:
+- no PyPI upload
+- no GHCR push
 
 ### PyPI
 

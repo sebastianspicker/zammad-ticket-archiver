@@ -32,6 +32,7 @@ def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "SIGNING_KEY_PATH",
         "LOG_LEVEL",
         "LOG_JSON",
+        "WORKFLOW_EXECUTION_BACKEND",
         # Nested form (supported by pydantic-settings)
         "ZAMMAD__BASE_URL",
         "ZAMMAD__API_TOKEN",
@@ -165,6 +166,25 @@ def test_workflow_redis_backend_requires_redis_url() -> None:
     assert "redis_url" in str(exc_info.value).lower() or "redis" in str(exc_info.value).lower()
 
 
+def test_workflow_redis_queue_execution_backend_requires_redis_url() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        Settings.from_mapping(
+            {
+                "zammad": {"base_url": "https://z.example", "api_token": "t"},
+                "storage": {"root": "/mnt"},
+                "hardening": {
+                    "webhook": {
+                        "allow_unsigned": True,
+                        "allow_unsigned_when_no_secret": True,
+                    }
+                },
+                "workflow": {"execution_backend": "redis_queue"},
+            }
+        )
+    msg = str(exc_info.value).lower()
+    assert "redis_url" in msg or "redis_queue" in msg
+
+
 def test_pdf_attachment_binary_settings_loaded() -> None:
     """Pdf attachment binary inclusion settings (PRD §8.2) are accepted and have defaults."""
     settings = Settings.from_mapping(
@@ -240,6 +260,27 @@ def test_validate_settings_requires_webhook_secret_by_default() -> None:
         validate_settings(settings)
 
     assert "zammad.webhook_hmac_secret" in str(exc.value)
+
+
+def test_validate_settings_requires_admin_token_when_admin_enabled() -> None:
+    settings = Settings.from_mapping(
+        {
+            "zammad": {"base_url": "https://zammad.example.local", "api_token": "test-token"},
+            "storage": {"root": "/mnt/archive"},
+            "hardening": {
+                "webhook": {
+                    "allow_unsigned": True,
+                    "allow_unsigned_when_no_secret": True,
+                }
+            },
+            "admin": {"enabled": True},
+        }
+    )
+
+    with pytest.raises(ConfigValidationError) as exc:
+        validate_settings(settings)
+
+    assert "admin.bearer_token" in str(exc.value)
 
 
 def test_validate_settings_allows_unsigned_webhooks_when_enabled() -> None:

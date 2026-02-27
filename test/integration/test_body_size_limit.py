@@ -31,3 +31,17 @@ def test_body_size_limit_triggers_on_ingest(tmp_path) -> None:
     assert resp.status_code == 413
     assert resp.json() == {"detail": "request_too_large", "code": "request_too_large"}
     assert resp.headers.get("X-Request-Id")
+
+
+def test_body_size_limit_triggers_on_ingest_batch(tmp_path) -> None:
+    app = create_app(_test_settings(str(tmp_path)))
+    client = TestClient(app)
+
+    resp = client.post(
+        "/ingest/batch",
+        content=b'[{"ticket":{"id":123}}]',
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 413
+    assert resp.json() == {"detail": "request_too_large", "code": "request_too_large"}
+    assert resp.headers.get("X-Request-Id")

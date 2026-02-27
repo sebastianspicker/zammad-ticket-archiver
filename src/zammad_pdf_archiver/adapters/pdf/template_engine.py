@@ -44,51 +44,50 @@ def validate_template_name(template_name: str) -> str:
 def _env_for(template_name: str, templates_root: Path | None = None) -> Environment:
     template_name = validate_template_name(template_name)
 
-    loader: BaseLoader
-    if templates_root is not None:
-        if not templates_root.exists() or not templates_root.is_dir():
-            raise FileNotFoundError(f"Template root folder not found: {templates_root}")
-        template_dir = templates_root / template_name
-        if not template_dir.exists() or not template_dir.is_dir():
-            raise FileNotFoundError(f"Template folder not found: {template_dir}")
-        loader = FileSystemLoader(str(templates_root))
-    else:
-        loader = PackageLoader("zammad_pdf_archiver", "templates")
+    loader = _loader_for(template_name, templates_root=templates_root)
 
     env = Environment(
         loader=loader,
         autoescape=select_autoescape(["html", "xml"]),
     )
+    _register_filters(env)
+    return env
 
+
+def _loader_for(template_name: str, templates_root: Path | None) -> BaseLoader:
+    if templates_root is None:
+        return PackageLoader("zammad_pdf_archiver", "templates")
+
+    if not templates_root.exists() or not templates_root.is_dir():
+        raise FileNotFoundError(f"Template root folder not found: {templates_root}")
+    template_dir = templates_root / template_name
+    if not template_dir.exists() or not template_dir.is_dir():
+        raise FileNotFoundError(f"Template folder not found: {template_dir}")
+    return FileSystemLoader(str(templates_root))
+
+
+def _register_filters(env: Environment) -> None:
     def format_dt(value: Any, tz_name: str = "UTC") -> str:
-        if not value or not hasattr(value, "strftime"):
-            return str(value) if value is not None else "—"
-        try:
-            target_tz = ZoneInfo(tz_name)
-            localized = value.astimezone(target_tz)
-            return localized.strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            if hasattr(value, "strftime"):
-                return value.strftime("%Y-%m-%d %H:%M")
-            return str(value)
+        return _format_datetime(value, tz_name=tz_name, fmt="%Y-%m-%d %H:%M")
 
     @pass_context
     def format_dt_local(context: Any, value: Any, fmt: str = "%Y-%m-%d %H:%M") -> str:
         tz_name = context.get("pdf_timezone", "UTC")
-        if not value or not hasattr(value, "strftime"):
-            return str(value) if value is not None else "—"
-        try:
-            target_tz = ZoneInfo(tz_name)
-            localized = value.astimezone(target_tz)
-            return localized.strftime(fmt)
-        except Exception:
-            if hasattr(value, "strftime"):
-                return value.strftime(fmt)
-            return str(value)
+        return _format_datetime(value, tz_name=tz_name, fmt=fmt)
 
     env.filters["format_dt"] = format_dt
     env.filters["format_dt_local"] = format_dt_local
-    return env
+
+
+def _format_datetime(value: Any, *, tz_name: str, fmt: str) -> str:
+    if not value or not hasattr(value, "strftime"):
+        return str(value) if value is not None else "—"
+    try:
+        target_tz = ZoneInfo(tz_name)
+        localized = value.astimezone(target_tz)
+        return localized.strftime(fmt)
+    except Exception:
+        return value.strftime(fmt) if hasattr(value, "strftime") else str(value)
 
 
 def render_html(

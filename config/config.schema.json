@@ -33,7 +33,20 @@
         "trigger_tag": { "type": "string" },
         "require_tag": { "type": "boolean" },
         "acknowledge_on_success": { "type": "boolean" },
-        "delivery_id_ttl_seconds": { "type": "integer", "minimum": 0 }
+        "delivery_id_ttl_seconds": { "type": "integer", "minimum": 0 },
+        "execution_backend": { "type": "string", "enum": ["inprocess", "redis_queue"] },
+        "idempotency_backend": { "type": "string", "enum": ["memory", "redis"] },
+        "redis_url": { "type": ["string", "null"] },
+        "queue_stream": { "type": "string" },
+        "queue_group": { "type": "string" },
+        "queue_consumer": { "type": ["string", "null"] },
+        "queue_read_block_ms": { "type": "integer", "minimum": 100, "maximum": 60000 },
+        "queue_read_count": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "queue_retry_max_attempts": { "type": "integer", "minimum": 0, "maximum": 50 },
+        "queue_retry_backoff_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "queue_dlq_stream": { "type": "string" },
+        "history_stream": { "type": "string" },
+        "history_retention_maxlen": { "type": "integer", "minimum": 0, "maximum": 1000000 }
       }
     },
     "fields": {
@@ -41,7 +54,8 @@
       "additionalProperties": false,
       "properties": {
         "archive_path": { "type": "string" },
-        "archive_user_mode": { "type": "string" }
+        "archive_user_mode": { "type": "string" },
+        "archive_user": { "type": "string" }
       }
     },
     "storage": {
@@ -75,9 +89,14 @@
       "additionalProperties": false,
       "properties": {
         "template_variant": { "type": "string" },
+        "templates_root": { "type": ["string", "null"] },
         "locale": { "type": "string" },
         "timezone": { "type": "string" },
-        "max_articles": { "type": "integer", "minimum": 0 }
+        "max_articles": { "type": "integer", "minimum": 0 },
+        "article_limit_mode": { "type": "string", "enum": ["fail", "cap_and_continue"] },
+        "include_attachment_binary": { "type": "boolean" },
+        "max_attachment_bytes_per_file": { "type": "integer", "minimum": 0 },
+        "max_total_attachment_bytes": { "type": "integer", "minimum": 0 }
       }
     },
     "signing": {
@@ -109,7 +128,9 @@
               "properties": {
                 "tsa_url": { "type": ["string", "null"], "format": "uri" },
                 "timeout_seconds": { "type": "number", "exclusiveMinimum": 0 },
-                "ca_bundle_path": { "type": ["string", "null"] }
+                "ca_bundle_path": { "type": ["string", "null"] },
+                "user": { "type": ["string", "null"] },
+                "password": { "type": ["string", "null"] }
               }
             }
           }
@@ -123,7 +144,9 @@
         "log_level": { "type": "string" },
         "log_format": { "type": ["string", "null"] },
         "json_logs": { "type": "boolean" },
-        "metrics_enabled": { "type": "boolean" }
+        "metrics_enabled": { "type": "boolean" },
+        "metrics_bearer_token": { "type": ["string", "null"] },
+        "healthz_omit_version": { "type": "boolean" }
       }
     },
     "hardening": {
@@ -137,7 +160,8 @@
             "enabled": { "type": "boolean" },
             "rps": { "type": "number", "minimum": 0 },
             "burst": { "type": "integer", "minimum": 1 },
-            "include_metrics": { "type": "boolean" }
+            "include_metrics": { "type": "boolean" },
+            "client_key_header": { "type": ["string", "null"] }
           }
         },
         "body_size_limit": {
@@ -152,6 +176,7 @@
           "additionalProperties": false,
           "properties": {
             "allow_unsigned": { "type": "boolean" },
+            "allow_unsigned_when_no_secret": { "type": "boolean" },
             "require_delivery_id": { "type": "boolean" }
           }
         },
@@ -161,9 +186,19 @@
           "properties": {
             "trust_env": { "type": "boolean" },
             "allow_insecure_http": { "type": "boolean" },
-            "allow_insecure_tls": { "type": "boolean" }
+            "allow_insecure_tls": { "type": "boolean" },
+            "allow_local_upstreams": { "type": "boolean" }
           }
         }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "bearer_token": { "type": ["string", "null"] },
+        "history_limit": { "type": "integer", "minimum": 1, "maximum": 5000 }
       }
     }
   },

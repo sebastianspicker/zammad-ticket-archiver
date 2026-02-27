@@ -12,9 +12,9 @@ echo "Smoke test: repo structure sanity"
 required_paths=(
   "README.md"
   "pyproject.toml"
-  "docs/00-overview.md"
+  "docs/01-architecture.md"
   "config/config.example.yaml"
-  "templates/default/ticket.html"
+  "src/zammad_pdf_archiver/templates/default/ticket.html"
   ".github/workflows/ci.yml"
 )
 
@@ -26,4 +26,3 @@ for p in "${required_paths[@]}"; do
 done
 
 echo "OK."
-
