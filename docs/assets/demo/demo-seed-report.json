@@ -1,0 +1,756 @@
+{
+  "created_at": "2026-02-26T20:54:29Z",
+  "dataset": "/Users/sebastian/Git/_audited/_no-fixes/zammad-ticket-archiver/examples/demo/mock_university_dataset.json",
+  "history": {
+    "count": 8,
+    "items": [
+      {
+        "classification": null,
+        "created_at": 1772139268.7077034,
+        "delivery_id": "demo-delivery-1108",
+        "id": "1772139268708-0",
+        "message": "",
+        "request_id": "5fc34e80-5997-4e5e-a5ac-59b3f4368bce",
+        "status": "processed",
+        "ticket_id": 1108
+      },
+      {
+        "classification": null,
+        "created_at": 1772139268.6036925,
+        "delivery_id": "demo-delivery-1107",
+        "id": "1772139268604-0",
+        "message": "",
+        "request_id": "128d4108-5aa2-4351-95d8-e90adc040634",
+        "status": "skipped_not_triggered",
+        "ticket_id": 1107
+      },
+      {
+        "classification": null,
+        "created_at": 1772139268.5973208,
+        "delivery_id": "demo-delivery-1106",
+        "id": "1772139268597-0",
+        "message": "",
+        "request_id": "fa9a33ac-3b63-4980-98da-5ca70f1b9f8f",
+        "status": "processed",
+        "ticket_id": 1106
+      },
+      {
+        "classification": "Permanent",
+        "created_at": 1772139268.4763415,
+        "delivery_id": "demo-delivery-1105",
+        "id": "1772139268476-0",
+        "message": "ValueError: custom_fields.archive_user must be a string",
+        "request_id": "6cbf7d1e-615e-4e07-b7c2-69aa3aaba679",
+        "status": "failed_permanent",
+        "ticket_id": 1105
+      },
+      {
+        "classification": null,
+        "created_at": 1772139268.4632125,
+        "delivery_id": "demo-delivery-1104",
+        "id": "1772139268464-0",
+        "message": "",
+        "request_id": "40179a58-cb0e-4b7a-b98d-10c2fd64ece4",
+        "status": "skipped_not_triggered",
+        "ticket_id": 1104
+      },
+      {
+        "classification": "Permanent",
+        "created_at": 1772139268.4573052,
+        "delivery_id": "demo-delivery-1103",
+        "id": "1772139268457-0",
+        "message": "ValueError: custom_fields.archive_path is missing",
+        "request_id": "29bf99c4-8acc-4a6a-90bb-ee915c96f22b",
+        "status": "failed_permanent",
+        "ticket_id": 1103
+      },
+      {
+        "classification": null,
+        "created_at": 1772139268.4441707,
+        "delivery_id": "demo-delivery-1102",
+        "id": "1772139268444-0",
+        "message": "",
+        "request_id": "a7ef28f0-fea9-400c-b015-a2d8546ba4d3",
+        "status": "processed",
+        "ticket_id": 1102
+      },
+      {
+        "classification": null,
+        "created_at": 1772139268.3457303,
+        "delivery_id": "demo-delivery-1101",
+        "id": "1772139268346-0",
+        "message": "",
+        "request_id": "6cbf3c4f-4b33-4953-8a4d-477055d8b128",
+        "status": "processed",
+        "ticket_id": 1101
+      }
+    ],
+    "status": "ok"
+  },
+  "history_status_counts": {
+    "failed_permanent": 2,
+    "processed": 4,
+    "skipped_not_triggered": 2
+  },
+  "ingest_requests": [
+    {
+      "delivery_id": "demo-delivery-1101",
+      "expected_status": "processed",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1101
+      },
+      "ticket_id": 1101
+    },
+    {
+      "delivery_id": "demo-delivery-1102",
+      "expected_status": "processed",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1102
+      },
+      "ticket_id": 1102
+    },
+    {
+      "delivery_id": "demo-delivery-1103",
+      "expected_status": "failed_permanent",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1103
+      },
+      "ticket_id": 1103
+    },
+    {
+      "delivery_id": "demo-delivery-1104",
+      "expected_status": "skipped_not_triggered",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1104
+      },
+      "ticket_id": 1104
+    },
+    {
+      "delivery_id": "demo-delivery-1105",
+      "expected_status": "failed_permanent",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1105
+      },
+      "ticket_id": 1105
+    },
+    {
+      "delivery_id": "demo-delivery-1106",
+      "expected_status": "processed",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1106
+      },
+      "ticket_id": 1106
+    },
+    {
+      "delivery_id": "demo-delivery-1107",
+      "expected_status": "skipped_not_triggered",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1107
+      },
+      "ticket_id": 1107
+    },
+    {
+      "delivery_id": "demo-delivery-1108",
+      "expected_status": "processed",
+      "http_status": 202,
+      "response": {
+        "status": "accepted",
+        "ticket_id": 1108
+      },
+      "ticket_id": 1108
+    }
+  ],
+  "mock_reset": {
+    "payload": {
+      "seed_plan_count": 8,
+      "status": "ok",
+      "tickets": 8
+    },
+    "status_code": 200
+  },
+  "mock_state": {
+    "payload": {
+      "dataset": "/app/examples/demo/mock_university_dataset.json",
+      "events_tail": [
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "admissions"
+          ],
+          "ticket_id": 1101,
+          "ts": "2026-02-26T20:54:28.343795+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "admissions"
+          ],
+          "ticket_id": 1101,
+          "ts": "2026-02-26T20:54:28.344574+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:signed",
+          "tags": [
+            "admissions",
+            "pdf:signed"
+          ],
+          "ticket_id": 1101,
+          "ts": "2026-02-26T20:54:28.345216+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "pdf:sign",
+            "it-helpdesk"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.352993+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "pdf:sign",
+            "it-helpdesk"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.353762+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.354412+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:processing",
+          "tags": [
+            "it-helpdesk",
+            "pdf:processing"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.355109+00:00"
+        },
+        {
+          "article_id": 5011,
+          "event": "article_created",
+          "subject": "PDF archived (0.2.0rc1)",
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.440735+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.441574+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.442270+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.443018+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:signed",
+          "tags": [
+            "it-helpdesk",
+            "pdf:signed"
+          ],
+          "ticket_id": 1102,
+          "ts": "2026-02-26T20:54:28.443744+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "pdf:sign",
+            "finance"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.450529+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "pdf:sign",
+            "finance"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.451108+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "finance"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.451704+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:processing",
+          "tags": [
+            "finance",
+            "pdf:processing"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.452366+00:00"
+        },
+        {
+          "article_id": 5012,
+          "event": "article_created",
+          "subject": "PDF archiver error (0.2.0rc1)",
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.453854+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "finance"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.454513+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "finance"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.455131+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "finance"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.455733+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:error",
+          "tags": [
+            "finance",
+            "pdf:error"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.456321+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "finance",
+            "pdf:error"
+          ],
+          "ticket_id": 1103,
+          "ts": "2026-02-26T20:54:28.456933+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "pdf:sign",
+            "admissions"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.470145+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "pdf:sign",
+            "admissions"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.470779+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "admissions"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.471425+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:processing",
+          "tags": [
+            "admissions",
+            "pdf:processing"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.472040+00:00"
+        },
+        {
+          "article_id": 5013,
+          "event": "article_created",
+          "subject": "PDF archiver error (0.2.0rc1)",
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.472978+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "admissions"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.473623+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "admissions"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.474211+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "admissions"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.474791+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:error",
+          "tags": [
+            "admissions",
+            "pdf:error"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.475404+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "admissions",
+            "pdf:error"
+          ],
+          "ticket_id": 1105,
+          "ts": "2026-02-26T20:54:28.475974+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "pdf:sign",
+            "it-helpdesk"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.482263+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "pdf:sign",
+            "it-helpdesk"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.482835+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.483420+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:processing",
+          "tags": [
+            "it-helpdesk",
+            "pdf:processing"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.483956+00:00"
+        },
+        {
+          "article_id": 5014,
+          "event": "article_created",
+          "subject": "PDF archived (0.2.0rc1)",
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.594218+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.595030+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.595650+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "it-helpdesk"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.596230+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:signed",
+          "tags": [
+            "it-helpdesk",
+            "pdf:signed"
+          ],
+          "ticket_id": 1106,
+          "ts": "2026-02-26T20:54:28.596939+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:signed",
+          "tags": [
+            "pdf:sign",
+            "facilities"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.609360+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "pdf:sign",
+            "facilities"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.610006+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "facilities"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.610656+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:processing",
+          "tags": [
+            "facilities",
+            "pdf:processing"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.611256+00:00"
+        },
+        {
+          "article_id": 5015,
+          "event": "article_created",
+          "subject": "PDF archived (0.2.0rc1)",
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.704522+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:processing",
+          "tags": [
+            "facilities"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.705378+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:error",
+          "tags": [
+            "facilities"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.706030+00:00"
+        },
+        {
+          "event": "tag_remove",
+          "tag": "pdf:sign",
+          "tags": [
+            "facilities"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.706704+00:00"
+        },
+        {
+          "event": "tag_add",
+          "tag": "pdf:signed",
+          "tags": [
+            "facilities",
+            "pdf:signed"
+          ],
+          "ticket_id": 1108,
+          "ts": "2026-02-26T20:54:28.707321+00:00"
+        }
+      ],
+      "status": "ok",
+      "ticket_count": 8,
+      "tickets": [
+        {
+          "article_count": 3,
+          "number": "UNI-1101",
+          "tags": [
+            "admissions",
+            "pdf:signed"
+          ],
+          "ticket_id": 1101,
+          "title": "Admissions: transcript review"
+        },
+        {
+          "article_count": 2,
+          "number": "UNI-1102",
+          "tags": [
+            "it-helpdesk",
+            "pdf:signed"
+          ],
+          "ticket_id": 1102,
+          "title": "IT Helpdesk: laptop enrollment"
+        },
+        {
+          "article_count": 2,
+          "number": "UNI-1103",
+          "tags": [
+            "finance",
+            "pdf:error"
+          ],
+          "ticket_id": 1103,
+          "title": "Finance: tuition adjustment"
+        },
+        {
+          "article_count": 1,
+          "number": "UNI-1104",
+          "tags": [
+            "facilities"
+          ],
+          "ticket_id": 1104,
+          "title": "Facilities: projector maintenance"
+        },
+        {
+          "article_count": 2,
+          "number": "UNI-1105",
+          "tags": [
+            "admissions",
+            "pdf:error"
+          ],
+          "ticket_id": 1105,
+          "title": "Admissions: scholarship verification"
+        },
+        {
+          "article_count": 2,
+          "number": "UNI-1106",
+          "tags": [
+            "it-helpdesk",
+            "pdf:signed"
+          ],
+          "ticket_id": 1106,
+          "title": "IT Helpdesk: VPN access"
+        },
+        {
+          "article_count": 1,
+          "number": "UNI-1107",
+          "tags": [
+            "pdf:signed",
+            "finance"
+          ],
+          "ticket_id": 1107,
+          "title": "Finance: receipt request"
+        },
+        {
+          "article_count": 2,
+          "number": "UNI-1108",
+          "tags": [
+            "facilities",
+            "pdf:signed"
+          ],
+          "ticket_id": 1108,
+          "title": "Facilities: parking access"
+        }
+      ]
+    },
+    "status_code": 200
+  },
+  "queue_stats": {
+    "payload": {
+      "consumer": "21338ae393e3-1",
+      "dlq_depth": 2,
+      "dlq_stream": "zammad:jobs:dlq",
+      "execution_backend": "redis_queue",
+      "group": "zammad:jobs:workers",
+      "history_retention_maxlen": 5000,
+      "history_stream": "zammad:jobs:history",
+      "pending": 0,
+      "queue_depth": 0,
+      "queue_enabled": true,
+      "retry_max_attempts": 3,
+      "stream": "zammad:jobs"
+    },
+    "status_code": 200
+  }
+}

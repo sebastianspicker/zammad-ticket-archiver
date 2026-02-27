@@ -6,9 +6,17 @@ This document defines the rendering contract used by the PDF pipeline.
 
 ```mermaid
 flowchart LR
-  A["build_snapshot()"] --> B["render_html() with Jinja2"]
-  B --> C["collect CSS files"]
-  C --> D["WeasyPrint HTML -> PDF bytes"]
+  A["build_snapshot()"] --> B["sanitize article HTML"]
+  B --> C{"pdf.include_attachment_binary"}
+  C -->|"false"| D["render_html() with Jinja2"]
+  C -->|"true"| E["enrich attachment binaries (bounded)"]
+  E --> D
+  D --> F["collect CSS files"]
+  F --> G["WeasyPrint: HTML -> PDF bytes"]
+  G --> H{"signing.enabled"}
+  H -->|"false"| I["return PDF bytes"]
+  H -->|"true"| J["sign/timestamp adapter pipeline"]
+  J --> I
 ```
 
 Code paths:

@@ -15,7 +15,9 @@ flowchart LR
   E --> F{"timestamp.enabled"}
   F -->|false| G["Store signed PDF"]
   F -->|true| H["Request RFC3161 token"]
-  H --> G
+  H --> I{"TSA response valid"}
+  I -->|true| G
+  I -->|false| J["Classify failure (transient/permanent)"]
 ```
 
 Code:

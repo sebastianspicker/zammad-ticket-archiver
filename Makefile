@@ -1,4 +1,4 @@
-.PHONY: dev lint format typecheck test test-fast test-cov test-unit test-int test-nfr test-all smoke docs-check docker-smoke qa build verify ci dev-setup clean
+.PHONY: dev lint format typecheck test test-fast test-cov test-unit test-int test-nfr test-all smoke docs-check docker-smoke qa build verify ci dev-setup clean demo-up demo-seed demo-shots demo-down demo-reset demo-all
 
 dev:
 	docker compose -f docker-compose.dev.yml up --build
@@ -71,3 +71,22 @@ clean:
 	rm -rf .ruff_cache
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name '*.py[co]' -delete 2>/dev/null || true
+
+demo-up:
+	docker compose -f docker-compose.demo.yml up -d --build
+	docker compose -f docker-compose.demo.yml ps
+
+demo-seed:
+	python scripts/demo/seed_demo_data.py
+
+demo-shots:
+	@python scripts/demo/capture_screenshots.py --check-only >/dev/null 2>&1 || (echo "Playwright setup missing. Run: python -m playwright install chromium" && exit 1)
+	python scripts/demo/capture_screenshots.py
+
+demo-reset:
+	python -c "import urllib.request; req=urllib.request.Request('http://127.0.0.1:18090/__demo/reset', method='POST', data=b''); print(urllib.request.urlopen(req, timeout=5).read().decode('utf-8'))"
+
+demo-down:
+	docker compose -f docker-compose.demo.yml down -v --remove-orphans
+
+demo-all: demo-up demo-seed demo-shots

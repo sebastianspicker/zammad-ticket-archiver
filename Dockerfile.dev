@@ -19,7 +19,7 @@ COPY pyproject.toml README.md LICENSE CHANGELOG.md /app/
 COPY src/ /app/src/
 
 RUN python -m pip install --no-cache-dir -U pip \
-  && python -m pip install --no-cache-dir ".[dev]"
+  && python -m pip install --no-cache-dir ".[dev,redis]"
 
 EXPOSE 8080
 

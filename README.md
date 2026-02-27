@@ -103,16 +103,21 @@ The field names for `archive_path`, `archive_user_mode`, and `archive_user` are 
 
 ```mermaid
 flowchart LR
-  Z["Zammad"] -->|POST /ingest| I["FastAPI ingress"]
-  I --> J["Background job: process_ticket"]
-  J --> ZA["Zammad adapter"]
+  Z["Zammad"] -->|"Webhook: POST /ingest"| I["FastAPI ingress"]
+  I --> D{"workflow.execution_backend"}
+  D -->|"inprocess"| J["process_ticket worker"]
+  D -->|"redis_queue"| Q["Redis stream: zammad:jobs"]
+  Q --> W["Queue worker"]
+  W --> J
+  J --> ZA["Zammad API adapter"]
   ZA --> SN["Snapshot builder"]
   SN --> PDF["Jinja2 + WeasyPrint"]
   PDF --> SG["pyHanko signer (optional)"]
   SG --> TSA["RFC3161 TSA (optional)"]
   PDF --> ST["Storage adapter"]
   SG --> ST
-  ST --> ZA
+  J --> H["Redis history stream (optional)"]
+  J --> ZA
 ```
 
 Detailed architecture and state diagrams:
@@ -122,11 +127,16 @@ Detailed architecture and state diagrams:
 
 ```mermaid
 flowchart TD
-  A["Agent applies macro (adds pdf:sign)"] --> B["Zammad trigger sends webhook"]
+  A["Agent macro adds trigger tag (pdf:sign)"] --> B["Zammad trigger sends webhook"]
   B --> C["POST /ingest returns 202"]
-  C --> D["Background processing job"]
-  D --> E["PDF + sidecar written"]
-  E --> F["Ticket note + final tags"]
+  C --> D{"Execution backend"}
+  D --> E["In-process worker"]
+  D --> F["Redis queue + queue worker"]
+  E --> G["Ticket processing pipeline"]
+  F --> G
+  G --> H["PDF + sidecar written"]
+  G --> I["History event recorded (optional)"]
+  G --> J["Ticket note + final tags"]
 ```
 
 ## Quickstart (Development)
@@ -169,6 +179,21 @@ Optional smoke test (requires env and optional services):
 ```bash
 bash scripts/ci/smoke-test.sh
 ```
+
+Local mock demo (fully self-contained):
+
+```bash
+make demo-up
+make demo-seed
+make demo-shots
+make demo-down
+```
+
+Representative demo screenshots:
+
+![Admin queue stats](docs/assets/demo/02-admin-queue-stats.png)
+![Admin backend unavailable (503)](docs/assets/demo/09-api-503-backend-unavailable.png)
+![Admin mobile viewport](docs/assets/demo/10-admin-mobile-viewport.png)
 
 Endpoints:
 - `POST /ingest`
@@ -251,6 +276,7 @@ Operational docs:
 - [`docs/faq.md`](docs/faq.md)
 - [`docs/release-checklist.md`](docs/release-checklist.md) – Release and deployment checklist
 - [`docs/deploy.md`](docs/deploy.md) – Production deployment
+- [`docs/demo-mock-university.md`](docs/demo-mock-university.md) – Local mock university demo stack and screenshot workflow
 
 ## Glossary
 

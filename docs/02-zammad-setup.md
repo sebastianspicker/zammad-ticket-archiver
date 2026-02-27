@@ -6,8 +6,12 @@ This guide describes the Zammad-side configuration required to use `zammad-pdf-a
 flowchart TD
   A["Create custom fields"] --> B["Core Workflow validation"]
   B --> C["Agent macro adds trigger tag"]
-  C --> D["Trigger calls webhook"]
-  D --> E["Archiver processes ticket"]
+  C --> D["Trigger calls /ingest webhook"]
+  D --> E{"Archiver execution backend"}
+  E --> F["In-process worker"]
+  E --> G["Redis queue worker"]
+  F --> H["Ticket note + final tags"]
+  G --> H
 ```
 
 ## 1. Prerequisites
