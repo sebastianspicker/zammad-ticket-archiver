@@ -52,7 +52,7 @@ dev = [
   "respx>=0.21",
   "ruff>=0.4",
   "mypy>=1.10",
-  "lizard==1.22.2",
+  "lizard==1.24.0",
   "types-PyYAML",
   "chronikwerk[signing]",
 ]
