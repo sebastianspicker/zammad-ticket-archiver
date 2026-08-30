@@ -59,7 +59,8 @@ frontend-update: frontend-build
 	cp build/admin/admin.css src/chronikwerk/web/static/admin/admin.css
 
 test:
-	$(PYTHON) -m pytest -q
+	$(PYTHON) -m coverage run --branch --source=chronikwerk -m pytest -q
+	$(PYTHON) -m coverage report --fail-under=57
 
 test-fast:
 	$(PYTHON) -m pytest -q tests/unit
@@ -71,7 +72,7 @@ test-int:
 	$(PYTHON) -m pytest -q tests/integration
 
 test-all:
-	$(PYTHON) -m pytest -q
+	$(MAKE) test
 
 pdf-ua-check:
 	@test -n "$(PDF_FILES)" || (echo "Set PDF_FILES to signed and unsigned fixture paths" && exit 2)
