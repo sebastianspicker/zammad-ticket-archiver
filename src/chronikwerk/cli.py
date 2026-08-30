@@ -7,10 +7,10 @@ import json
 import sys
 import uuid
 
-from chronikwerk.config.load import load_settings
-from chronikwerk.config.managed import ManagedConfigStore, validate_candidate
-from chronikwerk.config.redact import redact_settings_dict
-from chronikwerk.config.validate import ConfigValidationError
+from chronikwerk.configuration.load import load_settings
+from chronikwerk.configuration.redaction import redact_settings_dict
+from chronikwerk.configuration.revisions import ManagedConfigStore, validate_candidate
+from chronikwerk.configuration.validation import ConfigValidationError
 
 
 def _missing_config_path_from_error(error: ConfigValidationError) -> str | None:

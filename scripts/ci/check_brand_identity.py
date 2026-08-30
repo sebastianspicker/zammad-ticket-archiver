@@ -21,7 +21,6 @@ SCAN_FILES = (
     Path(".dockerignore"),
     Path(".github/CODEOWNERS"),
     Path(".gitignore"),
-    Path(".pre-commit-config.yaml"),
     Path("CHANGELOG.md"),
     Path("CONTRIBUTING.md"),
     Path("DESIGN.md"),
@@ -36,7 +35,6 @@ SCAN_FILES = (
     Path("docker-compose.yml"),
     Path("package.json"),
     Path("pyproject.toml"),
-    Path("tsconfig.admin.json"),
     Path("tsconfig.json"),
 )
 TEXT_SUFFIXES = {

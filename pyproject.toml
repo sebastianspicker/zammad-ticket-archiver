@@ -47,13 +47,13 @@ signing = [
 ]
 dev = [
   "build>=1.2",
+  "coverage[toml]>=7.0",
   "pytest>=8.0",
   "respx>=0.21",
   "ruff>=0.4",
   "mypy>=1.10",
   "lizard==1.22.2",
   "types-PyYAML",
-  "pre-commit>=3.7",
   "chronikwerk[signing]",
 ]
 [project.urls]
@@ -75,11 +75,12 @@ where = ["src"]
 [tool.setuptools.package-data]
 chronikwerk = [
   "py.typed",
-  "templates/**/*.css",
-  "templates/**/*.html",
-  "static/**/*.css",
-  "static/**/*.js",
-  "static/**/*.svg",
+  "documents/templates/**/*.css",
+  "documents/templates/**/*.html",
+  "web/templates/**/*.html",
+  "web/static/**/*.css",
+  "web/static/**/*.js",
+  "web/static/**/*.svg",
 ]
 
 [tool.ruff]
@@ -108,3 +109,10 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--ignore=.env.example --ignore=.pytest_cache -p no:cacheprovider"
+
+[tool.coverage.run]
+branch = true
+source = ["chronikwerk"]
+
+[tool.coverage.report]
+fail_under = 57

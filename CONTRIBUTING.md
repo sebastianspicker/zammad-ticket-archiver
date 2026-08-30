@@ -16,7 +16,7 @@ Requirements:
 - Python 3.14 or newer
 - Node.js 24 through 26
 - WeasyPrint system libraries
-- Docker for image and end-to-end checks
+- Docker for image and container checks
 
 Create the development environment:
 
@@ -64,7 +64,7 @@ Use the Makefile targets rather than duplicating their command lines in new scri
 to the change.
 
 Maintained Python, TypeScript, JavaScript, CSS, HTML, shell, and MJS sources are limited to
-600 physical lines per file. The assembled `src/chronikwerk/static/admin/admin.css` and
+600 physical lines per file. The assembled `src/chronikwerk/web/static/admin/admin.css` and
 `admin.js` bundles are generated from `frontend/` and are the only source-length
 exemptions.
 

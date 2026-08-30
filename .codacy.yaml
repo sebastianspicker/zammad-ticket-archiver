@@ -7,7 +7,3 @@ tools:
   - opengrep@1.21.0
   - pylint@4.0.5
   - trivy@0.70.0
-
-exclude_paths:
-  - "deprecated/**"
-  - "docs/archive/**"

@@ -54,6 +54,7 @@ scope stated in the README.
 - [Administration and accessible-PDF decision](adr/0005-admin-config-and-accessible-pdf.md).
 - [Zammad outbound transport trust-boundary decision](adr/0006-zammad-outbound-transport-trust-boundary.md).
 - [Deterministic release-assurance decision](adr/0007-deterministic-release-assurance-scripts.md).
+- [Modular-monolith boundary decision](adr/0008-modular-monolith-boundaries.md).
 - [Product contract](../PRODUCT.md).
 - [Design system](../DESIGN.md).
 - [Release status](../RELEASE_STATUS.md).

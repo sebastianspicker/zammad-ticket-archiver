@@ -1,0 +1,64 @@
+{# Packaged with the web control plane. #}
+{% extends "base.html" %}
+{% block title %}{{ _("admin.revisions") }} · {{ _("admin.service_name") }}{% endblock %}
+{% block content %}
+<div class="route-page route-page--audit">
+  <p class="breadcrumb">
+    <a href="/admin">{{ _("admin.overview") }}</a><span aria-hidden="true">/</span>
+    <a href="/admin/configuration">{{ _("admin.configuration") }}</a><span aria-hidden="true">/</span>
+    {{ _("admin.revisions") }}
+  </p>
+  <div class="page-heading">
+    <div>
+      <p class="page-kicker">{{ _("admin.change_record") }}</p>
+      <h1>{{ _("admin.revisions") }}</h1>
+      <p class="page-intro">{{ _("admin.revisions_intro") }}</p>
+    </div>
+    <a class="button" href="/admin/configuration">{{ _("admin.edit_configuration") }}</a>
+  </div>
+  {% if restore_error %}
+  <div class="banner banner--error" role="alert">{{ _("admin.restore_error") }}</div>
+  {% endif %}
+  {% if acknowledgement_required %}
+  <div class="banner banner--warning" role="alert">{{ _("admin.restore_ack_required") }}</div>
+  {% endif %}
+  {% if revisions %}
+  <div class="table-region" role="region" aria-label="{{ _("admin.revisions") }}" tabindex="0">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ _("admin.created_at") }}</th>
+          <th>Revision</th>
+          <th>{{ _("admin.previous_revision") }}</th>
+          <th>{{ _("admin.changed_paths") }}</th>
+          <th><span class="visually-hidden">{{ _("admin.actions") }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for revision in revisions %}
+        <tr>
+          <td>{{ revision.created_at }}</td>
+          <td><code>{{ revision.revision }}</code></td>
+          <td><code>{{ revision.previous_revision }}</code></td>
+          <td>{{ revision.changed_paths | join(", ") }}</td>
+          <td>
+            <form method="post" action="/admin/configuration/revisions/{{ revision.revision }}/restore">
+              <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+              <input type="hidden" name="expected_revision" value="{{ current_revision }}">
+              <label class="checkbox">
+                <input type="checkbox" name="security_acknowledged" value="true" required>
+                {{ _("admin.security_ack") }}
+              </label>
+              <button class="button button--danger" type="submit">{{ _("admin.restore") }}</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">{{ _("admin.empty_revisions") }}</p>
+  {% endif %}
+</div>
+{% endblock %}

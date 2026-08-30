@@ -262,7 +262,7 @@ tests/               Focused unit and integration tests
 ```
 
 The administration source files are under `frontend/`. The browser-served CSS and
-JavaScript under `src/chronikwerk/static/admin/` are compiled project artifacts and are
+JavaScript under `src/chronikwerk/web/static/admin/` are compiled project artifacts and are
 checked against their sources by `make frontend-check`.
 
 ## Development workflow
@@ -297,9 +297,9 @@ request.
 
 The Python test suites are divided by scope:
 
-- `tests/static`: type-check and static contracts.
-- `tests/unit`: isolated behavior and configuration contracts.
-- `tests/integration`: application, storage, rendering, and workflow integration.
+- `tests/unit`: isolated policy, configuration, document, operation, and storage behavior.
+- `tests/contract`: HTTP and Zammad boundary contracts.
+- `tests/integration`: composed archive and artifact behavior.
 
 Run the narrow suite while editing:
 

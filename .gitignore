@@ -1,4 +1,4 @@
-# Python
+# Python build and cache output
 __pycache__/
 *.py[cod]
 *.pyd
@@ -8,43 +8,69 @@ build/
 dist/
 *.egg-info/
 .eggs/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+pip-wheel-metadata/
+
+# Frontend dependencies and generated output
 node_modules/
-test-results/
-blob-report/
-npm-debug.log*
 *.tsbuildinfo
+npm-debug.log*
+
+# Tests, coverage, and static analysis output
+.pytest_cache/
+.hypothesis/
 .coverage
 .coverage.*
-.coverage_html/
+coverage/
+coverage.json
 coverage.xml
-junit*.xml
 htmlcov/
-.hypothesis/
+junit*.xml
+test-results/
+playwright-report/
+blob-report/
+.mypy_cache/
+.ruff_cache/
+.pyright/
+.tox/
+.nox/
+.jscpd/
+*.sarif
+/*.local.json
+/*.local.sarif
+codacy.json
+codacy-*.json
+pip-audit-*.json
 
-# Virtualenvs / tooling
+# Virtual environments and local tool state
 .venv/
 /.venv*/
 venv/
-pip-wheel-metadata/
+.direnv/
+.repowise/
+.codegraph/
+.serena/
+.codacy/
+/.mcp.json
 
-# Environment / secrets
+# Environment, credentials, and machine-local configuration
 .env
 .env.*
 !.env.example
-/infra/systemd/*.env
+!.env.*.example
+!.env.sample
+!.env.template
 .envrc
 .python-version
-.direnv/
 .netrc
 .npmrc
 .pypirc
+.npmrc.local
 secrets/
 credentials/
+secrets.local.*
+credentials.local.*
 
-# Local YAML configuration and signing material
+# Local service configuration and signing material
 /docker-compose.override.yml
 /docker-compose.override.yaml
 config/config.yaml
@@ -56,6 +82,7 @@ config/*.local.yaml
 config/*.local.yml
 config/*.override.yaml
 config/*.override.yml
+/infra/systemd/*.env
 *.pfx
 *.p12
 *.pem
@@ -65,25 +92,27 @@ config/*.override.yml
 *.csr
 *.jks
 *.keystore
+*.local.pem
+*.local.key
 
-# OS
-.DS_Store
-Thumbs.db
-.AppleDouble
-._*
-.Spotlight-V100/
-*.swp
-*.swo
-*~
-
-# Local runtime artifacts
+# Runtime data and local exports
+/archive/
+/data/
+/exports/
+/output/
+/private/
+/admin-state/
+/state/
 *.log
-coverage.json
 *.sqlite
 *.sqlite3
 *.db
 *.db-shm
 *.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
 *.dump
 *.backup
 *.bak
@@ -94,23 +123,51 @@ coverage.json
 *.p7s
 *.tsr
 
-# IDEs
-/.mcp.json
+# Editors and operating-system metadata
 .idea/
 .vscode/
 .cursor/
 .kilo/
+.impeccable/
+.DS_Store
+Thumbs.db
+.AppleDouble
+._*
+.Spotlight-V100/
+*.swp
+*.swo
+*~
 
-# Local/private data
-/archive/
-/data/
-/exports/
-/output/
-/private/
-/admin-state/
-/state/
+# Coding-agent and assistant state
+AGENT.md
+AGENTS.md
+agent.md
+agents.md
+CLAUDE.md
+CODEX.md
+GEMINI.md
+.cursorrules
+.agent/
+.agents/
+.ai/
+.claude/
+.codex/
+.aider*
+.windsurf/
+/.github/codex/
+/.github/workflows/codex.yml
+/.github/copilot-instructions.md
+/agent-notes*
+/agent-output*
+/agent-report*
+/agent-context*
+/agent-memory*
+/AI_NOTES*
+/AI_REPORT*
+/AI_AUDIT*
+/AI_SUMMARY*
 
-# Local audit, analysis, and planning artifacts
+# Local planning, audits, and reports
 /audit/
 /docs/audit/
 /docs/archive/
@@ -126,93 +183,23 @@ coverage.json
 /task-reports/
 /remediation/
 /reports/
-/.jscpd/
-/*.sarif
-/*-local.json
-/*-local.sarif
-/codacy.json
-/codacy-*.json
-/pip-audit-*.json
-/RELEASE_EVIDENCE_*.md
-/CODEBASE_AUDIT_REPORT_*.md
-/REMEDIATION_PLAN_*.md
-
-# Local development automation state
 /progress.md
 /PLAN.md
 /PROMPT.md
 /SCRATCH.md
 /TASKS.md
-/.aider*
-/.windsurf/
-/.claude/
-/.codex/
-/.codegraph/
-/.agents/
-/.impeccable/
-/.serena/
-/.codacy/*
-!/.codacy/codacy.config.json
-!/.codacy/codacy.yaml
-!/.codacy/codacy.yml
-/.github/codex/
-/.github/workflows/codex.yml
-/.github/copilot-instructions.md
-/AGENTS.md
-/CLAUDE.md
-/GEMINI.md
+/scratchpad*
+/worklog*
+/devlog*
 /AUDIT.md
+/AUDIT_LEDGER.md
+/remediation-ledger.md
+/TASK_LEDGER.md
+/IMPLEMENTATION_LEDGER.md
+/PROGRESS_LEDGER.md
+/RELEASE_EVIDENCE_*.md
+/CODEBASE_AUDIT_REPORT_*.md
+/REMEDIATION_PLAN_*.md
 /HARNESS_PRINCIPLES.md
 /code_review.md
 /scripts/topology_inventory.sh
-
-# Shared local indexes and operator records
-.repowise/
-/AUDIT_LEDGER.md
-/remediation-ledger.md
-
-# Public environment templates
-!.env.*.example
-!.env.sample
-!.env.template
-
-# Local-only credentials
-secrets.local.*
-credentials.local.*
-*.local.pem
-*.local.key
-.npmrc.local
-
-# Python caches and test reports
-.pyright/
-.tox/
-.nox/
-coverage/
-
-# Shared build output
-target/
-.build/
-DerivedData/
-xcuserdata/
-
-# Local database sidecars
-*.local.db
-*.local.sqlite
-*.local.sqlite3
-*.sqlite-shm
-*.sqlite-wal
-*.sqlite3-shm
-*.sqlite3-wal
-
-# Generated test and coverage output (local only)
-/coverage/
-/htmlcov/
-/.coverage
-/.coverage.*
-/.pytest_cache/
-/test-results/
-/playwright-report/
-/blob-report/
-/coverage.xml
-/junit.xml
-/junit-*.xml

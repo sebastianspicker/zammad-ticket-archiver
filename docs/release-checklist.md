@@ -69,7 +69,7 @@ python -m build
 ```
 
 The source-length gate scans maintained code and tests. The shipped administration CSS
-and JavaScript bundles under `src/chronikwerk/static/admin/` are generated artifacts and
+and JavaScript bundles under `src/chronikwerk/web/static/admin/` are generated artifacts and
 are the only exemptions from the 600-physical-line authored-source limit.
 
 ## Wheel Smoke Test
@@ -80,15 +80,15 @@ python -m venv /tmp/chronikwerk-release-venv
 python -m pip install -U pip
 python -m pip install dist/*.whl
 python - <<'PY'
-from chronikwerk.app.server import create_app
-from chronikwerk.config.settings import Settings
+from chronikwerk.web.app import create_app
+from chronikwerk.configuration.models import Settings
 
 settings = Settings.from_mapping({
     "zammad": {"base_url": "https://example.invalid", "api_token": "x"},
     "storage": {"root": "/tmp"},
 })
 app = create_app(settings)
-assert app.title == "Chronikwerk"
+assert app.title == "chronikwerk"
 print("wheel-import-ok", app.version)
 PY
 ```
@@ -96,30 +96,16 @@ PY
 ## Docker Smoke Test
 
 Release evidence uses the production `Dockerfile`, not the development image.
-The dedicated API fixture builds that image, starts a minimal mock Zammad and
-archive volume, signs ingest bodies with SHA-256 HMAC, checks authenticated
-history, tags/notes, retry acceptance (`202`), PDF headers, sidecars, and
-checksums, then tears the stack down:
+The production-image smoke imports the packaged rendering/signing dependencies,
+renders and inspects an unsigned accessible PDF, and verifies that the admin
+control plane can initialize its durable state when the container root is read-only:
 
 ```bash
-docker build -t chronikwerk:local .
-docker run --rm -p 8080:8080 \
-  -e ZAMMAD__BASE_URL=https://example.invalid \
-  -e ZAMMAD__API_TOKEN=x \
-  -e ZAMMAD__WEBHOOK_HMAC_SECRET=local-smoke-webhook-secret-at-least-32-characters \
-  -e STORAGE__ROOT=/tmp \
-  chronikwerk:local
+make production-image-smoke
 ```
 
-In another terminal:
-
-```bash
-python - <<'PY'
-import urllib.request
-
-print(urllib.request.urlopen("http://127.0.0.1:8080/healthz", timeout=2).read().decode())
-PY
-```
+Live Zammad workflow, tag/note projection, storage, and signed-document evidence
+remain separate integration lanes and must not be inferred from this image smoke.
 
 ## Production Safety Checks
 

@@ -10,8 +10,6 @@ dev:
 dev-setup:
 	@echo "Setting up development environment..."
 	$(PYTHON) -m pip install -e ".[dev]"
-	$(PYTHON) -m pip install pre-commit
-	$(PYTHON) -m pre_commit install
 	$(MAKE) frontend-install
 	@echo "Creating .env from example if not exists..."
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env - please edit with your settings"; fi
@@ -34,7 +32,7 @@ typecheck:
 
 complexity:
 	$(PYTHON) -m lizard -w -C 10 -L 80 \
-		-x "src/chronikwerk/static/admin/admin.js" \
+		-x "src/chronikwerk/web/static/admin/admin.js" \
 		src/chronikwerk scripts frontend
 
 duplication:
@@ -51,17 +49,18 @@ frontend-build:
 	$(NPM) run build:admin
 
 frontend-check: frontend-typecheck frontend-build
-	@cmp -s build/typescript/admin.js src/chronikwerk/static/admin/admin.js || \
+	@cmp -s build/typescript/admin.js src/chronikwerk/web/static/admin/admin.js || \
 		(echo "Generated admin.js is stale; run 'make frontend-update'." && exit 1)
-	@cmp -s build/admin/admin.css src/chronikwerk/static/admin/admin.css || \
+	@cmp -s build/admin/admin.css src/chronikwerk/web/static/admin/admin.css || \
 		(echo "Generated admin.css is stale; run 'make frontend-update'." && exit 1)
 
 frontend-update: frontend-build
-	cp build/typescript/admin.js src/chronikwerk/static/admin/admin.js
-	cp build/admin/admin.css src/chronikwerk/static/admin/admin.css
+	cp build/typescript/admin.js src/chronikwerk/web/static/admin/admin.js
+	cp build/admin/admin.css src/chronikwerk/web/static/admin/admin.css
 
 test:
-	$(PYTHON) -m pytest -q
+	$(PYTHON) -m coverage run --branch --source=chronikwerk -m pytest -q
+	$(PYTHON) -m coverage report --fail-under=57
 
 test-fast:
 	$(PYTHON) -m pytest -q tests/unit
@@ -73,7 +72,7 @@ test-int:
 	$(PYTHON) -m pytest -q tests/integration
 
 test-all:
-	$(PYTHON) -m pytest -q
+	$(MAKE) test
 
 pdf-ua-check:
 	@test -n "$(PDF_FILES)" || (echo "Set PDF_FILES to signed and unsigned fixture paths" && exit 2)
@@ -102,7 +101,7 @@ clean-wheel-smoke: build
 	tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
 	$(PYTHON) -m venv "$$tmp/venv"; \
 	"$$tmp/venv/bin/python" -m pip install --no-cache-dir dist/*.whl; \
-	"$$tmp/venv/bin/python" -c 'from chronikwerk.app.server import create_app; print(create_app)'
+	"$$tmp/venv/bin/python" -c 'from chronikwerk.web.app import create_app; print(create_app)'
 
 production-image-smoke:
 	bash scripts/ci/production_image_smoke.sh

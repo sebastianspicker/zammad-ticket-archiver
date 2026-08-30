@@ -1,0 +1,70 @@
+{# Packaged with the web control plane. #}
+{% extends "base.html" %}
+{% block title %}{{ _("admin.jobs") }} · {{ _("admin.service_name") }}{% endblock %}
+{% block content %}
+<div class="route-page route-page--data">
+  <p class="breadcrumb"><a href="/admin">{{ _("admin.overview") }}</a><span aria-hidden="true">/</span>{{ _("admin.jobs") }}</p>
+  <div class="page-heading">
+    <div>
+      <p class="page-kicker">{{ _("admin.activity_record") }}</p>
+      <h1>{{ _("admin.jobs") }}</h1>
+      <p class="page-intro">{{ _("admin.jobs_intro") }}</p>
+    </div>
+  </div>
+  <p class="scope-note"><span class="scope-note__icon" aria-hidden="true">i</span>{{ _("admin.process_local") }}</p>
+  <form method="get" class="filter-bar">
+    <div class="filter-field">
+      <label for="ticket-id">{{ _("admin.ticket_id") }}</label>
+      <input id="ticket-id" name="ticket_id" type="number" min="1" inputmode="numeric" value="{{ ticket_id or '' }}">
+    </div>
+    <div class="filter-field">
+      <label for="job-status">{{ _("admin.job_status") }}</label>
+      <select id="job-status" name="status">
+        <option value="">{{ _("admin.all_statuses") }}</option>
+        {% for option in status_options %}
+        <option value="{{ option }}" {% if option == status %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="button" type="submit">{{ _("admin.filter") }}</button>
+    {% if ticket_id or status %}<a class="button button--quiet" href="/admin/jobs">{{ _("admin.clear_filters") }}</a>{% endif %}
+  </form>
+  {% if items %}
+  <div class="table-region" role="region" aria-label="{{ _("admin.jobs") }}" tabindex="0">
+    <table>
+      <thead>
+        <tr>
+          <th>{{ _("admin.time") }}</th>
+          <th>{{ _("admin.ticket_id") }}</th>
+          <th>{{ _("admin.job_status") }}</th>
+          <th>{{ _("admin.classification") }}</th>
+          <th>{{ _("admin.message") }}</th>
+          <th>{{ _("admin.request_id") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="time">{{ item.created_display }}</td>
+          <td class="ticket"><a href="/admin/jobs/{{ item.ticket_id }}">{{ item.ticket_id or "–" }}</a></td>
+          <td><span class="status-badge">{{ item.status }}</span></td>
+          <td>
+            {% if item.classification %}
+            <span class="class-tag class-tag--{{ item.classification|lower }}">{{ item.classification }}</span>
+            {% else %}–{% endif %}
+          </td>
+          <td class="message">{{ item.message or "–" }}</td>
+          <td><code>{{ item.request_id or "–" }}</code></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if next_cursor %}
+  <a class="button" href="?before_id={{ next_cursor }}{% if ticket_id %}&ticket_id={{ ticket_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}">{{ _("admin.next_page") }}</a>
+  {% endif %}
+  {% else %}
+  <p class="empty-state">{{ _("admin.no_jobs") }}</p>
+  {% endif %}
+</div>
+{% endblock %}

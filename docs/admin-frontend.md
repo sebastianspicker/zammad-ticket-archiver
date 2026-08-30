@@ -105,12 +105,12 @@ zoom, contrast, and populated-data review.
 
 | Path | Role |
 | --- | --- |
-| `src/chronikwerk/templates/admin/` | Server-rendered Jinja templates |
+| `src/chronikwerk/web/templates/admin/` | Server-rendered Jinja templates |
 | `frontend/admin/css/*.css` | Modular administration styles |
 | `frontend/admin.ts` and `frontend/admin/*.ts` | Dependency-free TypeScript behavior |
-| `src/chronikwerk/static/admin/admin.css` | Assembled packaged stylesheet |
-| `src/chronikwerk/static/admin/admin.js` | Bundled packaged JavaScript |
-| `src/chronikwerk/app/admin/` | HTML forms, session handling, and JSON endpoints |
+| `src/chronikwerk/web/static/admin/admin.css` | Assembled packaged stylesheet |
+| `src/chronikwerk/web/static/admin/admin.js` | Bundled packaged JavaScript |
+| `src/chronikwerk/web/admin/` | HTML forms, session handling, and JSON endpoints |
 
 Run `make frontend-check` to type-check the TypeScript, rebuild temporary assets, and
 compare them with the packaged CSS and JavaScript. Use `make frontend-update` only when

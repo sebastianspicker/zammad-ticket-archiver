@@ -411,8 +411,3 @@ def translate(locale: str | None, key: str, **values: Any) -> str:
 def plural_key(base: str, value: int) -> str:
     """Choose the singular or plural catalog key for a count."""
     return f"{base}.one" if value == 1 else f"{base}.other"
-
-
-def catalog_keys(locale: str) -> set[str]:
-    """Expose keys for parity tests without leaking a mutable catalog."""
-    return set(_CATALOGS[normalize_locale(locale)])
