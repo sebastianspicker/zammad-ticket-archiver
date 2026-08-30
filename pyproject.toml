@@ -53,7 +53,6 @@ dev = [
   "mypy>=1.10",
   "lizard==1.22.2",
   "types-PyYAML",
-  "pre-commit>=3.7",
   "chronikwerk[signing]",
 ]
 [project.urls]

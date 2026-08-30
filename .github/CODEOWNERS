@@ -4,7 +4,6 @@
 /.dockerignore           @sebastianspicker
 /.gitignore              @sebastianspicker
 /.codacy.yaml            @sebastianspicker
-/.pre-commit-config.yaml @sebastianspicker
 /CHANGELOG.md            @sebastianspicker
 /CODE_OF_CONDUCT.md      @sebastianspicker
 /CONTRIBUTING.md         @sebastianspicker

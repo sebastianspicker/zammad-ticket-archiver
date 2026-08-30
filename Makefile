@@ -10,8 +10,6 @@ dev:
 dev-setup:
 	@echo "Setting up development environment..."
 	$(PYTHON) -m pip install -e ".[dev]"
-	$(PYTHON) -m pip install pre-commit
-	$(PYTHON) -m pre_commit install
 	$(MAKE) frontend-install
 	@echo "Creating .env from example if not exists..."
 	@if [ ! -f .env ]; then cp .env.example .env && echo "Created .env - please edit with your settings"; fi

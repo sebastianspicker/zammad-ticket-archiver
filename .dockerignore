@@ -51,11 +51,9 @@ build
 node_modules
 package.json
 package-lock.json
-playwright.config.ts
 tsconfig*.json
 frontend
 test-results
-playwright-report
 .pytest_cache
 htmlcov
 .coverage
@@ -78,9 +76,6 @@ Makefile
 !README.md
 !CHANGELOG.md
 !LICENSE
-
-# Pre-commit
-.pre-commit-config.yaml
 
 # Local tool state
 .local
