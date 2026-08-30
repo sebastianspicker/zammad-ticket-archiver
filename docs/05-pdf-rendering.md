@@ -19,16 +19,16 @@ flowchart LR
 
 Code paths:
 
-- `src/chronikwerk/adapters/snapshot/build_snapshot.py`
-- `src/chronikwerk/adapters/pdf/template_engine.py`
-- `src/chronikwerk/adapters/pdf/render_pdf.py`
-- `src/chronikwerk/templates/`
+- `src/chronikwerk/documents/snapshot.py`
+- `src/chronikwerk/documents/templates.py`
+- `src/chronikwerk/documents/pdf.py`
+- `src/chronikwerk/documents/templates/`
 
 ## Template Contract
 
 Bundled template:
 
-- `src/chronikwerk/templates/default/ticket.html`
+- `src/chronikwerk/documents/templates/default/ticket.html`
 
 Provided variables:
 

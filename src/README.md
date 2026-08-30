@@ -1,29 +1,17 @@
 # `src/`
 
-This directory contains the service implementation.
+The Python package is a modular monolith assembled by `chronikwerk/composition.py`.
 
-High-level layout:
+- `archiving/`: archive attempts, outcomes, workflow ordering, and product policy.
+- `zammad/`: Zammad transport, DTOs, ticket gateway, and tag/note projection.
+- `documents/`: snapshot mapping, sanitization, PDF templates, rendering, signing, and TSA.
+- `storage/`: safe paths, root-confined filesystem access, audit records, and transactions.
+- `configuration/`: validated settings, loading, redaction, and managed revisions.
+- `operations/`: process-local scheduling, admission, dedupe, history, shutdown, and telemetry.
+- `web/`: FastAPI routes, middleware, administration UI, templates, and generated assets.
+- `composition.py`: converts configuration into narrow runtime options and wires dependencies.
+- `runtime.py` and `asgi.py`: command-line and ASGI entry points.
 
-- `src/chronikwerk/runtime.py` – CLI/runtime entry point (loads config, configures logging, runs Uvicorn)
-- `src/chronikwerk/asgi.py` – ASGI app module for `uvicorn chronikwerk.asgi:app`
-- `src/chronikwerk/app/` – FastAPI app wiring, middleware, routes
-  - `admin/` – feature-flagged HTML/API control plane, sessions, CSRF, and security headers
-  - `routes/ingest.py` – `POST /ingest` webhook endpoint (`202` only after bounded admission; validation, authentication, or capacity failures return an error)
-  - `routes/healthz.py` – `GET /healthz`
-  - `routes/metrics.py` – `GET /metrics` (only mounted when enabled)
-  - `middleware/` – request ID, HMAC verification, rate limit, body size limit
-  - `jobs/process_ticket.py` – end-to-end ticket processing pipeline
-  - `jobs/admission.py` – bounded process-local pending/running admission state
-- `src/chronikwerk/adapters/` – external integrations and IO
-  - `zammad/` – Zammad REST API client
-  - `pdf/` – HTML rendering + PDF generation (WeasyPrint)
-  - `signing/` – PAdES signing + RFC3161 TSA client (pyHanko)
-  - `storage/` – path layout + atomic writes
-  - `snapshot/` – snapshot builder
-- `src/chronikwerk/domain/` – domain logic (path policy, audit sidecar schema, idempotency, state machine)
-- `src/chronikwerk/config/` – settings, precedence, validation, and managed non-secret revisions
-- `src/chronikwerk/i18n.py` – shared `de-DE` and `en-GB` catalogs
-- `src/chronikwerk/templates/admin/` and `static/admin/` – server-rendered admin UI
-  (CSS assembled from `frontend/admin/css/`, JS bundled from `frontend/admin.ts`)
-
-Operator docs live in `docs/` (start with `docs/08-operations.md`).
+The dependency rules are documented in `docs/01-architecture.md` and enforced by
+`tests/unit/configuration/test_architecture.py`. Do not recreate the removed historical package
+families or import underscore-prefixed implementation modules across package boundaries.

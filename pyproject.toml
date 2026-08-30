@@ -74,11 +74,12 @@ where = ["src"]
 [tool.setuptools.package-data]
 chronikwerk = [
   "py.typed",
-  "templates/**/*.css",
-  "templates/**/*.html",
-  "static/**/*.css",
-  "static/**/*.js",
-  "static/**/*.svg",
+  "documents/templates/**/*.css",
+  "documents/templates/**/*.html",
+  "web/templates/**/*.html",
+  "web/static/**/*.css",
+  "web/static/**/*.js",
+  "web/static/**/*.svg",
 ]
 
 [tool.ruff]

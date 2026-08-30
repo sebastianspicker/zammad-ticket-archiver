@@ -1,0 +1,63 @@
+{# Packaged with the web control plane. #}
+{% extends "base.html" %}
+{% block title %}{{ _("admin.ticket_history") }} {{ ticket_id }} · {{ _("admin.service_name") }}{% endblock %}
+{% block content %}
+<div class="route-page route-page--detail">
+  <p class="breadcrumb">
+    <a href="/admin">{{ _("admin.overview") }}</a><span aria-hidden="true">/</span>
+    <a href="/admin/jobs">{{ _("admin.jobs") }}</a><span aria-hidden="true">/</span>
+    {{ ticket_id }}
+  </p>
+  <div class="page-heading">
+    <div>
+      <p class="page-kicker">{{ _("admin.activity_record") }}</p>
+      <h1>{{ _("admin.ticket_history") }}</h1>
+      <p class="page-intro">{{ _("admin.ticket_id") }} <code>{{ ticket_id }}</code></p>
+    </div>
+  </div>
+  {% if accepted %}
+  <div class="banner banner--success" role="status">
+    {{ _("admin.accepted") }}{% if request_id %}<br>{{ _("admin.request_id") }}: <code>{{ request_id }}</code>{% endif %}
+  </div>
+  {% endif %}
+  {% if retry_unavailable %}
+  <div class="banner banner--error" role="alert">{{ _("admin.retry_unavailable") }}</div>
+  {% endif %}
+  <section class="event-workspace" aria-label="{{ _("admin.ticket_history") }}">
+    {% if items %}
+    <ol class="timeline">
+      {% for item in items %}
+      <li>
+        <div class="timeline-heading">
+          <time>{{ item.created_display }}</time>
+          <span class="status-badge">{{ item.status }}</span>
+        </div>
+        <p>
+          {% if item.classification %}
+          <span class="class-tag class-tag--{{ item.classification|lower }}">{{ item.classification }}</span>
+          ·
+          {% else %}– · {% endif %}
+          {{ item.message or "–" }}
+        </p>
+        {% if item.request_id %}<code>{{ item.request_id }}</code>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="empty-state">{{ _("admin.no_jobs") }}</p>
+    {% endif %}
+  </section>
+  <details class="action-disclosure">
+    <summary>{{ _("admin.retry") }}</summary>
+    <p>{{ _("admin.retry_warning") }}</p>
+    <form method="post" action="/admin/jobs/{{ ticket_id }}/retry">
+      <input type="hidden" name="csrf_token" value="{{ session.csrf_token }}">
+      <label class="checkbox">
+        <input type="checkbox" name="acknowledge_overwrite" value="true" required>
+        {{ _("admin.retry_ack") }}
+      </label>
+      <button class="button button--danger" type="submit">{{ _("admin.retry_submit") }}</button>
+    </form>
+  </details>
+</div>
+{% endblock %}

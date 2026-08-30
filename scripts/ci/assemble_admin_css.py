@@ -2,7 +2,7 @@
 """Assemble modular admin CSS into the shipped static stylesheet.
 
 Source of truth: frontend/admin/css/*.css (sorted by filename).
-Default output:   src/chronikwerk/static/admin/admin.css
+Default output:   src/chronikwerk/web/static/admin/admin.css
 
 Usage:
   python scripts/ci/assemble_admin_css.py
@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CSS_SRC = REPO_ROOT / "frontend" / "admin" / "css"
-DEFAULT_OUT = REPO_ROOT / "src" / "chronikwerk" / "static" / "admin" / "admin.css"
+DEFAULT_OUT = REPO_ROOT / "src" / "chronikwerk" / "web" / "static" / "admin" / "admin.css"
 
 
 def collect_sources() -> list[Path]:

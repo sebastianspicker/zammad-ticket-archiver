@@ -1,0 +1,29 @@
+{# Packaged with the web control plane. #}
+{% extends "base.html" %}
+{% block title %}{{ _("admin.sign_in") }} · {{ _("admin.service_name") }}{% endblock %}
+{% block content %}
+<section class="login-workspace" aria-labelledby="login-title">
+  <div class="login-context">
+    <p class="page-kicker login-context__label">{{ _("admin.control_plane") }}</p>
+    <h1 id="login-title">{{ _("admin.sign_in") }}</h1>
+    <p class="page-intro">{{ _("admin.login_scope") }}</p>
+  </div>
+  <div class="login-access">
+    <header class="login-access__heading">
+      <h2>{{ _("admin.admin_access") }}</h2>
+      <p>{{ _("admin.login_help") }}</p>
+    </header>
+    {% if error %}
+    <div class="banner banner--error" role="alert">{{ _("admin.invalid_credentials") }}</div>
+    {% endif %}
+    <form method="post" action="/admin/login" class="stack">
+      <input type="hidden" name="next" value="{{ next_path }}">
+      <input type="hidden" name="locale" value="{{ locale }}">
+      <label for="access-token">{{ _("admin.access_token") }}</label>
+      <input id="access-token" name="access_token" type="password" autocomplete="current-password" required>
+      <button class="button button--primary" type="submit">{{ _("admin.sign_in") }}</button>
+    </form>
+    <p class="supporting-text">{{ _("admin.session_volatile") }}</p>
+  </div>
+</section>
+{% endblock %}

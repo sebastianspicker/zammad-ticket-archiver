@@ -32,7 +32,7 @@ typecheck:
 
 complexity:
 	$(PYTHON) -m lizard -w -C 10 -L 80 \
-		-x "src/chronikwerk/static/admin/admin.js" \
+		-x "src/chronikwerk/web/static/admin/admin.js" \
 		src/chronikwerk scripts frontend
 
 duplication:
@@ -49,14 +49,14 @@ frontend-build:
 	$(NPM) run build:admin
 
 frontend-check: frontend-typecheck frontend-build
-	@cmp -s build/typescript/admin.js src/chronikwerk/static/admin/admin.js || \
+	@cmp -s build/typescript/admin.js src/chronikwerk/web/static/admin/admin.js || \
 		(echo "Generated admin.js is stale; run 'make frontend-update'." && exit 1)
-	@cmp -s build/admin/admin.css src/chronikwerk/static/admin/admin.css || \
+	@cmp -s build/admin/admin.css src/chronikwerk/web/static/admin/admin.css || \
 		(echo "Generated admin.css is stale; run 'make frontend-update'." && exit 1)
 
 frontend-update: frontend-build
-	cp build/typescript/admin.js src/chronikwerk/static/admin/admin.js
-	cp build/admin/admin.css src/chronikwerk/static/admin/admin.css
+	cp build/typescript/admin.js src/chronikwerk/web/static/admin/admin.js
+	cp build/admin/admin.css src/chronikwerk/web/static/admin/admin.css
 
 test:
 	$(PYTHON) -m pytest -q
@@ -100,7 +100,7 @@ clean-wheel-smoke: build
 	tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
 	$(PYTHON) -m venv "$$tmp/venv"; \
 	"$$tmp/venv/bin/python" -m pip install --no-cache-dir dist/*.whl; \
-	"$$tmp/venv/bin/python" -c 'from chronikwerk.app.server import create_app; print(create_app)'
+	"$$tmp/venv/bin/python" -c 'from chronikwerk.web.app import create_app; print(create_app)'
 
 production-image-smoke:
 	bash scripts/ci/production_image_smoke.sh

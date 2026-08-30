@@ -2,12 +2,12 @@
 
 Source of truth:
 
-- `src/chronikwerk/config/settings.py`
-- `src/chronikwerk/config/_settings_sections.py`
-- `src/chronikwerk/config/_settings_signing.py`
-- `src/chronikwerk/config/_settings_zammad.py`
-- `src/chronikwerk/config/load.py`
-- `src/chronikwerk/config/validate.py`
+- `src/chronikwerk/configuration/models.py`
+- `src/chronikwerk/configuration/sections.py`
+- `src/chronikwerk/configuration/signing.py`
+- `src/chronikwerk/configuration/zammad.py`
+- `src/chronikwerk/configuration/load.py`
+- `src/chronikwerk/configuration/validation.py`
 
 ## Load Precedence
 

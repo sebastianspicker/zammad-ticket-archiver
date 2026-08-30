@@ -10,7 +10,7 @@ required_paths=(
   "pyproject.toml"
   "docs/01-architecture.md"
   "config/config.example.yaml"
-  "src/chronikwerk/templates/default/ticket.html"
+  "src/chronikwerk/documents/templates/default/ticket.html"
   ".github/workflows/ci.yml"
 )
 

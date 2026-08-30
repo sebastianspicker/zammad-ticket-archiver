@@ -8,32 +8,11 @@
 | Proposed tag | `v0.3.0-alpha.1` |
 | Publication state | Unreleased |
 | Readiness | Not ready for publication |
-| Evidence date | 2026-07-24 |
+| Evidence date | 2026-08-27 |
 
 Chronikwerk is available for local evaluation with non-production data. No source
 checkout, package, image, or screenshot should be treated as release evidence until it
 is produced from and verified against the same reviewed tag.
-
-## Local addendum (2026-08-14)
-
-The July record below is historical. A frozen development environment from
-`uv.lock` produced these results on the addendum date:
-
-- Ruff lint and formatting passed for 254 files;
-- mypy passed across 207 source files;
-- the branch-aware suite passed 812 tests at 94.88 percent coverage;
-- configuration-contract tests passed 5 of 5;
-- brand, 32-document link, code-purpose, 600-line source-limit, complexity, and
-  repository smoke checks passed; and
-- isolated source-distribution and wheel builds succeeded.
-
-The complete gate remains open. Frontend verification cannot run because the
-declared Node dependencies are absent, deterministic screenshot replay cannot
-find its pinned Chromium renderer, and the stopped Docker daemon blocks the
-production-image and Zammad end-to-end lanes. Firefox, WebKit, PDF/UA,
-assistive-technology, live Zammad, storage, signing, and exact-tag evidence also
-remain external. GitHub Pages is not configured or suitable for the operational
-FastAPI service.
 
 ## Implemented surface
 
@@ -58,16 +37,18 @@ admission, not archival completion.
 
 The following checks pass on Python 3.14.6 and the current locked frontend toolchain:
 
-- 648 Python tests;
-- 88.66 percent branch-aware coverage against an 85 percent minimum;
+- 48 behavior-focused Python tests;
+- 64 percent branch-aware coverage against a mechanically enforced 57 percent minimum;
 - Ruff lint;
-- mypy across 191 source files;
+- Ruff formatting across 164 files;
+- mypy across 125 source and test files;
 - TypeScript type checking and compiled administration asset comparison;
 - Python source distribution and wheel builds;
-- four Chromium administration scenarios;
 - production and full-corpus duplication checks with zero clones;
-- configuration-contract tests;
-- brand, documentation-link, screenshot-manifest, and repository smoke checks; and
+- architecture dependency, configuration, HTTP, Zammad, document, storage, and workflow
+  contract tests;
+- brand, documentation-link, screenshot-manifest, source-purpose, source-length, complexity,
+  repository smoke, and clean-wheel checks; and
 - whitespace validation with `git diff --check`.
 
 The Python suite emits one upstream Starlette/httpx deprecation warning.
@@ -76,12 +57,9 @@ The Python suite emits one upstream Starlette/httpx deprecation warning.
 
 Publication still requires:
 
-- formatting alignment for the files reported by `ruff format --check`;
-- code-purpose documentation for the public functions reported by
-  `scripts/ci/check_code_docs.py`;
-- compliance with the function limits reported by `make complexity`;
-- Firefox, WebKit, and narrow WebKit browser runs with the pinned binaries;
-- production-image and Docker end-to-end checks;
+- Firefox, WebKit, and narrow WebKit browser runs;
+- production-image smoke and Docker deployment checks;
+- live Zammad workflow verification, including terminal tags and internal notes;
 - representative signed and unsigned PDF/UA validation;
 - manual screen-reader, keyboard, contrast, 400 percent zoom, and populated-data
   review; and
@@ -108,8 +86,8 @@ Publication still requires:
 
 The following compiled files are intentional project artifacts:
 
-- `src/chronikwerk/static/admin/admin.js`, built from `frontend/admin.ts`;
-- `src/chronikwerk/static/admin/admin.css`, assembled from
+- `src/chronikwerk/web/static/admin/admin.js`, built from `frontend/admin.ts`;
+- `src/chronikwerk/web/static/admin/admin.css`, assembled from
   `frontend/admin/css/*.css`; and
 - `docs/screenshots/*.png` with `docs/screenshots/manifest.json`.
 

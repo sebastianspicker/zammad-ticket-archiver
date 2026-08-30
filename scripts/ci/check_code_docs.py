@@ -18,9 +18,7 @@ DOCUMENTED_PYTHON_SURFACES = (
     Path("scripts"),
 )
 TEST_ROOT = Path("tests")
-TYPESCRIPT_ROOTS = (
-    Path("frontend"),
-)
+TYPESCRIPT_ROOTS = (Path("frontend"),)
 TYPESCRIPT_FILES: tuple[Path, ...] = ()
 SHELL_ROOTS = (Path("scripts"),)
 PLACEHOLDER_DOCSTRING_FRAGMENTS = (

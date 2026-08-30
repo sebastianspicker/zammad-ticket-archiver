@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from chronikwerk.bootstrap import build_runtime_application
+from chronikwerk.composition import build_runtime_application
 
 settings, app = build_runtime_application()

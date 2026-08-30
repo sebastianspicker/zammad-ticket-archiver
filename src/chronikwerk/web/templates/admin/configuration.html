@@ -1,0 +1,125 @@
+{# Packaged with the web control plane. #}
+{% extends "base.html" %}
+{% block title %}{{ _("admin.configuration") }} · {{ _("admin.service_name") }}{% endblock %}
+{% block content %}
+<div class="route-page route-page--settings">
+  <p class="breadcrumb"><a href="/admin">{{ _("admin.overview") }}</a><span aria-hidden="true">/</span>{{ _("admin.configuration") }}</p>
+  <div class="page-heading">
+    <div>
+      <p class="page-kicker">{{ _("admin.controlled_values") }}</p>
+      <h1>{{ _("admin.configuration") }}</h1>
+      <p class="page-intro">{{ _("admin.config_intro") }}</p>
+    </div>
+    <a class="button" href="/admin/configuration/revisions">{{ _("admin.view_revisions") }}</a>
+  </div>
+  {% if staged_revision %}
+  <div class="banner banner--warning" role="status">
+    {{ _("admin.restart_required") }}<br><code>{{ staged_revision }}</code>
+  </div>
+  {% endif %}
+  <form id="configuration-form" data-config-form data-revision="{{ current_revision }}">
+    <div
+      class="banner banner--error form-error-summary"
+      data-config-errors
+      data-network-error="{{ _("admin.network_error") }}"
+      role="alert"
+      tabindex="-1"
+      hidden
+    ></div>
+    {% for group, fields in field_groups.items() %}
+    <fieldset class="config-group">
+      <legend><span>{{ group }}</span><small>{{ fields | length }} {{ _("admin.values") }}</small></legend>
+      {% for field in fields %}
+      <div
+        class="config-field"
+        data-path="{{ field.path }}"
+        data-kind="{{ field.kind }}"
+        data-security="{{ 'true' if field.security_acknowledgement else 'false' }}"
+        data-original="{{ field.value | tojson | forceescape }}"
+        data-managed="{{ 'true' if field.source == 'managed' else 'false' }}"
+      >
+        <div class="field-heading">
+          <label for="field-{{ loop.index }}-{{ group }}"><code>{{ field.path }}</code></label>
+          <span class="source-badge">{{ _("admin." + field.source) }}</span>
+        </div>
+        {% if field.kind == "boolean" %}
+        <select
+          id="field-{{ loop.index }}-{{ group }}"
+          aria-describedby="error-field-{{ loop.index }}-{{ group }}"
+          {% if not field.editable %}disabled{% endif %}
+        >
+          <option value="true" {% if field.value %}selected{% endif %}>true</option>
+          <option value="false" {% if not field.value %}selected{% endif %}>false</option>
+        </select>
+        {% elif field.kind == "choice" %}
+        <select
+          id="field-{{ loop.index }}-{{ group }}"
+          aria-describedby="error-field-{{ loop.index }}-{{ group }}"
+          {% if not field.editable %}disabled{% endif %}
+        >
+          {% for choice in field.choices %}
+          <option value="{{ choice }}" {% if choice == field.value %}selected{% endif %}>{{ choice }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input
+          id="field-{{ loop.index }}-{{ group }}"
+          aria-describedby="error-field-{{ loop.index }}-{{ group }}"
+          type="{{ 'number' if field.kind in ['integer', 'number'] else 'text' }}"
+          {% if field.kind == 'number' %}step="any"{% endif %}
+          value="{{ field.value }}"
+          {% if not field.editable %}disabled{% endif %}
+        >
+        {% endif %}
+        <p id="error-field-{{ loop.index }}-{{ group }}" class="field-error" data-field-error hidden></p>
+      </div>
+      {% endfor %}
+    </fieldset>
+    {% endfor %}
+    <div class="config-actions">
+      <p
+        class="change-count"
+        data-change-count
+        data-zero="{{ _("admin.no_changes") }}"
+        data-one="{{ _("admin.one_change") }}"
+        data-many="{{ _("admin.many_changes", count="{count}") }}"
+      >{{ _("admin.no_changes") }}</p>
+      <label class="checkbox">
+        <input type="checkbox" name="security_acknowledged">
+        {{ _("admin.security_ack") }}
+      </label>
+      <button class="button button--primary" type="submit">{{ _("admin.validate_review") }}</button>
+    </div>
+  </form>
+  <section
+    class="review-panel"
+    data-config-review
+    data-no-changes="{{ _("admin.no_changes_to_stage") }}"
+    hidden
+    aria-labelledby="review-title"
+  >
+    <h2 id="review-title">{{ _("admin.validate_review") }}</h2>
+    <p class="inline-result" data-config-review-status aria-live="polite"></p>
+    <div class="table-region" data-config-diff-region role="region" aria-labelledby="review-title" tabindex="0">
+      <table>
+        <thead>
+          <tr>
+            <th>{{ _("admin.path") }}</th>
+            <th>{{ _("admin.before") }}</th>
+            <th>{{ _("admin.after") }}</th>
+          </tr>
+        </thead>
+        <tbody data-config-diff></tbody>
+      </table>
+    </div>
+    <button class="button button--primary" type="button" data-config-stage>{{ _("admin.stage") }}</button>
+    <div
+      class="inline-result"
+      data-config-result
+      data-success="{{ _("admin.staged_success") }}"
+      data-network-error="{{ _("admin.network_error") }}"
+      aria-live="polite"
+    ></div>
+  </section>
+</div>
+{% endblock %}

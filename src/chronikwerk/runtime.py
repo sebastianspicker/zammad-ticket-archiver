@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uvicorn
 
-from chronikwerk.bootstrap import build_runtime_application
+from chronikwerk.composition import build_runtime_application
 
 
 def main() -> int:

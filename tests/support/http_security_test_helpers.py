@@ -7,8 +7,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from chronikwerk.app.server import create_app
-from chronikwerk.config.settings import Settings
+from chronikwerk.configuration.models import Settings
+from chronikwerk.web.app import create_app
 from tests.support.hmac_test_helpers import sign_body
 from tests.support.settings_factory import make_settings
 

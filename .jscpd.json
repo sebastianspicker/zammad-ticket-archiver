@@ -6,7 +6,7 @@
   "ignore": [
     "**/build/**",
     "**/node_modules/**",
-    "src/chronikwerk/static/admin/admin.js"
+    "src/chronikwerk/web/static/admin/admin.js"
   ],
   "gitignore": true,
   "mode": "mild",

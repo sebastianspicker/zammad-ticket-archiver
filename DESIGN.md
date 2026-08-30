@@ -95,9 +95,9 @@ At 320px the document never overflows; tables scroll inside labeled regions.
 | --- | --- |
 | `frontend/admin/css/*.css` | Modular Instrument Ledger styles (assembled) |
 | `frontend/admin.ts` + `frontend/admin/*.ts` | Modular admin TypeScript (bundled) |
-| `src/chronikwerk/static/admin/admin.css` | Assembled shipped CSS |
-| `src/chronikwerk/static/admin/admin.js` | Bundled shipped JS |
-| `src/chronikwerk/templates/admin/` | Server-rendered Jinja templates |
+| `src/chronikwerk/web/static/admin/admin.css` | Assembled shipped CSS |
+| `src/chronikwerk/web/static/admin/admin.js` | Bundled shipped JS |
+| `src/chronikwerk/web/templates/admin/` | Server-rendered Jinja templates |
 
 Build with `make frontend-update` (assembles CSS, bundles JS, copies into static).
 
