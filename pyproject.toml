@@ -42,7 +42,7 @@ dependencies = [
 signing = [
   "asn1crypto>=1.5,<2.0",
   "cryptography>=50.0.0,<51",
-  "pyhanko>=0.26,<0.35",
+  "pyhanko>=0.26,<0.38",
   "pyhanko-certvalidator>=0.26,<0.31",
 ]
 dev = [
