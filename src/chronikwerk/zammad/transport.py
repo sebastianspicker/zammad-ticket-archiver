@@ -81,7 +81,7 @@ class _RequestAttempt:
 class ZammadRequest:
     """One JSON request delegated to the Zammad transport."""
 
-    method: Literal["GET", "POST"]
+    method: Literal["GET", "POST", "DELETE"]
     path: str
     params: dict[str, str] | None = None
     json: Any | None = None
@@ -148,7 +148,7 @@ class ZammadTransport:
 
     async def request_json(
         self,
-        method: Literal["GET", "POST"],
+        method: Literal["GET", "POST", "DELETE"],
         path: str,
         *,
         params: dict[str, str] | None = None,

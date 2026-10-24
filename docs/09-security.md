@@ -38,7 +38,9 @@ flowchart LR
   There is no supported unsigned mode.
 - The middleware keeps a defensive fail-closed `503` response if an application is constructed
   without validated settings.
-- Only SHA-256 HMAC signatures are accepted; SHA-1 is not.
+- Compatibility mode accepts Zammad's native HMAC-SHA1 (`sha1=`) and HMAC-SHA256 (`sha256=`)
+  signatures over the raw body. Strict delivery-ID mode accepts HMAC-SHA256 only
+  ([ADR 0010](adr/0010-zammad-native-webhook-signature.md)).
 
 ### Replay and duplicate delivery
 
@@ -57,7 +59,9 @@ Residual risk: dedupe state is process-local and resets on restart.
 - Symlinks under the storage root are rejected.
 - PDF and sidecar writes are atomic.
 
-Residual risk: filesystem behavior still depends on the mounted storage and the OS.
+Residual risk: filesystem behavior still depends on the mounted storage and the OS. The
+directory a ticket lands in is chosen by whoever can edit the archive fields in Zammad; keep
+those fields agent-only ([Zammad setup](02-zammad-setup.md)).
 
 ### Secret leakage
 

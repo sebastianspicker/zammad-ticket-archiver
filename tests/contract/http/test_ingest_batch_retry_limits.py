@@ -50,6 +50,17 @@ def test_batch_of_101_is_rejected_without_scheduling(tmp_path) -> None:
     assert spy.scheduled == []
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_empty_batch_is_rejected_without_scheduling(tmp_path, dry_run: bool) -> None:
+    client, spy = _client(tmp_path)
+
+    response = _batch(client, 0, "/ingest/batch?dry_run=true" if dry_run else "/ingest/batch")
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "batch must not be empty", "code": "batch_empty"}
+    assert spy.scheduled == []
+
+
 def test_batch_of_exactly_100_is_accepted(tmp_path) -> None:
     client, spy = _client(tmp_path)
 

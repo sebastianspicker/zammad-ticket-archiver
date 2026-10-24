@@ -158,6 +158,9 @@ async def batch_ingest(
     if error is not None or scheduler is None:
         return error or _overload_error()
 
+    if not payloads:
+        return api_error(422, "batch must not be empty", code="batch_empty")
+
     # Security: reject oversized batches before processing any items.
     if len(payloads) > MAX_BATCH_SIZE:
         return api_error(

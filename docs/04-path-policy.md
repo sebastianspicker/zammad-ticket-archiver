@@ -18,8 +18,10 @@ Empty fragments are ignored, but at least one segment must remain.
 
 Optionally controls the user directory segment. A missing value defaults to `owner`:
 
-- `owner`: `ticket.owner.login`
-- `current_agent`: webhook user login, falling back to `ticket.updated_by.login`
+- `owner`: the ticket owner's login (an unassigned ticket fails)
+- `current_agent`: the triggering agent from the webhook's `ticket.updated_by.login`, or a
+  top-level `user.login` in a custom webhook payload; otherwise the fetched ticket's last editor,
+  but never Chronikwerk's own API account
 - `fixed`: `archive_user`
 
 ## Validation

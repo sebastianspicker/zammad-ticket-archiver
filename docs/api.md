@@ -14,8 +14,9 @@ Query parameters:
 Headers:
 
 - `Content-Type: application/json`
-- `X-Hub-Signature`: required SHA-256 HMAC signature. Supported startup
-  configuration requires a webhook HMAC secret.
+- `X-Hub-Signature`: required HMAC signature, either Zammad's native
+  `sha1=<hex>` or `sha256=<hex>`. Supported startup configuration requires a
+  webhook HMAC secret.
 - `X-Zammad-Delivery`: required only when
   `hardening.webhook.require_delivery_id=true`.
 - `X-Request-Id`: optional request correlation ID.
@@ -56,6 +57,7 @@ Accepts a JSON array of webhook payloads and schedules one job per item.
 Limits:
 
 - Maximum batch size: `100`; larger batches return `422 batch_too_large`.
+- An empty array returns `422 batch_empty`.
 - Admission is all-or-nothing: if capacity cannot hold every item, nothing is scheduled.
 - Each item must contain either `ticket.id` or `ticket_id`.
 
@@ -197,9 +199,11 @@ Supported signature header:
 
 - `X-Hub-Signature`
 
-Supported algorithm:
+Supported algorithms:
 
-- `sha256=<hex>`
+- `sha1=<hex>`: HMAC-SHA1, the form Zammad sends natively. Compatibility mode
+  only.
+- `sha256=<hex>`: HMAC-SHA256. Accepted in both modes.
 
 When `hardening.webhook.require_delivery_id=false`, the signature is computed
 over the raw request body bytes for compatibility. In strict delivery-ID mode,
@@ -214,8 +218,10 @@ b"zammad-webhook-v1\\0"
 ```
 
 Changing the delivery ID therefore invalidates a strict-mode signature. Enable
-strict mode only after the webhook sender uses this canonical form. SHA-1
-compatibility is not supported.
+strict mode only after the webhook sender uses this canonical form. Zammad
+does not produce it, so strict mode needs a signing proxy. Strict mode accepts
+`sha256=` only. See
+[ADR 0010](adr/0010-zammad-native-webhook-signature.md).
 
 Compatibility-mode example:
 

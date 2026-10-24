@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -38,6 +38,7 @@ async def build_and_render_pdf(
     ticket_id: int,
     ticket: Ticket,
     tags: TagList,
+    custom_fields: dict[str, Any],
     options: DocumentOptions,
 ) -> RenderedTicket:
     """Fetch render inputs and produce PDF bytes for one ticket."""
@@ -46,6 +47,7 @@ async def build_and_render_pdf(
         ticket_id,
         ticket=ticket,
         tags=tags,
+        custom_fields=custom_fields,
         max_articles=options.max_articles,
         article_limit_mode=options.article_limit_mode,
     )

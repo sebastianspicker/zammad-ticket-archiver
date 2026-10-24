@@ -11,6 +11,7 @@ import pytest
 from chronikwerk.archiving.snapshot import build_snapshot
 from chronikwerk.zammad.dto import Article as ZammadArticle
 from chronikwerk.zammad.dto import TagList, Ticket
+from tests.support.zammad_fixtures import load_zammad_fixture
 
 
 class SnapshotClient:
@@ -142,3 +143,39 @@ def test_exact_article_limit_in_fail_mode_includes_every_article() -> None:
     assert [article.id for article in snapshot.articles] == [1, 2]
     assert snapshot.articles_total == 2
     assert snapshot.articles_omitted == 0
+
+
+def test_snapshot_reads_attachment_mime_type_from_zammad_preferences() -> None:
+    articles = [
+        ZammadArticle.model_validate(article)
+        for article in load_zammad_fixture("ticket_articles_by_ticket.json")
+    ]
+    client = SnapshotClient(ticket=Ticket(id=42, number="31042"), articles=articles)
+
+    snapshot = asyncio.run(build_snapshot(cast(Any, client), 42))
+
+    (attachment,) = snapshot.articles[0].attachments
+    assert (attachment.filename, attachment.size, attachment.content_type) == (
+        "error.png",
+        29935,
+        "image/png",
+    )
+
+
+@pytest.mark.parametrize(
+    ("attachment", "expected"),
+    [
+        ({"id": 1, "content_type": " text/plain "}, "text/plain"),
+        ({"id": 1, "preferences": {"Mime-Type": "application/pdf"}}, "application/pdf"),
+        ({"id": 1, "preferences": {"Content-Type": "  "}}, None),
+    ],
+)
+def test_snapshot_normalizes_attachment_mime_type_sources(
+    attachment: dict[str, Any], expected: str | None
+) -> None:
+    article = ZammadArticle.model_validate({"id": 1, "body": "x", "attachments": [attachment]})
+    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=[article])
+
+    snapshot = asyncio.run(build_snapshot(cast(Any, client), 1))
+
+    assert snapshot.articles[0].attachments[0].content_type == expected

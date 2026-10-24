@@ -20,7 +20,7 @@ _ERROR_HINT_RULES: tuple[_ErrorHintRule, ...] = (
         ("archive_path", "missing"),
         (),
         "missing_archive_path",
-        "Set custom_fields.archive_path on the ticket.",
+        "Set the archive_path ticket field.",
     ),
     (
         (),
@@ -35,16 +35,22 @@ _ERROR_HINT_RULES: tuple[_ErrorHintRule, ...] = (
         "Use a string or list of strings for archive_path.",
     ),
     (
+        ("chronikwerk api user",),
+        (),
+        "service_account_as_agent",
+        "Apply the archive macro in Zammad instead of retrying, or use fixed mode.",
+    ),
+    (
         (),
         ("owner.login", "updated_by.login"),
         "missing_user_login",
-        "Ensure ticket has owner/updated_by with login.",
+        "Assign an owner (owner mode) or check that a last editor exists (current_agent).",
     ),
     (
         (),
         ("archive_user", "archive_user_mode"),
         "missing_archive_user",
-        "Set custom_fields.archive_user for fixed mode.",
+        "Set the archive_user ticket field for fixed mode.",
     ),
     (
         ("filename",),

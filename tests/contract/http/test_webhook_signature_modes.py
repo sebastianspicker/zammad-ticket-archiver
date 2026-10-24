@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from chronikwerk.web.app import create_app
 from tests.support.asgi import asgi_post, body_chunks
-from tests.support.hmac_test_helpers import sign_body, sign_strict
+from tests.support.hmac_test_helpers import sign_body, sign_strict, sign_zammad_native
 from tests.support.http_security_test_helpers import assert_json_error, post_ingest
 from tests.support.scheduling import SchedulingSpy
 from tests.support.settings_factory import make_settings
@@ -72,10 +72,28 @@ def test_uppercase_algorithm_prefix_is_accepted(tmp_path) -> None:
     assert response.status_code == 202
 
 
-def test_sha1_signature_is_rejected(tmp_path) -> None:
-    client, _spy = _client(tmp_path)
+def test_legacy_mode_accepts_zammad_native_sha1_signature(tmp_path) -> None:
+    client, spy = _client(tmp_path)
+
+    response = post_ingest(client, _BODY, sign_zammad_native(_BODY, _SECRET))
+
+    assert response.status_code == 202
+    assert len(spy.scheduled) == 1
+
+
+def test_legacy_mode_rejects_wrong_sha1_signature(tmp_path) -> None:
+    client, spy = _client(tmp_path)
 
     response = post_ingest(client, _BODY, "sha1=" + "00" * 20)
+
+    assert response.status_code == 403
+    assert spy.scheduled == []
+
+
+def test_truncated_sha1_digest_is_rejected(tmp_path) -> None:
+    client, _spy = _client(tmp_path)
+
+    response = post_ingest(client, _BODY, sign_zammad_native(_BODY, _SECRET)[:-2])
 
     assert response.status_code == 403
 
@@ -95,6 +113,20 @@ def test_strict_mode_rejects_body_only_signature(tmp_path) -> None:
     client, spy = _client(tmp_path, strict=True)
 
     response = post_ingest(client, _BODY, sign_body(_BODY, _SECRET), delivery_id="delivery-1")
+
+    assert response.status_code == 403
+    assert spy.scheduled == []
+
+
+def test_strict_mode_rejects_sha1_even_when_delivery_bound(tmp_path) -> None:
+    client, spy = _client(tmp_path, strict=True)
+
+    response = post_ingest(
+        client,
+        _BODY,
+        sign_strict("delivery-1", _BODY, _SECRET, algorithm="sha1"),
+        delivery_id="delivery-1",
+    )
 
     assert response.status_code == 403
     assert spy.scheduled == []

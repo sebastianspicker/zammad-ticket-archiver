@@ -81,6 +81,21 @@ def _article_body_html_and_text(article: ZammadArticle) -> tuple[str, str]:
     return escape(body_raw, quote=False), body_raw
 
 
+def _attachment_content_type(attachment: Any) -> str | None:
+    content_type = getattr(attachment, "content_type", None)
+    if isinstance(content_type, str) and content_type.strip():
+        return content_type.strip()
+    # Zammad stores the MIME type in the attachment preferences, not a top-level field.
+    preferences = getattr(attachment, "preferences", None)
+    if not isinstance(preferences, dict):
+        return None
+    for key in ("Content-Type", "Mime-Type"):
+        value = preferences.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def _attachment_to_meta(article: ZammadArticle, attachment: Any) -> AttachmentMeta:
     attachment_id = getattr(attachment, "id", None)
     return AttachmentMeta(
@@ -88,7 +103,7 @@ def _attachment_to_meta(article: ZammadArticle, attachment: Any) -> AttachmentMe
         attachment_id=attachment_id if isinstance(attachment_id, int) else None,
         filename=getattr(attachment, "filename", None),
         size=getattr(attachment, "size", None),
-        content_type=getattr(attachment, "content_type", None),
+        content_type=_attachment_content_type(attachment),
     )
 
 
@@ -140,6 +155,7 @@ async def build_snapshot(
     *,
     ticket: ZammadTicket | None = None,
     tags: TagList | None = None,
+    custom_fields: dict[str, Any] | None = None,
     max_articles: int | None = None,
     article_limit_mode: str = "fail",
 ) -> Snapshot:
@@ -166,12 +182,6 @@ async def build_snapshot(
         cap_articles=cap_articles,
     )
 
-    custom_fields = (
-        ticket.preferences.custom_fields
-        if ticket.preferences is not None and isinstance(ticket.preferences.custom_fields, dict)
-        else {}
-    )
-
     return Snapshot(
         ticket=TicketMeta(
             id=ticket.id,
@@ -182,7 +192,7 @@ async def build_snapshot(
             customer=_party_from_zammad_ref(ticket.customer),
             owner=_party_from_zammad_ref(ticket.owner),
             tags=list(tags.root),
-            custom_fields=custom_fields,
+            custom_fields=dict(custom_fields or {}),
         ),
         articles=snapshot_articles,
         articles_total=articles_total,

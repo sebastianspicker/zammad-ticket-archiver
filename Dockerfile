@@ -11,7 +11,7 @@ RUN python -m venv /opt/build-venv \
   && /opt/build-venv/bin/python -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
     -r requirements/tools.lock
 
-COPY pyproject.toml README.md LICENSE CHANGELOG.md /app/
+COPY pyproject.toml README.md LICENSE CHANGELOG.md THIRD_PARTY_NOTICES.md /app/
 COPY src/ /app/src/
 
 RUN /opt/build-venv/bin/python -m build --no-isolation --wheel --outdir /tmp/dist \

@@ -39,6 +39,7 @@ class AsyncZammadClient:
         base_path = url.path.rstrip("/") + "/"
         self._base_url = url.copy_with(path=base_path)
 
+        self._current_user_login: str | None = None
         runtime = runtime or transport.ZammadRuntimeOptions()
         self._transport = transport.ZammadTransport(
             transport.ZammadTransportOptions(
@@ -71,9 +72,22 @@ class AsyncZammadClient:
         await self.aclose()
 
     async def get_ticket(self, ticket_id: int) -> Ticket:
-        """Fetch a single ticket by ID."""
-        resp = await self._request_json(ZammadRequest("GET", f"api/v1/tickets/{ticket_id}"))
+        """Fetch a single ticket by ID with user relations expanded to logins."""
+        resp = await self._request_json(
+            ZammadRequest("GET", f"api/v1/tickets/{ticket_id}", params={"expand": "true"})
+        )
         return Ticket.model_validate(resp)
+
+    async def get_current_user_login(self) -> str:
+        """Return the login of the API token's user, fetched once per client."""
+        if self._current_user_login is None:
+            resp = await self._request_json(ZammadRequest("GET", "api/v1/users/me"))
+            login = resp.get("login") if isinstance(resp, dict) else None
+            if not isinstance(login, str) or not login.strip():
+                # Without its own login the service could not exclude itself as current_agent.
+                raise ClientError("Zammad users/me response has no login for the API token")
+            self._current_user_login = login.strip()
+        return self._current_user_login
 
     async def list_tags(self, ticket_id: int) -> TagList:
         """Fetch all tags for a ticket."""
@@ -111,10 +125,10 @@ class AsyncZammadClient:
 
     async def remove_tag(self, ticket_id: int, tag: str) -> None:
         """Remove a tag from a ticket (idempotent)."""
-        # Using POST keeps this client compatible with the documented `/tags/remove` endpoint.
+        # Zammad routes `/tags/remove` with DELETE only and reads the JSON body.
         await self._request_json(
             ZammadRequest(
-                "POST",
+                "DELETE",
                 "api/v1/tags/remove",
                 json={"object": "Ticket", "o_id": ticket_id, "item": tag},
             )

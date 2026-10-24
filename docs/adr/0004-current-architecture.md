@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted (2026-07-10)
+Accepted (2026-07-10). Superseded in part by [ADR 0010](0010-zammad-native-webhook-signature.md):
+the webhook signature algorithm.
 
 ## Decision
 

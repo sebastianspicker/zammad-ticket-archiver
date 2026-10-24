@@ -22,9 +22,14 @@ from chronikwerk.web.constants import (
 from chronikwerk.web.responses import api_error
 
 _SIGNATURE_HEADER = "X-Hub-Signature"
+# DECISION: Zammad signs webhooks natively with ``sha1=`` + HMAC-SHA1 over the raw body
+# (docs/adr/0010-zammad-native-webhook-signature.md). Strict delivery-ID mode needs a
+# sender that implements the canonical form, so it stays SHA-256 only.
 _ALGORITHMS: dict[str, tuple[int, Any]] = {
+    "sha1": (hashlib.sha1().digest_size, hashlib.sha1),
     "sha256": (hashlib.sha256().digest_size, hashlib.sha256),
 }
+_STRICT_ALGORITHMS = frozenset({"sha256"})
 _STRICT_SIGNATURE_DOMAIN = b"zammad-webhook-v1\0"
 
 
@@ -87,7 +92,7 @@ async def _send_rejection(
 
 
 def _parse_signature(value: str) -> tuple[bytes, type, str] | None:
-    """Parse X-Hub-Signature (sha256=<hex>)."""
+    """Parse X-Hub-Signature (sha1=<hex> or sha256=<hex>)."""
     try:
         algorithm, hex_digest = value.strip().split("=", 1)
     except ValueError:
@@ -194,7 +199,10 @@ class HmacVerifyMiddleware:
             await _send_rejection(_forbidden(), scope, receive, send)
             return None
 
-        signature, digest_ctor, _algo_name = parsed
+        signature, digest_ctor, algo_name = parsed
+        if self._require_delivery_id and algo_name not in _STRICT_ALGORITHMS:
+            await _send_rejection(_forbidden(), scope, receive, send)
+            return None
         return _VerificationContext(
             signature=signature,
             digest_ctor=digest_ctor,

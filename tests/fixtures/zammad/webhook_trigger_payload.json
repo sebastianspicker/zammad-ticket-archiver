@@ -1,0 +1,41 @@
+{
+  "ticket": {
+    "id": 42,
+    "group_id": 2,
+    "priority_id": 2,
+    "state_id": 2,
+    "organization_id": 3,
+    "number": "31042",
+    "title": "Printer broken",
+    "owner_id": 4,
+    "customer_id": 7,
+    "updated_by_id": 6,
+    "created_by_id": 7,
+    "created_at": "2026-10-20T07:58:41.000Z",
+    "updated_at": "2026-10-20T08:15:03.000Z",
+    "article_count": 2,
+    "archive_path": "Customers > ACME",
+    "archive_user_mode": "current_agent",
+    "tags": ["pdf:sign"],
+    "group": {"id": 2, "name": "Support", "active": true},
+    "state": {"id": 2, "name": "open", "active": true},
+    "priority": {"id": 2, "name": "2 normal", "active": true},
+    "organization": {"id": 3, "name": "ACME Corp", "active": true},
+    "owner": {"id": 4, "login": "alice", "firstname": "Alice", "lastname": "Agent", "active": true},
+    "updated_by": {"id": 6, "login": "carol", "firstname": "Carol", "lastname": "Agent", "active": true},
+    "created_by": {"id": 7, "login": "nicole.braun@zammad.org", "firstname": "Nicole", "lastname": "Braun", "active": true},
+    "customer": {"id": 7, "login": "nicole.braun@zammad.org", "firstname": "Nicole", "lastname": "Braun", "email": "nicole.braun@zammad.org", "active": true}
+  },
+  "article": {
+    "id": 102,
+    "ticket_id": 42,
+    "type": "note",
+    "sender": "Agent",
+    "internal": true,
+    "subject": "Archive request",
+    "body": "Please archive.",
+    "content_type": "text/plain",
+    "created_by_id": 6,
+    "created_at": "2026-10-20T08:15:02.000Z"
+  }
+}

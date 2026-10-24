@@ -68,8 +68,9 @@ Publication still requires all of the following against the exact proposed tag:
   network boundary.
 - Private vulnerability reporting has not been verified, and no fallback private channel is
   published.
-- The copyright holder, dependency-license inventory, image SBOM, and attribution review are not
-  established in repository evidence.
+- The image SBOM and an independent attribution review are not established in repository
+  evidence. The copyright holder is Sebastian Spicker (`LICENSE`); the runtime dependency
+  licences are listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Maintained artifacts
 

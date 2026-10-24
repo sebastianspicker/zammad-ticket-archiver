@@ -12,8 +12,9 @@ import structlog
 
 from chronikwerk._version import VERSION
 from chronikwerk.archiving.notes import SuccessNotePayload, success_note_html
-from chronikwerk.archiving.options import ArchiveRuntimeOptions
+from chronikwerk.archiving.options import ArchiveRuntimeOptions, ArchiveWorkflowOptions
 from chronikwerk.archiving.path import (
+    archive_user_mode,
     determine_username,
     parse_archive_path_segments,
 )
@@ -123,6 +124,7 @@ async def _archive_fetched_ticket(
         ticket=fetched.ticket,
         payload=request.payload,
         now=now,
+        service_login=await _service_login_for(request, fetched.ticket),
     )
     storage_result = await render_and_store_ticket(
         request=request,
@@ -211,26 +213,57 @@ async def _fetch_ticket_state(
     return _FetchedTicketState(ticket=ticket, tags=tags)
 
 
+async def _service_login_for(request: ArchivePipelineRequest, ticket: Ticket) -> str | None:
+    """Look up the service's own Zammad login only when current_agent mode needs it."""
+    workflow = request.attempt.runtime.workflow
+    mode = archive_user_mode(
+        archive_custom_fields(ticket, workflow), workflow.archive_user_mode_field_name
+    )
+    if mode != "current_agent":
+        return None
+    return await request.client.get_current_user_login()
+
+
+def archive_custom_fields(ticket: Ticket, workflow: ArchiveWorkflowOptions) -> dict[str, Any]:
+    """Collect the configured archive custom attributes that are set on the ticket."""
+    names = (
+        workflow.archive_path_field_name,
+        workflow.archive_user_mode_field_name,
+        workflow.archive_user_field_name,
+    )
+    return {name: value for name in names if (value := ticket.attribute(name)) is not None}
+
+
+def snapshot_custom_fields(ticket: Ticket, workflow: ArchiveWorkflowOptions) -> dict[str, Any]:
+    """Key the configured archive attributes by the names the PDF template reads."""
+    canonical = (
+        ("archive_path", workflow.archive_path_field_name),
+        ("archive_user_mode", workflow.archive_user_mode_field_name),
+        ("archive_user", workflow.archive_user_field_name),
+    )
+    return {
+        key: value for key, name in canonical if (value := ticket.attribute(name)) is not None
+    }
+
+
 def resolve_storage_paths(
     attempt: ArchiveAttempt,
     *,
     ticket: Ticket,
     payload: dict[str, Any],
     now: datetime,
+    service_login: str | None = None,
 ) -> tuple[Path, Path]:
     """Resolve validated storage locations before any output is written."""
     runtime = attempt.runtime
-    custom_fields = (
-        ticket.preferences.custom_fields
-        if ticket.preferences is not None and isinstance(ticket.preferences.custom_fields, dict)
-        else {}
-    )
+    custom_fields = archive_custom_fields(ticket, runtime.workflow)
     username = determine_username(
         ticket=ticket,
         payload=payload,
         custom_fields=custom_fields,
         mode_field_name=runtime.workflow.archive_user_mode_field_name,
         archive_user_field_name=runtime.workflow.archive_user_field_name,
+        service_login=service_login,
     )
 
     segments = parse_archive_path_segments(
@@ -264,6 +297,7 @@ async def render_and_store_ticket(
         ticket=ticket,
         tags=tags,
         ticket_id=request.attempt.ticket_id,
+        custom_fields=snapshot_custom_fields(ticket, request.attempt.runtime.workflow),
         options=request.attempt.runtime.documents,
     )
     target_path, sidecar_path = storage_paths

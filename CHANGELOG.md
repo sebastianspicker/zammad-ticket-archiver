@@ -15,6 +15,29 @@ tags use the public form `v0.3.0-alpha.1`.
 
 ## [Unreleased]
 
+### Fixed
+- `POST /ingest/batch` rejects an empty array with `422 batch_empty` instead of accepting a
+  zero-item batch.
+- The PDF metadata box shows the archive path and mode when `fields.*` renames the Zammad
+  attributes; the snapshot keys them by their canonical names.
+- Show attachment MIME types in the PDF and snapshot: Zammad keeps them in the attachment's
+  `preferences["Content-Type"]`, not a top-level field.
+- Fetch tickets with `GET /api/v1/tickets/{id}?expand=true` and map the response Zammad actually
+  returns: owner, last editor and customer come from the expanded login strings (an unassigned
+  `-` owner counts as no owner), and the `archive_path`, `archive_user_mode` and `archive_user`
+  fields are read as top-level custom ticket attributes instead of `preferences.custom_fields`.
+  Every archive attempt previously failed with `ticket.owner.login must be a string`.
+- `archive_user_mode=current_agent` reads the triggering agent from the webhook's
+  `ticket.updated_by.login` (Zammad sends no top-level `user`), then falls back to the fetched
+  ticket's last editor, which also covers `/retry`. It never resolves to Chronikwerk's own API
+  account (looked up once via `GET /api/v1/users/me`), which can be the last editor after a
+  failed run; such a retry fails with a note asking for the archive to be triggered from Zammad.
+- Accept Zammad's native webhook signature (`X-Hub-Signature: sha1=<hex>`, HMAC-SHA1) in
+  compatibility mode; every unmodified Zammad webhook was rejected with `403`. Strict
+  delivery-ID mode remains SHA-256 only (ADR 0010).
+- Remove Zammad tags with `DELETE /api/v1/tags/remove`, the only verb Zammad routes; the
+  previous `POST` failed with 404 on the first tag transition of every run.
+
 ### Changed
 - Zammad error-note hints now name the configured trigger tag, and the permission and field
   hints apply to the failures they describe. Error notes redact more secret shapes through one
@@ -27,6 +50,18 @@ tags use the public form `v0.3.0-alpha.1`.
   make targets; use `test`, `test-fast`, `test-int`, `verify-core`, and `verify`.
 
 ### Documentation
+- Add `THIRD_PARTY_NOTICES.md` with the declared licence of every runtime dependency in the
+  production lock, and ship it in the sdist and wheel.
+- Tell operators to keep the archive fields agent-only in Zammad, because they choose the
+  archive directory.
+- Document that the process variable `LOG_LEVEL` overrides `observability.log_level` outside the
+  normal configuration precedence.
+- Name Sebastian Spicker as the copyright holder in `LICENSE` and as the package author.
+- Describe the webhook and ticket shapes Zammad actually sends: the sample webhook payload now
+  uses Zammad's default trigger body (top-level `ticket` and `article`, nested user objects,
+  custom attributes on `ticket`), the data model and Zammad setup pages document the top-level
+  custom attributes and how each `archive_user_mode` resolves its login, and error-note hints
+  no longer refer to `custom_fields.*`.
 - Correct the default archive filename example to the date-only `Ticket-123_2026-02-07.pdf`
   and document the Prometheus metric names.
 

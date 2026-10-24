@@ -1,21 +1,44 @@
 {
-  "_comment": "Sample webhook payload. Service primarily needs ticket.id or ticket_id.",
-  "event": "ticket.updated",
   "ticket": {
     "id": 12345,
     "number": "12345",
     "title": "Example ticket",
-    "tags": ["pdf:sign"],
-    "custom_fields": {
-      "archive_path": "Support > Customers > ACME > 2026",
-      "archive_user_mode": "owner"
+    "owner_id": 4,
+    "updated_by_id": 6,
+    "customer_id": 7,
+    "archive_path": "Support > Customers > ACME > 2026",
+    "archive_user_mode": "owner",
+    "tags": [
+      "pdf:sign"
+    ],
+    "owner": {
+      "id": 4,
+      "login": "agent@example.local",
+      "firstname": "Agent",
+      "lastname": "Owner"
+    },
+    "updated_by": {
+      "id": 6,
+      "login": "other.agent@example.local",
+      "firstname": "Other",
+      "lastname": "Agent"
+    },
+    "customer": {
+      "id": 7,
+      "login": "customer@example.local",
+      "email": "customer@example.local",
+      "firstname": "Customer",
+      "lastname": "User"
     }
   },
-  "user": {
-    "id": 777,
-    "login": "agent@example.local",
-    "email": "agent@example.local",
-    "firstname": "Agent",
-    "lastname": "User"
+  "article": {
+    "id": 67890,
+    "ticket_id": 12345,
+    "type": "note",
+    "sender": "Agent",
+    "internal": true,
+    "subject": "Archive request",
+    "body": "Please archive.",
+    "content_type": "text/plain"
   }
 }

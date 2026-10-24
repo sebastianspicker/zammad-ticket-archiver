@@ -56,7 +56,8 @@ does not widen the scope stated in the README.
   [0006 Zammad outbound transport trust boundary](adr/0006-zammad-outbound-transport-trust-boundary.md),
   [0007 deterministic release-assurance scripts](adr/0007-deterministic-release-assurance-scripts.md),
   [0008 modular-monolith boundaries](adr/0008-modular-monolith-boundaries.md),
-  [0009 composition-owned runtime state](adr/0009-composition-owned-runtime-state.md).
+  [0009 composition-owned runtime state](adr/0009-composition-owned-runtime-state.md),
+  [0010 Zammad native webhook signature](adr/0010-zammad-native-webhook-signature.md).
 - [Product contract](../PRODUCT.md).
 - [Design system](../DESIGN.md).
 - [Release status](../RELEASE_STATUS.md).

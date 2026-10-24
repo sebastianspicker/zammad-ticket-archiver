@@ -14,7 +14,9 @@ from chronikwerk.operations.guards import TicketGuards
 from chronikwerk.operations.history import JobHistory
 from chronikwerk.operations.job import TicketJob
 from chronikwerk.storage.options import ArchiveStorageOptions
-from tests.support.fake_zammad import FakeZammad
+from chronikwerk.zammad.dto import Ticket
+from tests.support.fake_zammad import FakeZammad, default_ticket
+from tests.support.zammad_fixtures import load_zammad_fixture
 
 _PROCESSING_PHASE = [
     "remove_tag:pdf:error",
@@ -143,6 +145,40 @@ def test_successful_run_writes_pdf_and_sidecar_under_owner_and_path(tmp_path: Pa
     assert record["ticket_number"] == "10001"
     assert record["signing"] == {"enabled": False, "tsa_used": False}
     assert record["storage_path"] == str(pdf)
+
+
+def test_documented_zammad_ticket_shape_archives_under_owner_and_path(tmp_path: Path) -> None:
+    ticket = Ticket.model_validate(load_zammad_fixture("ticket_show_expand.json"))
+    fake = FakeZammad(tags=["pdf:sign"], ticket=ticket)
+
+    (outcome,) = _run(fake, tmp_path, None)
+
+    assert outcome.status == "processed"
+    (pdf,), _sidecars = _artifacts(tmp_path)
+    assert pdf.parent == tmp_path / "alice" / "Customers" / "ACME"
+    assert pdf.name.startswith("Ticket-31042_")
+
+
+def test_retry_in_current_agent_mode_refuses_the_service_account(tmp_path: Path) -> None:
+    ticket = Ticket.model_validate(
+        {
+            **default_ticket().model_dump(exclude={"owner", "updated_by", "customer"}),
+            "updated_by": "chronikwerk-api",
+            "archive_user_mode": "current_agent",
+        }
+    )
+    fake = FakeZammad(tags=["pdf:sign"], ticket=ticket)
+    fake.current_login = "chronikwerk-api"
+
+    (outcome,) = _run(fake, tmp_path, None)
+
+    assert outcome.status == "failed_permanent"
+    assert _artifacts(tmp_path) == ([], [])
+    assert "get_current_user_login" in fake.names
+    assert fake.tags == {"pdf:error"}
+    (_subject, body), = fake.notes
+    assert "service_account_as_agent" in body
+    assert "missing_user_login" not in body
 
 
 def test_no_success_note_when_acknowledgement_is_disabled(tmp_path: Path) -> None:

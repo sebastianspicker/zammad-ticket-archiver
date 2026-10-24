@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, cast
 
-from chronikwerk.zammad.dto import Article, TagList, Ticket, TicketPreferences, UserRef
+from chronikwerk.zammad.dto import Article, TagList, Ticket
 from chronikwerk.zammad.gateway import AsyncZammadClient
 
 
@@ -19,6 +19,7 @@ class FakeZammad:
         self.notes: list[tuple[str, str]] = []
         self.on_add_tag: Callable[[str], None] | None = None
         self.fail_note = False
+        self.current_login = "chronikwerk"
 
     @property
     def client(self) -> AsyncZammadClient:
@@ -34,6 +35,11 @@ class FakeZammad:
         """Return the configured ticket."""
         self.calls.append(("get_ticket",))
         return self.ticket.model_copy(update={"id": ticket_id})
+
+    async def get_current_user_login(self) -> str:
+        """Return the login of the API user this client authenticates as."""
+        self.calls.append(("get_current_user_login",))
+        return self.current_login
 
     async def list_tags(self, _ticket_id: int) -> TagList:
         """Return the current tag set."""
@@ -66,11 +72,15 @@ class FakeZammad:
 
 
 def default_ticket() -> Ticket:
-    """Build a ticket whose custom fields place the archive under alice/Customers/ACME."""
-    return Ticket(
-        id=1,
-        number="10001",
-        title="Printer broken",
-        owner=UserRef(login="alice"),
-        preferences=TicketPreferences(custom_fields={"archive_path": "Customers > ACME"}),
+    """Build an expanded ticket whose attributes place the archive under alice/Customers/ACME."""
+    return Ticket.model_validate(
+        {
+            "id": 1,
+            "number": "10001",
+            "title": "Printer broken",
+            "owner_id": 4,
+            "owner": "alice",
+            "preferences": {},
+            "archive_path": "Customers > ACME",
+        }
     )

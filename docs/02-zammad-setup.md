@@ -11,16 +11,23 @@ This guide covers the Zammad-side setup for sending archive requests to Chronikw
 
 ## Custom fields
 
-Create ticket fields matching the configured Chronikwerk field names.
+Create ticket fields matching the configured Chronikwerk field names. Zammad returns each one
+as a top-level ticket attribute under its technical name; there is no separate custom-field
+object.
 
 | Technical name | Required | Notes |
 | --- | --- | --- |
 | `archive_path` | yes | Target path under `storage.root`; prefer controlled values. |
-| `archive_user_mode` | no | Defaults to `owner`; may be `owner`, `current_agent`, or `fixed`. |
+| `archive_user_mode` | no | Defaults to `owner` (the ticket owner's login; unassigned tickets fail); may be `owner`, `current_agent` (the agent who triggered the webhook), or `fixed`. |
 | `archive_user` | conditional | Required only for `archive_user_mode=fixed`. |
 | `archive_request` | optional | Useful for Zammad-side workflow conditions. |
 
-Admin path: `Admin -> Objects -> Ticket`.
+Admin path: `Admin -> System -> Objects -> Ticket`.
+
+Keep `archive_path`, `archive_user_mode` and `archive_user` agent-only: in each field's screen
+settings, do not show or allow editing for customers. Whoever can edit these fields chooses the
+archive directory. Paths stay confined under `storage.root`, but a customer could otherwise
+file a ticket into another user's directory.
 
 ## Core workflow rules
 
@@ -49,12 +56,15 @@ Create a Zammad webhook targeting:
 https://archiver.example.com/ingest
 ```
 
-Configure the same HMAC secret as `ZAMMAD__WEBHOOK_HMAC_SECRET`.
+Configure the same HMAC secret as `ZAMMAD__WEBHOOK_HMAC_SECRET`. Zammad signs each delivery
+with `X-Hub-Signature: sha1=<hex>`, which the default compatibility mode accepts. Leave
+`HARDENING__WEBHOOK__REQUIRE_DELIVERY_ID` unset: strict mode needs a signing proxy.
 
 ## Trigger
 
 Create a trigger that sends the webhook when the archive macro updates a
-ticket. Include enough payload data for the service to resolve `ticket.id`.
+ticket. Zammad's default webhook payload (top-level `ticket` and `article`) is sufficient; a
+custom payload must contain `ticket.id` or `ticket_id`.
 
 ## Smoke test
 

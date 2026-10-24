@@ -123,6 +123,12 @@ Validated service startup requires:
 | `observability.history_enabled` | `false` | `OBSERVABILITY__HISTORY_ENABLED` | Expose authenticated process-local job history. |
 | `observability.history_bearer_token` | `null` | `OBSERVABILITY__HISTORY_BEARER_TOKEN` | Dedicated bearer token required when history is enabled; at least 32 characters. |
 
+The plain process variable `LOG_LEVEL`, when set and non-empty, overrides
+`observability.log_level` at logging setup. It is outside the precedence chain above:
+`validate-config`, `dump-config` and the admin application do not report it, and the admin
+application does not mark the log level as environment-owned. Prefer
+`OBSERVABILITY__LOG_LEVEL`, and unset a generic `LOG_LEVEL` shared with other services.
+
 ## Hardening
 
 | Key | Default | Env key | Description |

@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 
 
-def sign_body(body: bytes, secret: str) -> str:
+def sign_body(body: bytes, secret: str, *, algorithm: str = "sha256") -> str:
     """Create the body-only signature accepted by legacy webhook mode."""
-    digest = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-    return f"sha256={digest}"
+    digest = hmac.new(secret.encode("utf-8"), body, algorithm).hexdigest()
+    return f"{algorithm}={digest}"
 
 
-def sign_strict(delivery_id: str, body: bytes, secret: str) -> str:
+def sign_zammad_native(body: bytes, secret: str) -> str:
+    """Create the header Zammad itself sends: ``sha1=`` + HMAC-SHA1 over the raw body."""
+    return sign_body(body, secret, algorithm="sha1")
+
+
+def sign_strict(delivery_id: str, body: bytes, secret: str, *, algorithm: str = "sha256") -> str:
     """Create the delivery-bound signature required by strict webhook mode."""
     delivery_id_bytes = delivery_id.strip().encode("utf-8")
     canonical = (
@@ -21,5 +25,5 @@ def sign_strict(delivery_id: str, body: bytes, secret: str) -> str:
         + delivery_id_bytes
         + body
     )
-    digest = hmac.new(secret.encode("utf-8"), canonical, hashlib.sha256).hexdigest()
-    return f"sha256={digest}"
+    digest = hmac.new(secret.encode("utf-8"), canonical, algorithm).hexdigest()
+    return f"{algorithm}={digest}"

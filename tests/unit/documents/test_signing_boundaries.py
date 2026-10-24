@@ -74,6 +74,7 @@ def test_rendering_only_signs_when_enabled(monkeypatch: pytest.MonkeyPatch, enab
             ticket_id=42,
             ticket=object(),  # type: ignore[arg-type]
             tags=object(),  # type: ignore[arg-type]
+            custom_fields={},
             options=options,
         )
     )

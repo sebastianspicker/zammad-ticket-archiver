@@ -62,8 +62,8 @@ def _only_call(route: respx.Route) -> httpx.Request:
     return route.calls.last.request
 
 
-def test_get_ticket_uses_get_with_token_auth_and_no_query() -> None:
-    """get_ticket issues GET /api/v1/tickets/{id} with token authorization and no query."""
+def test_get_ticket_uses_get_with_token_auth_and_expand_query() -> None:
+    """get_ticket issues GET /api/v1/tickets/{id}?expand=true with token authorization."""
     with respx.mock(assert_all_called=True) as mock:
         route = mock.get(f"{_ORIGIN}/api/v1/tickets/123").respond(
             200, json={"id": 123, "number": "123", "title": "T"}
@@ -73,7 +73,7 @@ def test_get_ticket_uses_get_with_token_auth_and_no_query() -> None:
     assert ticket.id == 123
     assert request.method == "GET"
     assert request.url.path == "/api/v1/tickets/123"
-    assert request.url.query == b""
+    assert request.url.query == b"expand=true"
     assert request.headers["authorization"] == _AUTH
     assert request.headers["accept"] == "application/json"
     assert request.headers["accept-encoding"] == "identity"
@@ -102,16 +102,20 @@ def test_list_tags_rejects_non_string_entries_with_client_error() -> None:
 
 
 @pytest.mark.parametrize(
-    ("method_name", "path"),
-    [("add_tag", "/api/v1/tags/add"), ("remove_tag", "/api/v1/tags/remove")],
+    ("method_name", "verb", "path"),
+    [
+        ("add_tag", "POST", "/api/v1/tags/add"),
+        # Zammad routes tags/remove with `via: :delete` only (config/routes/tag.rb).
+        ("remove_tag", "DELETE", "/api/v1/tags/remove"),
+    ],
 )
-def test_tag_mutations_post_item_object_and_id(method_name: str, path: str) -> None:
-    """add_tag and remove_tag POST the documented JSON body to their own endpoints."""
+def test_tag_mutations_send_item_object_and_id(method_name: str, verb: str, path: str) -> None:
+    """add_tag POSTs and remove_tag DELETEs the documented JSON body to their own endpoints."""
     with respx.mock(assert_all_called=True) as mock:
-        route = mock.post(f"{_ORIGIN}{path}").respond(200, json=True)
+        route = mock.route(method=verb, url=f"{_ORIGIN}{path}").respond(200, json=True)
         _run(lambda c: getattr(c, method_name)(123, "archived"))
     request = _only_call(route)
-    assert request.method == "POST"
+    assert request.method == verb
     assert request.url.path == path
     assert request.url.query == b""
     assert json.loads(request.content) == {"item": "archived", "object": "Ticket", "o_id": 123}
@@ -224,3 +228,28 @@ def test_retry_after_header_overrides_backoff_for_rate_limits() -> None:
         ticket = asyncio.run(scenario())
     assert ticket.id == 1
     assert delays == [2.0]
+
+
+def test_current_user_login_reads_users_me_once_per_client() -> None:
+    """get_current_user_login issues GET /api/v1/users/me and caches the token's login."""
+
+    async def twice(client: AsyncZammadClient) -> list[str | None]:
+        return [await client.get_current_user_login(), await client.get_current_user_login()]
+
+    with respx.mock(assert_all_called=True) as mock:
+        route = mock.get(f"{_ORIGIN}/api/v1/users/me").respond(
+            200, json={"id": 9, "login": "chronikwerk-api", "firstname": "Chronikwerk"}
+        )
+        logins = _run(twice)
+    request = _only_call(route)
+    assert logins == ["chronikwerk-api", "chronikwerk-api"]
+    assert request.method == "GET"
+    assert request.headers["authorization"] == _AUTH
+
+
+def test_current_user_login_without_a_login_fails_closed() -> None:
+    """A users/me body without a login is a ClientError, never an unknown service account."""
+    with respx.mock() as mock:
+        mock.get(f"{_ORIGIN}/api/v1/users/me").respond(200, json={"id": 9})
+        with pytest.raises(ClientError, match="users/me response has no login"):
+            _run(lambda c: c.get_current_user_login())
