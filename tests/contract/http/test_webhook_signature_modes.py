@@ -193,7 +193,7 @@ def test_chunked_body_reaches_route_intact(tmp_path) -> None:
 
     assert result.status == 202
     assert result.json() == {"status": "accepted", "ticket_id": 7}
-    assert spy.scheduled[0].payload["ticket_id"] == 7
+    assert spy.scheduled[0].ticket_id == 7
 
 
 def test_disconnect_before_body_completes_fails_closed(tmp_path) -> None:

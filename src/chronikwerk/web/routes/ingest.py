@@ -20,9 +20,6 @@ router = APIRouter()
 # The body-size middleware provides some protection, but this is defense-in-depth.
 MAX_BATCH_SIZE: int = 100
 
-# A webhook body cannot request forced reprocessing; drop the legacy marker as inert data.
-_LEGACY_FORCE_REPROCESS_FIELD = "_force_reprocess"
-
 
 class IngestPayload(BaseModel):
     """Minimal webhook payload schema: require resolvable ticket id; allow extra fields."""
@@ -56,21 +53,41 @@ class IngestPayload(BaseModel):
         return cast(int, self.resolved_ticket_id())
 
 
+def _login_at(container: Any, key: str) -> str | None:
+    value = container.get(key) if isinstance(container, dict) else None
+    login = value.get("login") if isinstance(value, dict) else None
+    if not isinstance(login, str):
+        return None
+    login = login.strip()
+    return login if login and login != "-" else None
+
+
+def trigger_login(payload: IngestPayload) -> str | None:
+    """Return the login that triggered the webhook: ``user.login``, else ``ticket.updated_by``.
+
+    Zammad sends ``-`` when no user is known; that, blanks and non-strings count as absent.
+    """
+    body = payload.model_dump()
+    return _login_at(body, "user") or _login_at(body.get("ticket"), "updated_by")
+
+
 def _job(
-    payload: IngestPayload,
     *,
     ticket_id: int,
     delivery_id: str | None,
     request_id: str | None,
+    trigger_login: str | None = None,
 ) -> TicketJob:
-    """Build a typed job whose payload is only the validated webhook event."""
-    webhook_payload = payload.model_dump()
-    webhook_payload.pop(_LEGACY_FORCE_REPROCESS_FIELD, None)
+    """Build a typed job; the journal keeps the ticket, delivery and login, never the body.
+
+    A webhook body therefore cannot request forced reprocessing (such as a legacy
+    ``_force_reprocess`` marker): only ``/retry`` can.
+    """
     return TicketJob(
         ticket_id=ticket_id,
-        payload=webhook_payload,
         delivery_id=delivery_id,
         request_id=request_id,
+        trigger_login=trigger_login,
     )
 
 
@@ -85,7 +102,12 @@ def _batch_jobs(
         ticket_id = payload.ticket_id_value()
         delivery_id = f"{batch_delivery_id}:{index}" if batch_delivery_id is not None else None
         jobs.append(
-            _job(payload, ticket_id=ticket_id, delivery_id=delivery_id, request_id=request_id)
+            _job(
+                ticket_id=ticket_id,
+                delivery_id=delivery_id,
+                request_id=request_id,
+                trigger_login=trigger_login(payload),
+            )
         )
     return jobs
 
@@ -136,12 +158,12 @@ async def ingest_webhook(
         )
 
     job = _job(
-        payload,
         ticket_id=ticket_id,
         delivery_id=normalized_delivery_id(request.headers.get(DELIVERY_ID_HEADER)),
         request_id=getattr(request.state, "request_id", None),
+        trigger_login=trigger_login(payload),
     )
-    if not scheduler.schedule(job):
+    if not await scheduler.schedule(job):
         return _overload_error()
 
     return JSONResponse(status_code=202, content={"status": "accepted", "ticket_id": ticket_id})
@@ -180,7 +202,7 @@ async def batch_ingest(
         batch_delivery_id=normalized_delivery_id(request.headers.get(DELIVERY_ID_HEADER)),
         request_id=getattr(request.state, "request_id", None),
     )
-    if not scheduler.schedule_batch(jobs):
+    if not await scheduler.schedule_batch(jobs):
         return _overload_error()
 
     return JSONResponse(status_code=202, content={"status": "accepted", "count": len(jobs)})
@@ -201,7 +223,7 @@ async def retry_ticket(
     )
 
     scheduler = _scheduler(request)
-    if scheduler is None or not scheduler.schedule_retry(
+    if scheduler is None or not await scheduler.schedule_retry(
         ticket_id=ticket_id,
         request_id=getattr(request.state, "request_id", None),
     ):

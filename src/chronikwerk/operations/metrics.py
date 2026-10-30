@@ -43,3 +43,14 @@ admission_rejected_total = Counter(
     "admission_rejected_total",
     "Number of ticket jobs rejected because admission capacity was exhausted.",
 )
+
+# Brief section 5.12; refreshed from the request journal on every scrape.
+requests_by_state = Gauge(
+    "chronikwerk_requests",
+    "Number of journaled archive requests per state.",
+    labelnames=("state",),
+)
+oldest_waiting_seconds = Gauge(
+    "chronikwerk_oldest_waiting_seconds",
+    "Age of the oldest waiting archive request in seconds (0 when none waits).",
+)

@@ -14,6 +14,7 @@ _SENSITIVE_KEY_FRAGMENTS = (
     "authorization",
     "api_key",
     "apikey",
+    "access_key",
     "redis_url",
     "private_key",
     "private-key",

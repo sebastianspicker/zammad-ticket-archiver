@@ -45,8 +45,16 @@ services:
       # The host path is typically a CIFS/SMB mount managed by the host OS.
       - "${STORAGE__ROOT:-/mnt/archive}:${STORAGE__ROOT:-/mnt/archive}:rw"
 
+      # Request journal, catalog and capture build area. Local disk, never the archive share.
+      - chronikwerk-state:/var/lib/chronikwerk:rw
+
       # Persistent non-secret managed revisions. Required before enabling admin.
       - admin-state:/var/lib/chronikwerk/admin:rw
+
+      # Preservation material, required at startup (seal identity, trust anchors, retention):
+      # - /etc/chronikwerk/secrets/seal.pfx:/run/secrets/seal.pfx:ro
+      # - /etc/chronikwerk/trust-anchors.pem:/etc/chronikwerk/trust-anchors.pem:ro
+      # - /etc/chronikwerk/retention.yaml:/etc/chronikwerk/retention.yaml:ro
 
       # Signing material (uncomment when SIGNING__ENABLED=true):
       # - /etc/chronikwerk/secrets/signing.pfx:/run/secrets/signing.pfx:ro
@@ -72,4 +80,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  chronikwerk-state:
   admin-state:

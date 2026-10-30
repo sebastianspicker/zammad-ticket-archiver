@@ -1,0 +1,8 @@
+# Example retention policy. Copy to /etc/chronikwerk/retention.yaml (retention.policy_path).
+# The values below are placeholders: real retention periods and triggers come from
+# records management and must be set per record class before production use.
+record_classes:
+  pilot-test:
+    retention: P30D # ISO 8601 date duration (Y, M, D only)
+    trigger: capture # capture | case_closed
+    readers: [service-desk]

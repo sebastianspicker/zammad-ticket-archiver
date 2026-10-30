@@ -22,17 +22,30 @@ fields:
   archive_path: "archive_path"
   archive_user_mode: "archive_user_mode"
   archive_user: "archive_user"
+  record_class: "archive_record_class"
 
 storage:
   root: "/srv/zammad-archive"
   fsync: true
-  filename_pattern: "Ticket-{ticket_number}_{timestamp_utc}.pdf"
+  # storage.filename_pattern is deprecated and ignored; setting it logs a warning at load.
+  backend: "filesystem" # filesystem|s3
+  filesystem:
+    worm_enforced: false
+  s3: # required for backend "s3": bucket, access_key_id, secret_access_key
+    endpoint_url: null
+    region: null
+    bucket: null
+    object_lock_mode: "COMPLIANCE" # COMPLIANCE|GOVERNANCE
+    staging_retention_days: 7
+    access_key_id: null
+    secret_access_key: null
 
 pdf:
   locale: "de-DE"
   timezone: "Europe/Berlin"
   max_articles: 250
   article_limit_mode: "fail" # fail|cap_and_continue
+  reading_copies: ["pdf/a-2u", "pdf/ua-1"]
 
 signing:
   enabled: false
@@ -41,6 +54,7 @@ signing:
   pades:
     reason: "Ticket Archivierung"
     location: "Datacenter"
+    level: "B-LT" # B-T|B-LT
   timestamp:
     enabled: false
     rfc3161:
@@ -77,6 +91,7 @@ hardening:
     trust_env: false
     allow_insecure_http: false
     allow_private_networks: false
+    validation_hosts: [] # OCSP/CRL host names; the TSA host is always allowed
 
 admission:
   max_pending: 100
@@ -91,3 +106,40 @@ admin:
   session_absolute_seconds: 28800
   cookie_secure: true
   default_locale: "de-DE"
+
+journal:
+  path: "/var/lib/chronikwerk/journal.sqlite3"
+
+capture:
+  consistency_attempts: 3
+  max_attachment_bytes: 104857600
+  max_package_bytes: 1073741824
+  download_timeout_seconds: 300
+  temp_dir: "/var/lib/chronikwerk/tmp"
+  max_temp_bytes: 4294967296
+  retry:
+    max_attempts: 5
+    max_delay_seconds: 3600
+
+seal:
+  pfx_path: null
+  pfx_password: null
+
+verify:
+  trust_anchors_path: null
+
+retention:
+  policy_path: "/etc/chronikwerk/retention.yaml"
+
+reconcile:
+  interval_seconds: 86400
+  stale_after_seconds: 86400
+
+fixity:
+  cycle_days: 90
+
+alerts:
+  webhook_url: null
+
+renewal:
+  lead_days: 180

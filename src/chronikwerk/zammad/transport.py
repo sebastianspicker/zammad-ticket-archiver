@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal, NoReturn
 
 import httpx
@@ -16,6 +18,7 @@ from chronikwerk.outbound import (
     UnsupportedResponseEncodingError,
     buffered_response,
     pin_request_url,
+    preflight_response_body_limit,
     read_response_body_limited,
     timeouts_for,
     validate_url_policy,
@@ -26,10 +29,17 @@ from chronikwerk.zammad.errors import (
     ClientError,
     NotFoundError,
     RateLimitError,
+    ResponseTooLargeError,
     ServerError,
 )
 
 MAX_RESPONSE_BODY_BYTES = 32 * 1024 * 1024
+_STREAM_CHUNK_BYTES = 64 * 1024
+_BINARY_ACCEPT = {"Accept": "*/*"}
+# O_EXCL: never overwrite an existing path; O_NOFOLLOW: never write through a planted symlink.
+_CREATE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+
+_ResponseConsumer = Callable[[httpx.Response], Awaitable[Any]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,14 +166,15 @@ class ZammadTransport:
         max_retries: int | None = None,
     ) -> Any:
         """Send one request, retrying transient failures, and return the decoded JSON body."""
-        response = await self._request(
+        response: httpx.Response = await self._request(
             ZammadRequest(
                 method=method,
                 path=path,
                 params=params,
                 json=json,
                 max_retries=max_retries,
-            )
+            ),
+            self._buffer_success_response,
         )
         try:
             return response.json()
@@ -173,10 +184,101 @@ class ZammadTransport:
                 f"(status={response.status_code}) at {response.request.url!s}"
             ) from exc
 
+    async def request_bytes(
+        self,
+        method: Literal["GET", "POST", "DELETE"],
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+        max_bytes: int,
+        timeout_seconds: float | None = None,
+    ) -> bytes:
+        """Send one request with the shared retry policy; bound the body by ``max_bytes``.
+
+        ``timeout_seconds`` is an optional total deadline over all attempts; exceeding it is a
+        transient ``ServerError``.
+        """
+
+        async def consume(response: httpx.Response) -> bytes:
+            return await self._read_limited(response, max_bytes=max_bytes)
+
+        request = ZammadRequest(method, path, params=params, headers=_BINARY_ACCEPT)
+        if timeout_seconds is None:
+            result: bytes = await self._request(request, consume)
+            return result
+        result = await self._request_within(request, consume, timeout_seconds=timeout_seconds)
+        return result
+
+    async def stream_to_file(
+        self,
+        path: str,
+        *,
+        target: Path,
+        max_bytes: int,
+        timeout_seconds: float,
+        params: dict[str, str] | None = None,
+    ) -> int:
+        """
+        Stream a GET response into the new file ``target`` and return the bytes written.
+
+        The file is created exclusively. Any failure, including exceeding ``max_bytes`` or the
+        total ``timeout_seconds``, removes only the partial file this call created.
+        """
+
+        async def consume(response: httpx.Response) -> int:
+            return await self._write_limited(response, target=target, max_bytes=max_bytes)
+
+        request = ZammadRequest("GET", path, params=params, headers=_BINARY_ACCEPT)
+        written: int = await self._request_within(request, consume, timeout_seconds=timeout_seconds)
+        return written
+
+    async def _request_within(
+        self,
+        request: ZammadRequest,
+        consume: _ResponseConsumer,
+        *,
+        timeout_seconds: float,
+    ) -> Any:
+        """Run ``_request`` under a total deadline; a timeout becomes a transient ServerError."""
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                return await self._request(request, consume)
+        except TimeoutError as exc:
+            raise ServerError(
+                f"Zammad download timed out after {timeout_seconds} seconds at {request.path}"
+            ) from exc
+
+    async def _write_limited(
+        self,
+        response: httpx.Response,
+        *,
+        target: Path,
+        max_bytes: int,
+    ) -> int:
+        self._preflight(response, max_bytes=max_bytes)
+        written = 0
+        created: tuple[int, int] | None = None
+        descriptor = os.open(target, _CREATE_FLAGS, 0o600)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                status = os.fstat(handle.fileno())
+                created = (status.st_dev, status.st_ino)
+                async for chunk in response.aiter_bytes(chunk_size=_STREAM_CHUNK_BYTES):
+                    written += len(chunk)
+                    if written > max_bytes:
+                        raise self._too_large(response, max_bytes)
+                    await asyncio.to_thread(handle.write, chunk)
+        except BaseException:
+            if created is not None:
+                _remove_if_created(target, created)
+            raise
+        return written
+
     async def _request(
         self,
         request: ZammadRequest,
-    ) -> httpx.Response:
+        consume: _ResponseConsumer,
+    ) -> Any:
         requested_retries = request.max_retries
         retries = (
             self._retry.max_retries if requested_retries is None else max(0, requested_retries)
@@ -188,6 +290,7 @@ class ZammadTransport:
             try:
                 response, retry_delay = await self._request_once(
                     request,
+                    consume,
                     attempt=_RequestAttempt(
                         retry_count=retry_count,
                         max_attempts=max_attempts,
@@ -219,15 +322,15 @@ class ZammadTransport:
                 await self._sleep(retry_delay)
                 retry_count += 1
                 continue
-            if response is not None:
-                return response
+            return response
 
     async def _request_once(
         self,
         request: ZammadRequest,
+        consume: _ResponseConsumer,
         *,
         attempt: _RequestAttempt,
-    ) -> tuple[httpx.Response | None, float | None]:
+    ) -> tuple[Any, float | None]:
         try:
             resolved_address = await validate_url_policy_async(
                 str(self._base_url),
@@ -259,28 +362,43 @@ class ZammadTransport:
             if retry_delay is not None:
                 return None, retry_delay
             if 200 <= streamed_response.status_code < 300:
-                return await self._buffer_success_response(streamed_response), None
+                return await consume(streamed_response), None
             self.raise_for_status(streamed_response)
 
     async def _buffer_success_response(self, response: httpx.Response) -> httpx.Response:
-        try:
-            content = await read_response_body_limited(
-                response,
-                max_bytes=self._max_response_body_bytes,
-            )
-        except ResponseBodyTooLargeError as exc:
-            raise ClientError(
-                "Zammad response body exceeded the "
-                f"{self._max_response_body_bytes}-byte limit "
-                f"(status={response.status_code}) at {response.request.url!s}"
-            ) from exc
-        except UnsupportedResponseEncodingError as exc:
-            raise ClientError(
-                "Zammad returned a compressed response despite "
-                "Accept-Encoding: identity "
-                f"(status={response.status_code}) at {response.request.url!s}"
-            ) from exc
+        content = await self._read_limited(response, max_bytes=self._max_response_body_bytes)
         return buffered_response(response, content)
+
+    async def _read_limited(self, response: httpx.Response, *, max_bytes: int) -> bytes:
+        try:
+            return await read_response_body_limited(response, max_bytes=max_bytes)
+        except ResponseBodyTooLargeError as exc:
+            raise self._too_large(response, max_bytes) from exc
+        except UnsupportedResponseEncodingError as exc:
+            raise self._compressed(response) from exc
+
+    def _preflight(self, response: httpx.Response, *, max_bytes: int) -> None:
+        try:
+            preflight_response_body_limit(response, max_bytes=max_bytes)
+        except ResponseBodyTooLargeError as exc:
+            raise self._too_large(response, max_bytes) from exc
+        except UnsupportedResponseEncodingError as exc:
+            raise self._compressed(response) from exc
+
+    @staticmethod
+    def _too_large(response: httpx.Response, max_bytes: int) -> ResponseTooLargeError:
+        return ResponseTooLargeError(
+            f"Zammad response body exceeded the {max_bytes}-byte limit "
+            f"(status={response.status_code}) at {response.request.url!s}",
+            limit=max_bytes,
+        )
+
+    @staticmethod
+    def _compressed(response: httpx.Response) -> ClientError:
+        return ClientError(
+            "Zammad returned a compressed response despite Accept-Encoding: identity "
+            f"(status={response.status_code}) at {response.request.url!s}"
+        )
 
     async def _retry_after_timeout_or_transport(
         self,
@@ -338,6 +456,16 @@ class ZammadTransport:
             raise ClientError(f"Zammad client error (status={status}) at {url}")
 
         raise ClientError(f"Unexpected Zammad HTTP status={status} at {url}")
+
+
+def _remove_if_created(target: Path, created: tuple[int, int]) -> None:
+    """Unlink ``target`` only while it is still the file this transport created."""
+    try:
+        current = os.lstat(target)
+    except FileNotFoundError:
+        return
+    if (current.st_dev, current.st_ino) == created:
+        target.unlink(missing_ok=True)
 
 
 def _parse_retry_after_seconds(value: str | None) -> float | None:

@@ -43,7 +43,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN addgroup --system --gid 10001 app \
   && adduser --system --uid 10001 --ingroup app --home /nonexistent --shell /usr/sbin/nologin app \
-  && install -d -m 0700 -o app -g app /var/lib/chronikwerk/admin
+  && install -d -m 0700 -o app -g app /var/lib/chronikwerk /var/lib/chronikwerk/tmp \
+    /var/lib/chronikwerk/admin
 
 COPY --from=builder --chown=app:app /opt/venv /opt/venv
 

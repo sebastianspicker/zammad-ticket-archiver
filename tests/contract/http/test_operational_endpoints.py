@@ -6,7 +6,9 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from chronikwerk.operations.history import JobHistory
+from chronikwerk.operations.history import HistoryReader, JournalHistoryView
+from chronikwerk.operations.journal import JournalOptions, RequestJournal, RequestSource
+from chronikwerk.operations.scheduling import JournaledSchedulingService
 from chronikwerk.web.app import create_app
 from tests.support.settings_factory import make_settings
 
@@ -24,7 +26,7 @@ _METRIC_NAMES = (
 _AUTH = {"Authorization": "Bearer ops-token"}
 
 
-def _client(tmp_path, history: JobHistory | None = None, **observability: Any) -> TestClient:
+def _client(tmp_path, history: HistoryReader | None = None, **observability: Any) -> TestClient:
     """Create a client with the given observability overrides."""
     settings = make_settings(str(tmp_path), overrides={"observability": observability})
     return TestClient(create_app(settings, history=history))
@@ -90,34 +92,63 @@ def test_history_without_configured_token_is_service_unavailable(tmp_path) -> No
     assert response.json() == {"detail": "history_token_not_configured"}
 
 
-def test_history_lists_entries_newest_first_and_filters_by_ticket(tmp_path) -> None:
-    history = JobHistory()
-    client = _client(
-        tmp_path, history=history, history_enabled=True, history_bearer_token="ops-token"
-    )
-    history.record("accepted", 11, delivery_id="d-1")
-    history.record("processed", 22, message="done")
+def _journal(tmp_path) -> RequestJournal:
+    """Open a request journal next to the archive root."""
+    return RequestJournal(JournalOptions(path=tmp_path / "journal.sqlite3"))
 
-    everything = client.get("/jobs/history", headers=_AUTH)
-    only_first = client.get("/jobs/history?ticket_id=11", headers=_AUTH)
+
+def _admit(journal: RequestJournal, ticket_id: int, delivery_id: str | None = None) -> str:
+    """Journal one webhook request and return its request ID."""
+    result = journal.admit(
+        ticket_id=ticket_id, source=RequestSource.WEBHOOK, delivery_id=delivery_id
+    )
+    assert result.request_id is not None
+    return result.request_id
+
+
+def _lease(journal: RequestJournal) -> str:
+    """Lease the oldest waiting request and return its request ID."""
+    leased = journal.lease_next()
+    assert leased is not None
+    return leased.request_id
+
+
+def test_history_lists_entries_newest_first_and_filters_by_ticket(tmp_path) -> None:
+    with _journal(tmp_path) as journal:
+        client = _client(
+            tmp_path,
+            history=JournalHistoryView(journal),
+            history_enabled=True,
+            history_bearer_token="ops-token",
+        )
+        _admit(journal, 22)
+        journal.complete(_lease(journal), revision_id="rev-22")
+        _admit(journal, 11, "d-1")
+
+        everything = client.get("/jobs/history", headers=_AUTH)
+        only_first = client.get("/jobs/history?ticket_id=11", headers=_AUTH)
 
     assert everything.status_code == 200
     entries = everything.json()["entries"]
-    assert [(e["ticket_id"], e["status"]) for e in entries] == [(22, "processed"), (11, "accepted")]
-    assert entries[1]["delivery_id"] == "d-1"
+    assert [(e["ticket_id"], e["status"]) for e in entries] == [(11, "accepted"), (22, "processed")]
+    assert entries[0]["delivery_id"] == "d-1"
     assert [e["ticket_id"] for e in only_first.json()["entries"]] == [11]
 
 
 def test_history_entries_keep_their_wire_shape_and_id_sequence(tmp_path) -> None:
     """History entries expose the documented keys and count string ids from one."""
-    history = JobHistory()
-    client = _client(
-        tmp_path, history=history, history_enabled=True, history_bearer_token="ops-token"
-    )
-    history.record("accepted", 11, delivery_id="d-1", request_id="r-1")
-    history.record("failed_permanent", 11, classification="Permanent", message="boom")
+    with _journal(tmp_path) as journal:
+        client = _client(
+            tmp_path,
+            history=JournalHistoryView(journal),
+            history_enabled=True,
+            history_bearer_token="ops-token",
+        )
+        _admit(journal, 12)
+        journal.fail_permanent(_lease(journal), error_code="boom_code", error_detail="boom")
+        accepted_id = _admit(journal, 11, "d-1")
 
-    entries = client.get("/jobs/history", headers=_AUTH).json()["entries"]
+        entries = client.get("/jobs/history", headers=_AUTH).json()["entries"]
 
     assert [entry["id"] for entry in entries] == ["2", "1"]
     for entry in entries:
@@ -130,19 +161,66 @@ def test_history_entries_keep_their_wire_shape_and_id_sequence(tmp_path) -> None
             "delivery_id",
             "request_id",
             "created_at",
+            "updated_at",
         }
         assert isinstance(entry["created_at"], float)
-    assert {key: value for key, value in entries[1].items() if key != "created_at"} == {
-        "id": "1",
+    assert {
+        key: value for key, value in entries[0].items() if key not in {"created_at", "updated_at"}
+    } == {
+        "id": "2",
         "status": "accepted",
         "ticket_id": 11,
         "classification": None,
         "message": "",
         "delivery_id": "d-1",
-        "request_id": "r-1",
+        "request_id": accepted_id,
     }
-    assert entries[0]["classification"] == "Permanent"
-    assert entries[0]["message"] == "boom"
+    assert entries[1]["status"] == "failed"
+    assert entries[1]["classification"] == "Permanent"
+    assert entries[1]["message"] == "boom_code: boom"
+
+
+class _IdleProcessor:
+    """A processor for a scheduler whose workers never start."""
+
+    async def process(self, _request: object) -> None:
+        raise AssertionError("not started")
+
+    async def resume(self, _request: object) -> None:
+        raise AssertionError("not started")
+
+    async def publish_pending(self, _request: object) -> None:
+        return None
+
+    async def report_failure(self, _request: object) -> None:
+        return None
+
+
+def test_metrics_report_journal_states_on_scrape(tmp_path) -> None:
+    """Brief 5.12: per-state request counts and the oldest waiting age come from the journal."""
+    settings = make_settings(
+        str(tmp_path),
+        overrides={"observability": {"metrics_enabled": True, "metrics_bearer_token": "ops-token"}},
+    )
+    with _journal(tmp_path) as journal:
+        scheduler = JournaledSchedulingService(
+            journal=journal,
+            processor=_IdleProcessor(),
+            max_pending=10,
+            max_running=1,
+            shutdown_timeout_seconds=1.0,
+        )
+        _admit(journal, 1)
+        _admit(journal, 2)
+        journal.fail_permanent(_lease(journal), error_code="boom_code", error_detail="boom")
+        client = TestClient(create_app(settings, scheduler=scheduler))
+
+        text = client.get("/metrics", headers=_AUTH).text
+
+    assert 'chronikwerk_requests{state="waiting"} 1.0' in text
+    assert 'chronikwerk_requests{state="failed"} 1.0' in text
+    assert 'chronikwerk_requests{state="complete"} 0.0' in text
+    assert "chronikwerk_oldest_waiting_seconds " in text
 
 
 def test_healthz_reports_status_service_and_version(tmp_path) -> None:

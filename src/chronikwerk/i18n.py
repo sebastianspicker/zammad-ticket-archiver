@@ -60,7 +60,8 @@ _CATALOGS: dict[str, dict[str, str]] = {
         ),
         "admin.admin_access": "Administrationszugang",
         "admin.process_local": (
-            "Auftragsverlauf, Sitzungen und Zulassungszähler sind prozesslokal und flüchtig."
+            "Sitzungen sind prozesslokal. Anfragen und Auftragsverlauf liegen im Anfragejournal "
+            "und überstehen einen Neustart."
         ),
         "admin.scope": "Geltungsbereich",
         "admin.status_record": "Instanznachweis",
@@ -101,14 +102,14 @@ _CATALOGS: dict[str, dict[str, str]] = {
         "admin.active_state": "Aktiv",
         "admin.process_alive": "Prozess aktiv",
         "admin.refreshed": "Aktualisiert",
-        "admin.failures_in_history": "{count} im flüchtigen Verlauf",
+        "admin.failures_in_history": "{count} im Auftragsverlauf",
         "admin.history_clears_on_restart": (
             "Einträge werden gelöscht, wenn der Prozess neu startet."
         ),
         "admin.trigger_tag": "Auslöse-Tag",
-        "admin.view_history": "Flüchtigen Auftragsverlauf anzeigen",
+        "admin.view_history": "Auftragsverlauf anzeigen",
         "admin.recent_failures": "Letzte Fehler",
-        "admin.no_failures": "Keine Fehler im flüchtigen Verlauf.",
+        "admin.no_failures": "Keine Fehler im Auftragsverlauf.",
         "admin.last_refresh": "Zuletzt aktualisiert",
         "admin.filter": "Filtern",
         "admin.clear_filters": "Filter zurücksetzen",
@@ -123,14 +124,15 @@ _CATALOGS: dict[str, dict[str, str]] = {
         "admin.classification": "Klassifizierung",
         "admin.message": "Meldung",
         "admin.request_id": "Anfrage-ID",
-        "admin.no_jobs": "Keine passenden Auftragsereignisse im flüchtigen Verlauf.",
+        "admin.no_jobs": "Keine passenden Aufträge im Verlauf.",
         "admin.next_page": "Ältere Ereignisse",
         "admin.ticket_history": "Ticketverlauf",
         "admin.retry": "Ticket erneut verarbeiten",
         "admin.retry_warning": (
-            "Eine erneute Verarbeitung kann vorhandene PDF- und Sidecar-Dateien ersetzen."
+            "Eine erneute Verarbeitung erstellt eine neue Revision, wenn sich das Ticket geändert "
+            "hat; vorhandene Revisionen bleiben unverändert."
         ),
-        "admin.retry_ack": "Ich habe das Überschreibungsrisiko geprüft.",
+        "admin.retry_ack": "Ich möchte das Ticket erneut erfassen.",
         "admin.retry_submit": "Erneute Verarbeitung anfordern",
         "admin.retry_unavailable": (
             "Die erneute Verarbeitung konnte nicht angenommen werden. "
@@ -319,7 +321,8 @@ _CATALOGS: dict[str, dict[str, str]] = {
         ),
         "admin.admin_access": "Administration access",
         "admin.process_local": (
-            "Job history, sessions, and admission counters are process-local and volatile."
+            "Sessions are process-local. Requests and job history are kept in the request journal "
+            "and survive a restart."
         ),
         "admin.scope": "Scope",
         "admin.status_record": "Instance record",
@@ -359,12 +362,12 @@ _CATALOGS: dict[str, dict[str, str]] = {
         "admin.active_state": "Active",
         "admin.process_alive": "Process alive",
         "admin.refreshed": "Refreshed",
-        "admin.failures_in_history": "{count} in volatile history",
+        "admin.failures_in_history": "{count} in job history",
         "admin.history_clears_on_restart": "Entries clear when the process restarts.",
         "admin.trigger_tag": "Trigger tag",
-        "admin.view_history": "View volatile job history",
+        "admin.view_history": "View job history",
         "admin.recent_failures": "Recent failures",
-        "admin.no_failures": "No failures in volatile history.",
+        "admin.no_failures": "No failures in job history.",
         "admin.last_refresh": "Last refreshed",
         "admin.filter": "Filter",
         "admin.clear_filters": "Clear filters",
@@ -377,12 +380,15 @@ _CATALOGS: dict[str, dict[str, str]] = {
         "admin.classification": "Classification",
         "admin.message": "Message",
         "admin.request_id": "Request ID",
-        "admin.no_jobs": "No matching job events in volatile history.",
+        "admin.no_jobs": "No matching jobs in history.",
         "admin.next_page": "Older events",
         "admin.ticket_history": "Ticket history",
         "admin.retry": "Reprocess ticket",
-        "admin.retry_warning": "Reprocessing can replace existing PDF and sidecar files.",
-        "admin.retry_ack": "I have reviewed the overwrite risk.",
+        "admin.retry_warning": (
+            "Reprocessing creates a new revision if the ticket has changed; existing revisions "
+            "are never replaced."
+        ),
+        "admin.retry_ack": "I want to capture this ticket again.",
         "admin.retry_submit": "Request reprocessing",
         "admin.retry_unavailable": (
             "Reprocessing could not be accepted. Wait briefly and try again."

@@ -1,4 +1,4 @@
-"""Failure handling for the archive application workflow."""
+"""Classify archive failures and project them to Zammad as an error note and error tags."""
 
 from __future__ import annotations
 
@@ -7,19 +7,23 @@ from dataclasses import dataclass
 import structlog
 
 from chronikwerk._version import VERSION
-from chronikwerk.archiving import workflow
-from chronikwerk.archiving.error_policy import classify
+from chronikwerk.archiving.error_policy import (
+    PERMANENT_ERROR_CODE,
+    classify,
+    failure_code,
+    is_known_failure,
+)
 from chronikwerk.archiving.notes import (
     ErrorNotePayload,
     action_hint,
-    concise_exc_message,
+    bounded_note_text,
     error_code_and_hint,
     error_note_html,
+    preservation_hint,
 )
 from chronikwerk.archiving.retry import async_retry
 from chronikwerk.archiving.tags import apply_error
 from chronikwerk.failures import PermanentError, TransientError
-from chronikwerk.operations.metrics import failed_total
 from chronikwerk.timestamps import format_timestamp_utc, now_utc
 from chronikwerk.zammad.gateway import AsyncZammadClient
 
@@ -27,7 +31,7 @@ log = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
-class _ErrorNote:
+class FailureNote:
     """Values rendered into one operator-visible archival failure note."""
 
     classification: str
@@ -37,121 +41,84 @@ class _ErrorNote:
     hint: str
 
 
-async def handle_ticket_pipeline_exception(
-    *,
-    client: AsyncZammadClient,
-    attempt: workflow.ArchiveAttempt,
-    trigger_tag: str,
-    exc: Exception,
-    project_to_ticket: bool = True,
-) -> workflow.ArchiveOutcome:
-    """Classify a failure and optionally project its state back to the ticket."""
-    failed_total.inc()
-    classified = classify(exc)
-    classification_label = _classification_label(classified)
-    msg = concise_exc_message(exc)
-    action = action_hint(exc, classified=classified, trigger_tag=trigger_tag)
-    code, hint = _error_code_hint(exc, classified=classified)
+@dataclass(frozen=True)
+class FailureTarget:
+    """The ticket and request a failure note and error tags are written for."""
 
-    note = _ErrorNote(
-        classification=classification_label,
-        message=msg,
-        action=action,
-        code=code,
-        hint=hint,
-    )
-    _log_pipeline_error(attempt, classification_label=classification_label, code=code, hint=hint)
-
-    if project_to_ticket:
-        await _post_error_note(
-            client=client,
-            attempt=attempt,
-            note=note,
-        )
-        await _apply_error_and_cleanup_processing_tag(
-            client=client,
-            attempt=attempt,
-            classification_label=classification_label,
-            classified=classified,
-            trigger_tag=trigger_tag,
-        )
-
-    status = _failure_status(classified)
-    workflow.record_history(
-        attempt,
-        status=status,
-        classification=classification_label,
-        message=msg,
-    )
-    return workflow.ArchiveOutcome(
-        status=status,
-        ticket_id=attempt.ticket_id,
-        classification=classification_label,
-        message=msg,
-    )
+    ticket_id: int
+    request_id: str | None
+    delivery_id: str | None
 
 
-def _log_pipeline_error(
-    attempt: workflow.ArchiveAttempt,
-    *,
-    classification_label: str,
-    code: str,
-    hint: str,
-) -> None:
-    log.exception(
-        "process_ticket.error",
-        ticket_id=attempt.ticket_id,
-        request_id=attempt.request_id,
-        delivery_id=attempt.delivery_id,
-        classification=classification_label,
-        code=code or None,
-        hint=hint or None,
-    )
+@dataclass(frozen=True)
+class ClassifiedFailure:
+    """A failure with its retry class, journal code, scrubbed message, hint and action."""
+
+    classified: TransientError | PermanentError
+    code: str
+    message: str
+    hint: str
+    action: str
+
+    @property
+    def transient(self) -> bool:
+        """Return whether the failure may succeed when retried."""
+        return isinstance(self.classified, TransientError)
 
 
-def _failure_status(classified: TransientError | PermanentError) -> str:
-    if isinstance(classified, TransientError):
-        return "failed_transient"
-    return "failed_permanent"
+def failure_message(exc: BaseException, classified: TransientError | PermanentError) -> str:
+    """Return the short reason shown in the note and journaled as ``error_detail``.
 
-
-def _classification_label(classified: TransientError | PermanentError) -> str:
-    """Map a classified error to its human-readable label for notes and metrics."""
-    is_transient = isinstance(classified, TransientError)
-    return "Transient" if is_transient else "Permanent"
-
-
-def _error_code_hint(
-    exc: BaseException, *, classified: TransientError | PermanentError
-) -> tuple[str, str]:
-    """Extract a structured error code and hint, but only for permanent errors.
-
-    Transient classification wins for dual-typed errors such as ``ServerError`` so the note code
-    never contradicts the "Transient" label.
+    Typed failures and ticket-field errors keep their own text; filesystem, HTTP and database
+    errors are reduced to their classified summary; unknown exceptions show only their type.
+    Absolute paths and secrets are removed; the full exception text goes to the log only.
     """
-    if isinstance(classified, TransientError):
-        return "", ""
-    return error_code_and_hint(exc)
+    name = exc.__class__.__name__
+    return bounded_note_text(f"{name}: {classified}" if is_known_failure(exc) else name)
 
 
-async def _post_error_note(
+def classify_failure(exc: BaseException, *, trigger_tag: str) -> ClassifiedFailure:
+    """Classify a preservation failure and pick its code, note hint and operator action.
+
+    A preservation code (brief section 5.10) brings its own hint and action; ticket-field and
+    path-policy errors keep their established codes; everything else gets a generic code.
+    """
+    classified = classify(exc)
+    code = failure_code(exc, classified)
+    action = action_hint(exc, classified=classified, trigger_tag=trigger_tag)
+    hint = ""
+    if code == PERMANENT_ERROR_CODE:
+        code, hint = error_code_and_hint(exc)
+    elif (known := preservation_hint(code, trigger_tag=trigger_tag)) is not None:
+        hint, action = known
+    return ClassifiedFailure(
+        classified=classified,
+        code=code,
+        message=failure_message(exc, classified),
+        hint=hint,
+        action=action,
+    )
+
+
+async def post_failure_note(
     *,
     client: AsyncZammadClient,
-    attempt: workflow.ArchiveAttempt,
-    note: _ErrorNote,
-) -> None:
+    target: FailureTarget,
+    note: FailureNote,
+) -> bool:
+    """Post the error note; return whether Zammad accepted it (failures are logged)."""
     now = now_utc()
     try:
         await client.create_internal_article(
-            attempt.ticket_id,
+            target.ticket_id,
             f"PDF archiver error ({VERSION})",
             error_note_html(
                 ErrorNotePayload(
                     classification=note.classification,
                     message=note.message,
                     action=note.action,
-                    request_id=attempt.request_id,
-                    delivery_id=attempt.delivery_id,
+                    request_id=target.request_id,
+                    delivery_id=target.delivery_id,
                     timestamp_utc=format_timestamp_utc(now),
                     code=note.code,
                     hint=note.hint,
@@ -161,28 +128,33 @@ async def _post_error_note(
     except Exception:  # pylint: disable=broad-exception-caught
         log.exception(
             "process_ticket.error_note_failed",
-            ticket_id=attempt.ticket_id,
-            request_id=attempt.request_id,
-            delivery_id=attempt.delivery_id,
+            ticket_id=target.ticket_id,
+            request_id=target.request_id,
+            delivery_id=target.delivery_id,
             classification=note.classification,
         )
+        return False
+    return True
 
 
-async def _apply_error_and_cleanup_processing_tag(
+async def project_final_failure(
     *,
     client: AsyncZammadClient,
-    attempt: workflow.ArchiveAttempt,
-    classification_label: str,
-    classified: TransientError | PermanentError,
+    target: FailureTarget,
+    note: FailureNote,
     trigger_tag: str,
-) -> None:
+) -> bool:
+    """Set ``pdf:error`` without trigger or ``pdf:processing``, then post the final note.
+
+    Returns whether both reached Zammad. When the tags fail no note is posted, so a later
+    report of the same failure does not leave a second note behind.
+    """
     try:
-        keep_trigger = isinstance(classified, TransientError)
         await async_retry(
             lambda: apply_error(
                 client,
-                attempt.ticket_id,
-                keep_trigger=keep_trigger,
+                target.ticket_id,
+                keep_trigger=False,
                 trigger_tag=trigger_tag,
             ),
             max_retries=1,
@@ -191,8 +163,10 @@ async def _apply_error_and_cleanup_processing_tag(
     except Exception:  # pylint: disable=broad-exception-caught
         log.exception(
             "process_ticket.apply_error_failed",
-            ticket_id=attempt.ticket_id,
-            request_id=attempt.request_id,
-            delivery_id=attempt.delivery_id,
-            classification=classification_label,
+            ticket_id=target.ticket_id,
+            request_id=target.request_id,
+            delivery_id=target.delivery_id,
+            classification=note.classification,
         )
+        return False
+    return await post_failure_note(client=client, target=target, note=note)

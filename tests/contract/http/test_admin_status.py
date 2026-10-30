@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from chronikwerk.operations.admission import JobAdmission
+from chronikwerk.operations.scheduling import JournalAdmission
 from chronikwerk.web.app import create_app
 from tests.support.scheduling import SchedulingSpy
 from tests.support.settings_factory import make_settings
@@ -36,8 +36,7 @@ def _status(tmp_path, scheduler: SchedulingSpy | None) -> dict[str, object]:
 
 def test_status_reports_scheduler_admission_counters(tmp_path) -> None:
     """A scheduling application reports its live admission counters and limits."""
-    admission = JobAdmission(max_pending=5, max_running=2)
-    assert admission.try_reserve(2)
+    admission = JournalAdmission(pending=2, running=0, max_pending=5, max_running=2, closing=False)
 
     admission_status = _status(tmp_path, SchedulingSpy(admission=admission))
 

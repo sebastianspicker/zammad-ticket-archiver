@@ -1,60 +1,68 @@
-"""Verify the public bounded-admission lifecycle."""
+"""Verify the journal-derived admission counters and operator retry admission."""
 
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
-from chronikwerk.operations.admission import AdmissionClosed, JobAdmission
-from chronikwerk.operations.history import JobHistory
 from chronikwerk.operations.job import TicketJob
-from chronikwerk.operations.scheduling import TicketSchedulingService
+from chronikwerk.operations.journal import (
+    JournalOptions,
+    JournalRequest,
+    RequestJournal,
+    RequestSource,
+)
+from chronikwerk.operations.scheduling import JournaledSchedulingService
 
 
-def test_admission_is_bounded_and_closes_queued_work() -> None:
-    async def exercise() -> None:
-        admission = JobAdmission(max_pending=1, max_running=1)
-        assert admission.try_reserve()
-        assert admission.try_reserve()
-        assert not admission.try_reserve()
-        await admission.acquire()
-        assert (admission.pending, admission.running) == (1, 1)
-        await admission.close()
-        await admission.release()
-        try:
-            await admission.acquire()
-        except AdmissionClosed:
-            return
-        raise AssertionError("closed admission accepted queued work")
+class _IdleProcessor:
+    """A processor that never runs; the service is not started."""
 
-    asyncio.run(exercise())
+    async def process(self, _request: JournalRequest) -> None:
+        raise AssertionError("not started")
+
+    async def resume(self, _request: JournalRequest) -> None:
+        raise AssertionError("not started")
+
+    async def publish_pending(self, _request: JournalRequest) -> None:
+        return None
+
+    async def report_failure(self, _request: JournalRequest) -> None:
+        return None
 
 
-def test_operator_retry_preserves_archive_job_metadata() -> None:
-    async def exercise() -> None:
-        captured: list[TicketJob] = []
+def _service(journal: RequestJournal) -> JournaledSchedulingService:
+    """Build an unstarted scheduler that admits at most two waiting requests."""
+    return JournaledSchedulingService(
+        journal=journal,
+        processor=_IdleProcessor(),
+        max_pending=2,
+        max_running=1,
+        shutdown_timeout_seconds=1.0,
+    )
 
-        async def process(job: TicketJob) -> None:
-            captured.append(job)
 
-        scheduler = TicketSchedulingService(
-            admission=JobAdmission(max_pending=1, max_running=1),
-            process_ticket=process,
-            history=JobHistory(),
-            shutdown_timeout_seconds=1.0,
-        )
+def test_admission_is_bounded_and_closing_is_reported(tmp_path: Path) -> None:
+    async def exercise(service: JournaledSchedulingService) -> None:
+        assert await service.schedule(TicketJob(ticket_id=1))
+        assert await service.schedule(TicketJob(ticket_id=2))
+        assert not await service.schedule(TicketJob(ticket_id=3))
+        admission = service.admission
+        assert (admission.pending, admission.running, admission.closing) == (2, 0, False)
+        await service.aclose()
+        assert service.admission.closing
+        assert not await service.schedule(TicketJob(ticket_id=4))
 
-        assert scheduler.schedule_retry(ticket_id=123, request_id="request-1")
-        current = asyncio.current_task()
-        await asyncio.gather(*(task for task in asyncio.all_tasks() if task is not current))
+    with RequestJournal(JournalOptions(path=tmp_path / "journal.db")) as journal:
+        asyncio.run(exercise(_service(journal)))
+        assert sorted(row.ticket_id for row in journal.list_recent()) == [1, 2]
 
-        assert captured == [
-            TicketJob(
-                ticket_id=123,
-                payload={"ticket_id": 123},
-                delivery_id=None,
-                request_id="request-1",
-                force_reprocess=True,
-            )
-        ]
 
-    asyncio.run(exercise())
+def test_operator_retry_is_journaled_as_a_retry(tmp_path: Path) -> None:
+    with RequestJournal(JournalOptions(path=tmp_path / "journal.db")) as journal:
+        service = _service(journal)
+
+        assert asyncio.run(service.schedule_retry(ticket_id=123, request_id="request-1"))
+
+        [row] = journal.list_recent()
+        assert (row.ticket_id, row.source, row.delivery_id) == (123, RequestSource.RETRY, None)

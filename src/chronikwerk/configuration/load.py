@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ from chronikwerk.configuration.validation import (
     validate_settings,
 )
 from chronikwerk.configuration.zammad import canonicalize_zammad_origin
+
+log = logging.getLogger(__name__)
 
 
 def _default_config_path_if_present() -> Path | None:
@@ -79,9 +82,21 @@ def load_settings(
     yaml_data = _yaml_data(path, explicit=explicit)
     canonical_overrides = _canonical_process_env_overrides()
     settings = _settings_from_mapping(deep_merge(yaml_data, canonical_overrides), add_hints=True)
+    _warn_deprecated_settings(settings)
     if include_managed:
         settings = _apply_managed_overlay(settings, yaml_data, canonical_overrides)
     return settings
+
+
+def _warn_deprecated_settings(settings: Settings) -> None:
+    """Warn once per load about deprecated settings that were set explicitly."""
+    # Stdlib logging goes to stderr until the service configures structlog, so CLI JSON
+    # output on stdout stays parseable.
+    if "filename_pattern" in settings.storage.model_fields_set:
+        log.warning(
+            "config.deprecated_setting key=storage.filename_pattern "
+            "detail=ignored by the preservation layout; remove it from the configuration"
+        )
 
 
 def _yaml_data(path: Path | None, *, explicit: bool) -> dict[str, Any]:

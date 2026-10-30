@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -13,8 +14,17 @@ from pydantic import TypeAdapter, ValidationError
 from chronikwerk.configuration.zammad import ZammadConnection
 from chronikwerk.zammad import transport
 from chronikwerk.zammad.dto import Article, TagList, Ticket
-from chronikwerk.zammad.errors import ClientError
+from chronikwerk.zammad.errors import ClientError, NotFoundError
 from chronikwerk.zammad.transport import ZammadRequest
+
+# Total deadline for one raw-email download; per-read timeouts alone allow a slow drip.
+_RAW_EMAIL_DEADLINE_SECONDS = 120.0
+
+
+def trigger_tag_query(tag: str) -> str:
+    """Build the ticket search query for an exact tag, escaping backslashes and quotes."""
+    escaped = tag.replace("\\", "\\\\").replace('"', '\\"')
+    return f'tags:"{escaped}"'
 
 
 class AsyncZammadClient:
@@ -77,6 +87,12 @@ class AsyncZammadClient:
             ZammadRequest("GET", f"api/v1/tickets/{ticket_id}", params={"expand": "true"})
         )
         return Ticket.model_validate(resp)
+
+    async def get_ticket_raw(self, ticket_id: int, *, max_bytes: int) -> bytes:
+        """Fetch the verbatim ``expand=true`` ticket body, bounded by ``max_bytes``."""
+        return await self._transport.request_bytes(
+            "GET", f"api/v1/tickets/{ticket_id}", params={"expand": "true"}, max_bytes=max_bytes
+        )
 
     async def get_current_user_login(self) -> str:
         """Return the login of the API token's user, fetched once per client."""
@@ -161,6 +177,63 @@ class AsyncZammadClient:
         )
         items = TypeAdapter(list[dict[str, Any]]).validate_python(resp)
         return [Article.model_validate(item) for item in items]
+
+    async def list_articles_raw(self, ticket_id: int, *, max_bytes: int) -> bytes:
+        """Fetch the verbatim by-ticket article list body, bounded by ``max_bytes``."""
+        return await self._transport.request_bytes(
+            "GET", f"api/v1/ticket_articles/by_ticket/{ticket_id}", max_bytes=max_bytes
+        )
+
+    async def get_article_plain(self, article_id: int, *, max_bytes: int) -> bytes | None:
+        """Fetch an email article's original RFC 5322 message, or ``None`` when absent."""
+        try:
+            return await self._transport.request_bytes(
+                "GET",
+                f"api/v1/ticket_article_plain/{article_id}",
+                max_bytes=max_bytes,
+                timeout_seconds=_RAW_EMAIL_DEADLINE_SECONDS,
+            )
+        except NotFoundError:
+            return None
+
+    async def download_attachment(
+        self,
+        ticket_id: int,
+        article_id: int,
+        attachment_id: int,
+        *,
+        target: Path,
+        max_bytes: int,
+        timeout_seconds: float,
+    ) -> int:
+        """Stream one attachment into the new file ``target`` and return the bytes written."""
+        return await self._transport.stream_to_file(
+            f"api/v1/ticket_attachment/{ticket_id}/{article_id}/{attachment_id}",
+            target=target,
+            max_bytes=max_bytes,
+            timeout_seconds=timeout_seconds,
+        )
+
+    async def search_ticket_ids(self, query: str, *, limit: int = 100, page: int = 1) -> list[int]:
+        """Return one page of ticket IDs matching a Zammad search query."""
+        resp = await self._request_json(
+            ZammadRequest(
+                "GET",
+                "api/v1/tickets/search",
+                params={"query": query, "limit": str(limit), "page": str(page)},
+            )
+        )
+        # Zammad answers with {"tickets": [ids], ...} or a list of ticket objects.
+        items = resp.get("tickets") if isinstance(resp, dict) else resp
+        if not isinstance(items, list):
+            raise ClientError("Zammad ticket search response format unexpected")
+        ids: list[int] = []
+        for item in items:
+            ticket_id = item.get("id") if isinstance(item, dict) else item
+            if isinstance(ticket_id, bool) or not isinstance(ticket_id, int):
+                raise ClientError("Zammad ticket search response contains a non-integer ticket id")
+            ids.append(ticket_id)
+        return ids
 
     async def _request_json(self, request: ZammadRequest) -> Any:
         return await self._transport.request_json(

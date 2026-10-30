@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 
+from chronikwerk.operations.history import EmptyHistory
 from chronikwerk.web.app import create_app
 from tests.support.scheduling import SchedulingSpy
 from tests.support.settings_factory import make_settings
@@ -168,3 +171,51 @@ def test_retry_api_requires_csrf_and_session(tmp_path: Path) -> None:
     assert no_csrf.json()["code"] == "csrf_invalid"
     assert anonymous.status_code == 401
     assert spy.retries == []
+
+
+class _LoopProbeHistory(EmptyHistory):
+    """Empty history that records whether each read ran on an event-loop thread."""
+
+    def __init__(self, items: list[dict[str, Any]] | None = None) -> None:
+        self.on_loop: list[bool] = []
+        self.items = items or []
+
+    def read(
+        self,
+        limit: int,
+        ticket_id: int | None = None,
+        *,
+        before_id: int | None = None,
+        statuses: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            self.on_loop.append(False)
+        else:
+            self.on_loop.append(True)
+        return self.items
+
+
+def test_admin_history_reads_run_off_the_event_loop(tmp_path: Path) -> None:
+    """Journal reads block, so every admin view reads the history in a worker thread."""
+    history = _LoopProbeHistory()
+    client, _csrf = _client(tmp_path, SchedulingSpy(history=history))
+
+    for path in ("/admin", "/admin/jobs", "/admin/jobs/7", "/admin/api/v1/jobs"):
+        assert client.get(path).status_code == 200, path
+
+    assert history.on_loop == [False, False, False, False]
+
+
+def test_jobs_page_gives_coalesced_and_skipped_rows_their_tones(tmp_path: Path) -> None:
+    items = [
+        {"id": str(index), "status": status, "ticket_id": index, "created_at": 0.0}
+        for index, status in enumerate(("coalesced", "skipped"), start=1)
+    ]
+    client, _csrf = _client(tmp_path, SchedulingSpy(history=_LoopProbeHistory(items)))
+
+    page = client.get("/admin/jobs").text
+
+    assert '<span class="notation notation--pending">coalesced</span>' in page
+    assert '<span class="notation notation--idle">skipped</span>' in page

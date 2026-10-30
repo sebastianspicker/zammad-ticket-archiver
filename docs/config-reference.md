@@ -4,6 +4,8 @@ Source of truth:
 
 - `src/chronikwerk/configuration/models.py`
 - `src/chronikwerk/configuration/sections.py`
+- `src/chronikwerk/configuration/preservation.py`
+- `src/chronikwerk/configuration/retention.py`
 - `src/chronikwerk/configuration/signing.py`
 - `src/chronikwerk/configuration/zammad.py`
 - `src/chronikwerk/configuration/load.py`
@@ -77,6 +79,7 @@ Validated service startup requires:
 | `fields.archive_path` | `archive_path` | `FIELDS__ARCHIVE_PATH` | Ticket field containing archive path segments. |
 | `fields.archive_user_mode` | `archive_user_mode` | `FIELDS__ARCHIVE_USER_MODE` | Ticket field selecting user directory mode. |
 | `fields.archive_user` | `archive_user` | `FIELDS__ARCHIVE_USER` | Ticket field used when mode is `fixed`. |
+| `fields.record_class` | `archive_record_class` | `FIELDS__RECORD_CLASS` | Ticket field holding the record class (see "Retention policy file"). |
 
 ## Storage
 
@@ -84,7 +87,16 @@ Validated service startup requires:
 | --- | --- | --- | --- |
 | `storage.root` | required | `STORAGE__ROOT` | Root directory for archive output. |
 | `storage.fsync` | `true` | `STORAGE__FSYNC` | Fsync files/directories after writes. |
-| `storage.filename_pattern` | `Ticket-{ticket_number}_{timestamp_utc}.pdf` | `STORAGE__FILENAME_PATTERN` | Output PDF filename template; `{timestamp_utc}` is the UTC date (`2026-02-07`). |
+| `storage.filename_pattern` | `Ticket-{ticket_number}_{timestamp_utc}.pdf` | `STORAGE__FILENAME_PATTERN` | Deprecated and ignored: the preservation package layout replaced it. Setting it explicitly makes `load_settings` log a `config.deprecated_setting` warning through stdlib logging (stderr before structured logging is configured, so CLI JSON on stdout stays intact). |
+| `storage.backend` | `filesystem` | `STORAGE__BACKEND` | `filesystem` or `s3`. With `s3`, `storage.s3.bucket`, `storage.s3.access_key_id` and `storage.s3.secret_access_key` are required. |
+| `storage.filesystem.worm_enforced` | `false` | `STORAGE__FILESYSTEM__WORM_ENFORCED` | Operator's assertion that the share enforces WORM. |
+| `storage.s3.endpoint_url` | `null` | `STORAGE__S3__ENDPOINT_URL` | S3-compatible endpoint; HTTPS only. |
+| `storage.s3.region` | `null` | `STORAGE__S3__REGION` | Region, if the endpoint requires one. |
+| `storage.s3.bucket` | `null` (required for `s3`) | `STORAGE__S3__BUCKET` | Bucket with versioning and Object Lock. |
+| `storage.s3.object_lock_mode` | `COMPLIANCE` | `STORAGE__S3__OBJECT_LOCK_MODE` | `COMPLIANCE` or `GOVERNANCE`. |
+| `storage.s3.staging_retention_days` | `7` | `STORAGE__S3__STAGING_RETENTION_DAYS` | Retention given to objects before commit; 1 to 365. |
+| `storage.s3.access_key_id` | `null` (required for `s3`) | `STORAGE__S3__ACCESS_KEY_ID` | Capture identity key id; secret. |
+| `storage.s3.secret_access_key` | `null` (required for `s3`) | `STORAGE__S3__SECRET_ACCESS_KEY` | Capture identity secret; redacted.
 
 ## PDF
 
@@ -94,6 +106,7 @@ Validated service startup requires:
 | `pdf.timezone` | `Europe/Berlin` | `PDF__TIMEZONE` | Time zone used by templates. |
 | `pdf.max_articles` | `250` | `PDF__MAX_ARTICLES` | Maximum article count; `0` disables the limit. |
 | `pdf.article_limit_mode` | `fail` | `PDF__ARTICLE_LIMIT_MODE` | `fail` or `cap_and_continue`. |
+| `pdf.reading_copies` | `["pdf/a-2u", "pdf/ua-1"]` | `PDF__READING_COPIES` (JSON list) | Reading copies to render; non-empty, no duplicates, from `pdf/a-2u` and `pdf/ua-1`. |
 
 ## Signing
 
@@ -104,12 +117,66 @@ Validated service startup requires:
 | `signing.pfx_password` | `null` | `SIGNING__PFX_PASSWORD` | PFX password. |
 | `signing.pades.reason` | `Ticket Archivierung` | `SIGNING__PADES__REASON` | Signature reason. |
 | `signing.pades.location` | `Datacenter` | `SIGNING__PADES__LOCATION` | Signature location. |
+| `signing.pades.level` | `B-LT` | `SIGNING__PADES__LEVEL` | `B-T` or `B-LT` for the archival copy. |
 | `signing.timestamp.enabled` | `false` | `SIGNING__TIMESTAMP__ENABLED` | Enable RFC 3161 timestamping. |
 | `signing.timestamp.rfc3161.tsa_url` | `null` | `SIGNING__TIMESTAMP__RFC3161__TSA_URL` | TSA endpoint. |
 | `signing.timestamp.rfc3161.ca_bundle_path` | `null` | `SIGNING__TIMESTAMP__RFC3161__CA_BUNDLE_PATH` | Optional CA bundle for TSA TLS verification. |
 | `signing.timestamp.rfc3161.user` | `null` | `SIGNING__TIMESTAMP__RFC3161__USER` | TSA basic-auth user. |
 | `signing.timestamp.rfc3161.password` | `null` | `SIGNING__TIMESTAMP__RFC3161__PASSWORD` | TSA basic-auth password. |
 | `signing.timestamp.rfc3161.timeout_seconds` | `10.0` | `SIGNING__TIMESTAMP__RFC3161__TIMEOUT_SECONDS` | TSA request timeout. |
+
+## Preservation
+
+These settings belong to the preservation design. They are validated and documented now;
+runtime behaviour that consumes them is added in later changes. Secret values
+(`seal.pfx_password`, `storage.s3.access_key_id`, `storage.s3.secret_access_key`) are
+redacted by `dump-config` and are never managed (staged) through the administration
+application. The non-secret keys are owned by the environment or the YAML file.
+
+| Key | Default | Env key | Description |
+| --- | --- | --- | --- |
+| `journal.path` | `/var/lib/chronikwerk/journal.sqlite3` | `JOURNAL__PATH` | Journal and catalog database on local disk. |
+| `capture.consistency_attempts` | `3` | `CAPTURE__CONSISTENCY_ATTEMPTS` | Collection attempts before the source counts as inconsistent; at least 1. |
+| `capture.max_attachment_bytes` | `104857600` | `CAPTURE__MAX_ATTACHMENT_BYTES` | Largest single file (100 MiB); positive. |
+| `capture.max_package_bytes` | `1073741824` | `CAPTURE__MAX_PACKAGE_BYTES` | Largest package (1 GiB); positive and not smaller than `capture.max_attachment_bytes`. |
+| `capture.download_timeout_seconds` | `300` | `CAPTURE__DOWNLOAD_TIMEOUT_SECONDS` | Longest download of one object; positive. |
+| `capture.temp_dir` | `/var/lib/chronikwerk/tmp` | `CAPTURE__TEMP_DIR` | Local build area; must be on local disk. |
+| `capture.max_temp_bytes` | `4294967296` | `CAPTURE__MAX_TEMP_BYTES` | Cap on the build area (4 GiB); positive. |
+| `capture.retry.max_attempts` | `5` | `CAPTURE__RETRY__MAX_ATTEMPTS` | Automatic retries of a transient failure; at least 1. |
+| `capture.retry.max_delay_seconds` | `3600` | `CAPTURE__RETRY__MAX_DELAY_SECONDS` | Upper bound of the exponential back-off; positive. |
+| `seal.pfx_path` | `null` | `SEAL__PFX_PATH` | PKCS#12 sealing identity; may be the same file as `signing.pfx_path`. |
+| `seal.pfx_password` | `null` | `SEAL__PFX_PASSWORD` | Password of the seal PFX; secret. |
+| `verify.trust_anchors_path` | `null` | `VERIFY__TRUST_ANCHORS_PATH` | PEM bundle with the seal CA and TSA CA. |
+| `retention.policy_path` | `/etc/chronikwerk/retention.yaml` | `RETENTION__POLICY_PATH` | Record-class rules, see "Retention policy file". |
+| `reconcile.interval_seconds` | `86400` | `RECONCILE__INTERVAL_SECONDS` | Reconciliation period; at least 60. |
+| `reconcile.stale_after_seconds` | `86400` | `RECONCILE__STALE_AFTER_SECONDS` | Age at which a tagged ticket without a revision raises an alert; at least 60. |
+| `fixity.cycle_days` | `90` | `FIXITY__CYCLE_DAYS` | Every revision is re-hashed at least once per cycle; 1 to 3650. |
+| `alerts.webhook_url` | `null` | `ALERTS__WEBHOOK_URL` | Out-of-band alert endpoint (JSON POST); HTTPS only. |
+| `renewal.lead_days` | `180` | `RENEWAL__LEAD_DAYS` | Renew this many days before the newest timestamp's TSA certificate expires; 1 to 3650. |
+
+`preservation_requirements(settings)` in `validation.py` lists what a sealed, timestamped
+archive still needs: `seal.pfx_path`, `verify.trust_anchors_path`,
+`signing.timestamp.enabled` and `signing.timestamp.rfc3161.tsa_url`. Startup validation does
+not call it yet.
+
+## Retention policy file
+
+`retention.policy_path` points to a YAML file (see `config/retention.example.yaml`):
+
+```yaml
+record_classes:
+  pilot-test:
+    retention: P30D
+    trigger: capture
+    readers: [service-desk]
+```
+
+Class names match `[a-z0-9-]{1,64}`. `retention` is an ISO 8601 duration with only `Y`, `M`
+and `D` parts (for example `P6Y`, `P1Y6M`, `P30D`) and must be positive; months clamp to the
+end of the month (31 January plus `P1M` is the end of February). `trigger` is `capture` or
+`case_closed`. `readers` is a non-empty list of groups that receive read credentials for the
+class prefix. Unknown keys are rejected, and errors name the file and the class. The example
+values are placeholders; real periods come from records management.
 
 ## Observability
 
@@ -143,13 +210,14 @@ application does not mark the log level as environment-owned. Prefer
 | `hardening.webhook.require_delivery_id` | `false` | `HARDENING__WEBHOOK__REQUIRE_DELIVERY_ID` | Require `X-Zammad-Delivery`. |
 | `hardening.transport.trust_env` | `false` | `HARDENING__TRANSPORT__TRUST_ENV` or `ZAMMAD_TRUST_ENV` | Allow proxy and certificate environment settings for outbound HTTP. |
 | `hardening.transport.allow_insecure_http` | `false` | `HARDENING__TRANSPORT__ALLOW_INSECURE_HTTP` | Explicitly permit an HTTP Zammad origin for a reviewed, isolated internal or test deployment. HTTPS remains the default, and certificate verification remains mandatory whenever HTTPS is used. |
+| `hardening.transport.validation_hosts` | `[]` | `HARDENING__TRANSPORT__VALIDATION_HOSTS` (JSON list) | Bare host names (no scheme, port or path) of OCSP/CRL endpoints allowed for validation fetches; the TSA host is always allowed. |
 | `hardening.transport.allow_private_networks` | `false` | `HARDENING__TRANSPORT__ALLOW_PRIVATE_NETWORKS` or `ZAMMAD_ALLOW_PRIVATE_ORIGIN` | Explicitly allow non-global Zammad addresses for reviewed internal deployments. |
 
 ## Admission
 
 | Key | Default | Env key | Description |
 | --- | --- | --- | --- |
-| `admission.max_pending` | `100` | `ADMISSION__MAX_PENDING` | Maximum admitted jobs waiting for a running slot. |
+| `admission.max_pending` | `100` | `ADMISSION__MAX_PENDING` | Maximum requests in the journal's WAITING state, including transient failures waiting for their back-off retry; further admissions are rejected. Minimum `1`. |
 | `admission.max_running` | `4` | `ADMISSION__MAX_RUNNING` | Maximum ticket pipelines running concurrently. |
 | `admission.shutdown_timeout_seconds` | `5.0` | `ADMISSION__SHUTDOWN_TIMEOUT_SECONDS` | Grace period before async cancellation. In-flight PDF, signing, and filesystem worker threads are awaited after cancellation and can extend total shutdown time. |
 

@@ -20,21 +20,6 @@ class TagClient(Protocol):
         """Remove one tag from the ticket."""
 
 
-def should_process(
-    tags: Iterable[str] | None,
-    *,
-    trigger_tag: str,
-    require_trigger_tag: bool = True,
-) -> bool:
-    """Decide whether the configured trigger tags permit processing."""
-    tag_set = set(tags or [])
-    if DONE_TAG in tag_set:
-        return False
-    if require_trigger_tag:
-        return trigger_tag in tag_set
-    return True
-
-
 async def _apply_tag_transition(
     client: TagClient,
     ticket_id: int,
@@ -53,14 +38,15 @@ async def apply_processing(
     trigger_tag: str,
     force_reprocess: bool = False,
 ) -> None:
-    """Mutate Zammad tags to mark work in progress and clear stale terminal state."""
+    """Mutate Zammad tags to mark work in progress and clear stale terminal state.
+
+    ``pdf:processing`` is added first, so a crash before the removals never leaves the
+    ticket with neither the processing tag nor its trigger or error tag.
+    """
+    await client.add_tag(ticket_id, PROCESSING_TAG)
     remove_tags = (DONE_TAG,) if force_reprocess else ()
-    await _apply_tag_transition(
-        client,
-        ticket_id,
-        (*remove_tags, ERROR_TAG, trigger_tag),
-        PROCESSING_TAG,
-    )
+    for tag in (*remove_tags, ERROR_TAG, trigger_tag):
+        await client.remove_tag(ticket_id, tag)
 
 
 async def apply_done(client: TagClient, ticket_id: int, *, trigger_tag: str) -> None:

@@ -10,12 +10,15 @@ state without exposing secrets. Help-desk staff continue to work in Zammad.
 
 ## Product purpose
 
-Chronikwerk turns authenticated Zammad webhook events into archival PDFs, audit
-sidecars, and visible Zammad outcomes, with optional PAdES signatures and RFC 3161
-timestamps. Its administration application exposes health, process-local history, safe
-retries, and staged non-secret configuration. Success means operators can distinguish
-admitted work from completed archiving, understand volatile and staged state, recover
-safely, and produce complete German or English archive documents.
+Chronikwerk turns authenticated Zammad webhook events into durably journaled requests and,
+for each ticket revision, one sealed package: the original ticket data, emails and
+attachments, two reading copies, and a manifest with a detached seal and an RFC 3161
+timestamp. Packages go into a write-once store and the outcome returns to Zammad as tags
+and a note. Its administration application exposes health, journal history, safe retries,
+and staged non-secret configuration. Success means operators can distinguish recorded
+requests from completed archiving, see what a restart recovers and what is not built yet,
+verify a package without Zammad or Chronikwerk, and produce complete German or English
+reading copies. Chronikwerk makes no claim of legal or standards conformance.
 
 ## Brand personality
 

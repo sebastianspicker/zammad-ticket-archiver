@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 
 from chronikwerk.configuration.models import Settings
-from chronikwerk.operations.history import JobHistory
+from chronikwerk.operations.history import HistoryReader
 from chronikwerk.web.responses import verify_bearer_token
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -24,6 +24,6 @@ def job_history(
         settings.observability.history_bearer_token,
         missing_detail="history_token_not_configured",
     )
-    history: JobHistory = request.app.state.history
+    history: HistoryReader = request.app.state.history
     entries = history.read(limit=limit, ticket_id=ticket_id)
     return {"entries": entries}

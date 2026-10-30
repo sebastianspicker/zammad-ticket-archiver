@@ -1,0 +1,17 @@
+Received: from mail.example.org (mail.example.org [192.0.2.10])
+	by mx.example.com with ESMTPS id abc123; Tue, 20 Oct 2026 07:58:40 +0000
+Authentication-Results: mx.example.com;
+	dkim=pass header.d=example.com header.s=selector1;
+	spf=pass smtp.mailfrom=example.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=selector1;
+	h=from:to:subject:message-id:date; bh=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=;
+	b=BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+From: Nicole Braun <nicole.braun@zammad.org>
+To: support@example.com
+Subject: Printer broken
+Date: Tue, 20 Oct 2026 07:58:38 +0000
+Message-ID: <20261020075841.1@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+The printer on floor 2 shows E-17.

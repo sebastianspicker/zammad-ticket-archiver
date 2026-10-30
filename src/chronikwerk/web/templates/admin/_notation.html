@@ -1,5 +1,5 @@
 {# Packaged with the web control plane. Shared state notations: glyph + text + tone. #}
-{% set status_tones = {"processed": "ok", "failed": "fault", "running": "live", "accepted": "pending", "skipped": "idle"} %}
+{% set status_tones = {"processed": "ok", "failed": "fault", "running": "live", "accepted": "pending", "coalesced": "pending", "skipped": "idle"} %}
 {% set class_tones = {"success": "ok", "permanent": "fault", "transient": "caution", "warning": "caution"} %}
 {% macro status(value) -%}
 <span class="notation notation--{{ status_tones.get(value, 'idle') }}">{{ value }}</span>

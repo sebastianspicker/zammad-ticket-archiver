@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from html import escape
 from html.parser import HTMLParser
@@ -137,7 +138,7 @@ def _sort_key(article: ZammadArticle) -> tuple[bool, datetime, int]:
 
 
 def _normalize_articles(
-    articles: list[ZammadArticle],
+    articles: Sequence[ZammadArticle],
     *,
     max_articles: int | None,
     cap_articles: bool,
@@ -158,14 +159,19 @@ async def build_snapshot(
     custom_fields: dict[str, Any] | None = None,
     max_articles: int | None = None,
     article_limit_mode: str = "fail",
+    articles: Sequence[ZammadArticle] | None = None,
 ) -> Snapshot:
-    """Normalize fetched Zammad resources into the immutable rendering input."""
+    """Normalize fetched Zammad resources into the immutable rendering input.
+
+    ``ticket``, ``tags`` and ``articles`` that the caller already holds (for example from a
+    source capture) are used as given; only the missing ones are fetched.
+    """
     if ticket is None:
         ticket = await client.get_ticket(ticket_id)
     if tags is None:
         tags = await client.list_tags(ticket_id)
-
-    articles = await client.list_articles(ticket_id)
+    if articles is None:
+        articles = await client.list_articles(ticket_id)
     articles_total = len(articles)
     oversized = max_articles is not None and max_articles > 0 and articles_total > max_articles
     if oversized and article_limit_mode != "cap_and_continue":

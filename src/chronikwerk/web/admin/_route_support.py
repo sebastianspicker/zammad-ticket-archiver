@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
@@ -11,7 +12,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Re
 
 from chronikwerk.configuration.models import Settings
 from chronikwerk.i18n import normalize_locale, translate
-from chronikwerk.operations.history import JobHistory
+from chronikwerk.operations.history import HistoryReader
 from chronikwerk.operations.scheduling import TicketScheduler
 from chronikwerk.web.admin.auth import (
     SESSION_COOKIE,
@@ -26,9 +27,23 @@ def _settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
-def _history(request: Request) -> JobHistory:
+def _history(request: Request) -> HistoryReader:
     """Return the application-owned job history."""
     return request.app.state.history
+
+
+async def _read_history(
+    request: Request,
+    limit: int,
+    ticket_id: int | None = None,
+    *,
+    before_id: int | None = None,
+    statuses: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Read the job history off the event loop, because journal reads block."""
+    return await asyncio.to_thread(
+        _history(request).read, limit, ticket_id, before_id=before_id, statuses=statuses
+    )
 
 
 def _request_id(request: Request) -> str:
@@ -181,12 +196,12 @@ def _render(
     return HTMLResponse(html)
 
 
-def _schedule_retry(request: Request, *, ticket_id: int) -> bool:
+async def _schedule_retry(request: Request, *, ticket_id: int) -> bool:
     """Schedule through the application-owned scheduling service."""
     scheduler: TicketScheduler | None = request.app.state.scheduler
-    return bool(
-        scheduler and scheduler.schedule_retry(ticket_id=ticket_id, request_id=_request_id(request))
-    )
+    if scheduler is None:
+        return False
+    return await scheduler.schedule_retry(ticket_id=ticket_id, request_id=_request_id(request))
 
 
 def _admission_status(request: Request) -> dict[str, int | bool]:

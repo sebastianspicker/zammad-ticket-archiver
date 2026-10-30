@@ -46,9 +46,9 @@ def test_pydantic_validation_error_does_not_get_field_hint() -> None:
 
 
 def test_configured_trigger_tag_replaces_default_in_hints() -> None:
-    """Transient and permanent hints name the configured trigger tag."""
+    """Permanent hints name the configured trigger tag; transient ones retry automatically."""
     transient = _hint(OSError(errno.EAGAIN, "retry later"), "archive:now")
     permanent = _hint(ValueError("archive_path must not be empty"), "archive:now")
-    assert "archive:now" in transient
+    assert "retried automatically" in transient
     assert "archive:now" in permanent
     assert "pdf:sign" not in transient + permanent

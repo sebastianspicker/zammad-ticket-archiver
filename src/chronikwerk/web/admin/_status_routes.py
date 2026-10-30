@@ -15,8 +15,8 @@ from chronikwerk.web.admin._route_support import (
     _admission_status,
     _api_error,
     _api_session,
-    _history,
     _next_history_cursor,
+    _read_history,
     _request_id,
     _schedule_retry,
     _set_session_cookie,
@@ -91,7 +91,7 @@ async def status_api(request: Request) -> Response:
             "process_started_at": request.app.state.process_started_at.isoformat(),
             "health": {"status": "ok"},
             "admission": _admission_status(request),
-            "history": {"volatile": True, "limit": 5000},
+            "history": {"volatile": False, "limit": 5000},
             "config": {
                 "active_revision": request.app.state.active_config_revision,
                 "staged_revision": (
@@ -124,7 +124,8 @@ async def jobs_api(
     session, error = _api_session(request)
     if error is not None or session is None:
         return error or Response(status_code=401)
-    items = _history(request).read(
+    items = await _read_history(
+        request,
         limit + 1,
         ticket_id,
         before_id=before_id,
@@ -136,7 +137,7 @@ async def jobs_api(
             "items": items[:limit],
             "next_cursor": next_cursor,
             "process_started_at": request.app.state.process_started_at.isoformat(),
-            "volatile": True,
+            "volatile": False,
         }
     )
 
@@ -159,7 +160,7 @@ async def retry_api(
             "admin.retry_warning",
             locale=session.locale,
         )
-    if not _schedule_retry(request, ticket_id=ticket_id):
+    if not await _schedule_retry(request, ticket_id=ticket_id):
         response = _api_error(
             request,
             503,

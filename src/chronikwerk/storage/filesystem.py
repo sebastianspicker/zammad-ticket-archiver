@@ -5,9 +5,11 @@ from __future__ import annotations
 import errno
 import os
 import shutil
+import stat
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from chronikwerk.storage.policy import ensure_within_root
@@ -17,6 +19,12 @@ _DIRECTORY_OPEN_FLAGS = (
     | getattr(os, "O_CLOEXEC", 0)
     | getattr(os, "O_DIRECTORY", 0)
     | getattr(os, "O_NOFOLLOW", 0)
+)
+_FILE_READ_FLAGS = (
+    os.O_RDONLY
+    | getattr(os, "O_CLOEXEC", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_NONBLOCK", 0)
 )
 _HAS_SECURE_FILESYSTEM_PRIMITIVES = bool(
     getattr(os, "O_DIRECTORY", 0)
@@ -149,6 +157,118 @@ def path_entry_exists(path: Path, *, storage_root: Path) -> bool:
     except FileNotFoundError:
         return False
     return True
+
+
+@contextmanager
+def open_parent_within_root(
+    path: Path, *, storage_root: Path, create: bool = False
+) -> Iterator[tuple[int, str]]:
+    """Yield a descriptor for ``path.parent`` (reached without symlinks) and the leaf name."""
+    with _open_parent_under_root(storage_root, path, create=create) as opened:
+        yield opened
+
+
+@contextmanager
+def open_directory_within_root(path: Path, *, storage_root: Path) -> Iterator[int]:
+    """Yield a descriptor for an existing directory reached without following symlinks."""
+    relative = _relative_to_storage_root(storage_root, path)
+    with _open_directory(storage_root, create=False) as root_fd:
+        fd = os.dup(root_fd)
+        try:
+            for part in relative.parts:
+                child_fd = _open_child_directory(fd, part, create=False)
+                os.close(fd)
+                fd = child_fd
+            yield fd
+        finally:
+            os.close(fd)
+
+
+def open_regular_file_at(parent_fd: int, leaf: str) -> int:
+    """Open ``leaf`` read-only without following a symlink; refuse non-regular files."""
+    try:
+        fd = os.open(leaf, _FILE_READ_FLAGS, dir_fd=parent_fd)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise ValueError("target path is a symlink under storage root") from exc
+        raise
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise FileNotFoundError(errno.ENOENT, "not a regular file", leaf)
+    return fd
+
+
+def open_file_within_root(path: Path, *, storage_root: Path) -> int:
+    """Open a regular file below storage_root; no path component may be a symlink."""
+    with _open_parent_under_root(storage_root, path, create=False) as (parent_fd, leaf):
+        return open_regular_file_at(parent_fd, leaf)
+
+
+EntryVisitor = Callable[[int, str], None]
+
+
+def _reject_symlink_entry(_parent_fd: int, _leaf: str) -> None:
+    raise ValueError("directory tree contains a symlink under storage root")
+
+
+def _ignore_entry(_parent_fd: int, _leaf: str) -> None:
+    return None
+
+
+def _ignore_directory(_fd: int) -> None:
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class _TreeVisitor:
+    on_file: EntryVisitor
+    on_dir: Callable[[int], None]
+    on_symlink: EntryVisitor
+
+
+def _walk_directory_fd(dir_fd: int, base: str, found: list[str], visitor: _TreeVisitor) -> None:
+    with os.scandir(dir_fd) as scanned:
+        entries = sorted(scanned, key=lambda entry: entry.name)
+    for entry in entries:
+        relative = f"{base}{entry.name}"
+        if entry.is_symlink():
+            visitor.on_symlink(dir_fd, entry.name)
+        elif entry.is_dir(follow_symlinks=False):
+            child_fd = _open_child_directory(dir_fd, entry.name, create=False)
+            try:
+                _walk_directory_fd(child_fd, f"{relative}/", found, visitor)
+            finally:
+                os.close(child_fd)
+        elif entry.is_file(follow_symlinks=False):
+            visitor.on_file(dir_fd, entry.name)
+            found.append(relative)
+    visitor.on_dir(dir_fd)
+
+
+def walk_tree_within_root(
+    directory: Path,
+    *,
+    storage_root: Path,
+    on_file: EntryVisitor | None = None,
+    on_dir: Callable[[int], None] | None = None,
+    on_symlink: EntryVisitor | None = None,
+) -> list[str]:
+    """Walk a tree through descriptors, never following symlinks, and list its files.
+
+    ``on_file`` and ``on_symlink`` receive the parent descriptor and the entry name;
+    ``on_dir`` receives each directory descriptor after its children (post-order). By
+    default a symlink anywhere in the tree raises ``ValueError``. Returns the sorted
+    relative POSIX paths of the regular files.
+    """
+    visitor = _TreeVisitor(
+        on_file or _ignore_entry,
+        on_dir or _ignore_directory,
+        on_symlink or _reject_symlink_entry,
+    )
+    found: list[str] = []
+    with open_directory_within_root(directory, storage_root=storage_root) as fd:
+        _walk_directory_fd(fd, "", found, visitor)
+    return sorted(found)
 
 
 def unlink_file_within_root(

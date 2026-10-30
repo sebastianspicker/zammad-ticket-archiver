@@ -3,14 +3,53 @@
 from __future__ import annotations
 
 import errno
+import sqlite3
+from collections.abc import Mapping
+from typing import Literal
 
 import httpx
 
-from chronikwerk.failures import PermanentError, TransientError, wrap_exception
+from chronikwerk.failures import PermanentError, TransientError
 
 _HTTP_TIMEOUT = "HTTP timeout"
 _HTTP_REQUEST_ERROR = "HTTP connection/request error"
 _FS_GENERIC_ERROR = "Filesystem error"
+_DATABASE_BUSY = "Database temporarily unavailable"
+
+# Error codes of the preservation workflow (brief section 5.10) and their retry class. Each
+# typed error (capture_errors, commit_errors, PackageTooLargeError) carries its code as a
+# ``code`` class attribute and subclasses the matching TransientError/PermanentError.
+ERROR_CODE_CLASSES: Mapping[str, Literal["transient", "permanent"]] = {
+    "record_class_missing": "permanent",
+    "inconsistent_source": "permanent",
+    "attachment_too_large": "permanent",
+    "package_too_large": "permanent",
+    "temp_space_exceeded": "transient",
+    "seal_failed": "permanent",
+    "timestamp_failed": "transient",  # permanent when the token itself is invalid
+    "validation_unavailable": "transient",
+    "store_write_failed": "transient",
+    "store_conflict": "permanent",
+    "verification_failed": "permanent",
+    "retention_not_confirmed": "permanent",
+    "commit_interrupted": "transient",
+    "not_triggered": "permanent",
+    "internal_error": "transient",
+}
+# Codes for failures that carry no preservation code (Zammad, HTTP, filesystem, ticket fields).
+TRANSIENT_ERROR_CODE = "transient_error"
+PERMANENT_ERROR_CODE = "permanent_error"
+# Code for exceptions no policy rule knows; transient, so a bug does not drop the request.
+INTERNAL_ERROR_CODE = "internal_error"
+_KNOWN_FAILURES = (
+    TransientError,
+    PermanentError,
+    OSError,
+    ValueError,
+    TypeError,
+    httpx.HTTPError,
+    sqlite3.OperationalError,
+)
 
 _TRANSIENT_ERRNOS: set[int] = {
     # Temporary / retryable.
@@ -83,6 +122,16 @@ def _classify_os_error(exc: OSError) -> TransientError | PermanentError:
     return PermanentError(_FS_GENERIC_ERROR)
 
 
+def describe_os_error(exc: OSError) -> str:
+    """Return the classified, host-neutral summary of a filesystem failure (no paths)."""
+    return str(_classify_os_error(exc))
+
+
+def is_known_failure(exc: BaseException) -> bool:
+    """Report whether an explicit policy rule (not the fallback) classifies ``exc``."""
+    return isinstance(exc, _KNOWN_FAILURES)
+
+
 def _classify_httpx_error(exc: BaseException) -> TransientError | PermanentError | None:
     if isinstance(exc, httpx.HTTPStatusError):
         return _classify_http_status(exc)
@@ -92,16 +141,40 @@ def _classify_httpx_error(exc: BaseException) -> TransientError | PermanentError
     return None
 
 
+def error_code(exc: BaseException) -> str | None:
+    """Return the preservation error code an exception carries, or ``None``."""
+    code = getattr(exc, "code", None)
+    return code if isinstance(code, str) and code in ERROR_CODE_CLASSES else None
+
+
+def failure_code(exc: BaseException, classified: TransientError | PermanentError) -> str:
+    """Return the journal error code of a classified failure.
+
+    A carried preservation code wins; exceptions no policy rule knows get ``internal_error``
+    (transient, like its ``ERROR_CODE_CLASSES`` entry); otherwise the code is
+    ``transient_error`` or ``permanent_error``.
+    """
+    code = error_code(exc)
+    if code is not None:
+        return code
+    if not is_known_failure(exc):
+        return INTERNAL_ERROR_CODE
+    if isinstance(classified, TransientError):
+        return TRANSIENT_ERROR_CODE
+    return PERMANENT_ERROR_CODE
+
+
 def classify(exc: BaseException) -> TransientError | PermanentError:
     """
     Classify an exception into retryable (TransientError) vs non-retryable (PermanentError).
 
-    Always returns a classification; unknown exceptions are wrapped as permanent.
+    Always returns a classification; unknown exceptions are wrapped as transient
+    (``internal_error``), so the journal's bounded back-off retries them.
 
     Policy goals:
-      - Predictable ticket state transitions (avoid accidental infinite retry loops).
+      - Predictable ticket state transitions; retries stay bounded by the journal.
       - Keep retryable failures retryable: network timeouts, upstream 5xx, rate limits,
-        and certain filesystem errors commonly seen with network shares.
+        busy databases and certain filesystem errors commonly seen with network shares.
     """
     if isinstance(exc, TransientError | PermanentError):
         return exc
@@ -114,9 +187,15 @@ def classify(exc: BaseException) -> TransientError | PermanentError:
     if isinstance(exc, OSError):
         return _classify_os_error(exc)
 
+    # A locked or busy SQLite database (journal, catalog) clears without changing inputs.
+    if isinstance(exc, sqlite3.OperationalError):
+        return TransientError(_DATABASE_BUSY)
+
     # Validation/data issues (e.g. missing required ticket fields, path policy violations).
     if isinstance(exc, ValueError | TypeError):
         return PermanentError(str(exc) or exc.__class__.__name__)
 
-    # Fail-safe default: stop automatic reprocessing unless explicitly classified transient.
-    return wrap_exception(exc)
+    # Unknown failures retry with the journal's bounded back-off (ERROR_CODE_CLASSES).
+    wrapped = TransientError(exc.__class__.__name__)
+    wrapped.__cause__ = exc
+    return wrapped

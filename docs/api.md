@@ -4,7 +4,18 @@ This document describes the HTTP contract exposed by Chronikwerk.
 
 ## `POST /ingest`
 
-Accepts one Zammad webhook payload and schedules background processing.
+Accepts one Zammad webhook payload, records it in the durable request journal, and schedules
+background processing.
+
+`202` means the request is committed to the journal before the response is sent. It does not mean
+the ticket is archived: completion is visible through the Zammad tags and note, `GET /jobs/history`
+and the stored revision. Duplicate and coalesced requests also answer `202`:
+
+- A repeated `X-Zammad-Delivery` ID is acknowledged without a new journal row, also after a restart.
+- A request for a ticket that already has an active request is stored as `coalesced` and answered
+  with the same body. It waits behind the active request or is merged into it.
+- A request is refused with `503 job_capacity_exhausted` only when the journal holds
+  `admission.max_pending` waiting requests and the ticket has no active request.
 
 Query parameters:
 
@@ -18,7 +29,10 @@ Headers:
   `sha1=<hex>` or `sha256=<hex>`. Supported startup configuration requires a
   webhook HMAC secret.
 - `X-Zammad-Delivery`: required only when
-  `hardening.webhook.require_delivery_id=true`.
+  `hardening.webhook.require_delivery_id=true`. After trimming surrounding whitespace, the value
+  must be at most 128 printable ASCII characters (`0x20`-`0x7E`). A longer value or one with other
+  characters is logged and treated as absent: no deduplication by delivery ID, and in strict
+  delivery-ID mode the request is rejected as `missing_delivery_id`.
 - `X-Request-Id`: optional request correlation ID.
 
 Body:
@@ -46,19 +60,20 @@ Common errors:
 | `413` | `request_too_large` | Request body exceeds the configured limit. |
 | `422` | validation error | Payload does not contain a positive ticket ID. |
 | `429` | `rate_limited` | Rate limit exceeded. |
-| `503` | `job_capacity_exhausted` | Admission capacity is full, or the app was built without a scheduler (read-only). Sent with `Retry-After: 1`. |
+| `503` | `job_capacity_exhausted` | The journal is at its waiting-request limit, or the app was built without a scheduler (read-only). Nothing was recorded. Sent with `Retry-After: 1`. |
 | `503` | `shutting_down` | The process is draining for shutdown and accepts no new work. |
 | `503` | `webhook_auth_not_configured` | Defensive fail-closed response if an app is constructed without validated webhook authentication settings. Normal startup rejects this configuration. |
 
 ## `POST /ingest/batch`
 
-Accepts a JSON array of webhook payloads and schedules one job per item.
+Accepts a JSON array of webhook payloads and records one journal request per item.
 
 Limits:
 
 - Maximum batch size: `100`; larger batches return `422 batch_too_large`.
 - An empty array returns `422 batch_empty`.
-- Admission is all-or-nothing: if capacity cannot hold every item, nothing is scheduled.
+- Admission is all-or-nothing: the batch is recorded in one transaction, and if capacity cannot
+  hold every item, nothing is recorded. Duplicate delivery IDs and coalesced items count as accepted.
 - Each item must contain either `ticket.id` or `ticket_id`.
 
 Headers and error behavior match `POST /ingest`. When a batch-level
@@ -79,8 +94,10 @@ Dry run success:
 
 ## `POST /retry/{ticket_id}`
 
-Accepts and schedules one reprocessing attempt for a ticket. The forced attempt bypasses
-the normal completed-tag skip, but `202` still reports admission rather than completion.
+Records one reprocessing request (source `retry`) for a ticket. The forced request does not
+require the trigger tag, but `202` still reports durable recording rather than completion. If the
+ticket content is unchanged since its last complete revision, the request resolves to that
+revision and creates no new package.
 
 Headers:
 
@@ -100,8 +117,11 @@ Common errors:
 
 ## `GET /jobs/history`
 
-Returns process-local processing history when enabled. The route is
+Returns request history read from the durable journal, so entries survive a restart. The route is
 disabled by default and requires `Authorization: Bearer <OBSERVABILITY__HISTORY_BEARER_TOKEN>`.
+Entries have one row per journaled request; `status` is `accepted` (waiting), `running`
+(collecting or verifying), `processed` (complete), `failed` or `coalesced`, and `message` carries
+the error code and detail of a failed or backing-off request.
 
 Query parameters:
 
@@ -121,7 +141,8 @@ Example response:
       "message": "",
       "delivery_id": "delivery-1",
       "request_id": "req-1",
-      "created_at": 1710000000.0
+      "created_at": 1710000000.0,
+      "updated_at": 1710000042.0
     }
   ]
 }
@@ -180,9 +201,9 @@ not yet have a session CSRF token.
 | --- | --- | --- |
 | `POST` | `/admin/api/v1/session` | Create a process-local admin session; returns `204`. |
 | `DELETE` | `/admin/api/v1/session` | CSRF-protected logout. |
-| `GET` | `/admin/api/v1/status` | Runtime, admission, volatile-history, and revision state. |
+| `GET` | `/admin/api/v1/status` | Runtime, admission, journal-history, and revision state. |
 | `POST` | `/admin/api/v1/status/storage-check` | User-initiated deep storage check. |
-| `GET` | `/admin/api/v1/jobs` | Cursor-paginated process-local history (`limit<=100`). |
+| `GET` | `/admin/api/v1/jobs` | Cursor-paginated journal history (`limit<=100`). |
 | `POST` | `/admin/api/v1/jobs/{ticket_id}/retry` | Acknowledged retry request; returns `202`. |
 | `GET` | `/admin/api/v1/config` | Allowlisted values, ownership, secret-presence booleans, revisions. |
 | `POST` | `/admin/api/v1/config/validate` | Validate a flat field overlay and return a normalized diff. |

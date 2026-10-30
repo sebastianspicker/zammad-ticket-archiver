@@ -15,6 +15,58 @@ tags use the public form `v0.3.0-alpha.1`.
 
 ## [Unreleased]
 
+### Added
+- Durable request journal (ADR 0011). Every `POST /ingest`, `/ingest/batch` and `/retry` request is
+  committed to a SQLite journal (`journal.path`, WAL, `synchronous=FULL`, local disk) before the
+  `202` answer. Requests move through `waiting`, `collecting`, `verifying`, `complete`, `failed`
+  and `coalesced`; a request for a ticket with an active request is coalesced, and a repeated
+  delivery ID adds no row. Transient failures back off exponentially (`capture.retry.*`). After a
+  restart, interrupted `collecting` requests return to `waiting` and `verifying` requests resume
+  at their recorded commit step. `GET /jobs/history` and the admin history read the journal.
+- Sealed preservation package (ADR 0012), format `chronikwerk-package/1`: verbatim ticket and
+  article responses, each email article's original message, attachment bytes, `capture.json`, two
+  reading copies (`reading-copy.pdf` PDF/A-2u and `reading-copy-ua.pdf` PDF/UA-1), and a
+  `manifest.json` with every file's size and SHA-256. The manifest is sealed with a detached CMS
+  signature (`manifest.json.p7s`) and timestamped with an RFC 3161 token
+  (`manifest.json.p7s.tst`). Each changed capture gets a new revision (UUIDv7 ID, per-ticket
+  number); an unchanged ticket resolves to its existing revision.
+- Write-once archive store (ADR 0013) with a filesystem implementation: staged, create-only
+  writes, read-back, one-rename publication and read-only modes, plus an index of complete
+  revisions (the catalog) in the journal database that can be rebuilt from the stored manifests.
+  Retention comes from a required policy file (`retention.policy_path`); `retention_enforced` is
+  recorded per revision.
+- `chronikwerk-admin verify --path <directory> --trust-anchors <pem>` checks a package offline:
+  manifest, file hashes, seal, timestamp and PAdES signature, with optional `--expected-signer`
+  pinning and a `--report` file.
+- Error codes `record_class_missing`, `inconsistent_source`, `attachment_too_large`,
+  `package_too_large`, `temp_space_exceeded`, `seal_failed`, `timestamp_failed`,
+  `validation_unavailable`, `store_write_failed`, `store_conflict`, `verification_failed`,
+  `retention_not_confirmed`, `commit_interrupted`, `not_triggered` and `internal_error`, each with
+  a note hint and operator action. The success note shows revision number and ID, manifest
+  SHA-256, key prefix, coverage, `retain_until` and `retention_enforced`.
+- New settings: `journal.*`, `capture.*`, `fields.record_class`, `pdf.reading_copies`, `seal.*`,
+  `verify.trust_anchors_path`, `retention.policy_path`, `storage.backend`,
+  `storage.filesystem.worm_enforced`, `storage.s3.*`, `reconcile.*`, `fixity.cycle_days`,
+  `alerts.webhook_url` and `renewal.lead_days`. The `reconcile`, `fixity`, `alerts` and `renewal`
+  settings and `storage.backend=s3` have no effect yet (see ALPHA_KNOWN_ISSUES.md).
+
+### Changed
+- **Breaking: storage layout.** Archives are no longer a PDF with a JSON sidecar named by
+  `storage.filename_pattern`. Each revision is a directory
+  `<record_class>/<archive_user>/<archive_path...>/Ticket-<number>/r<NNNN>_<revision_id>/`, written
+  once. Same-day captures no longer overwrite each other. Existing `Ticket-<n>_<date>.pdf` pairs
+  are left untouched and not imported; tools that read the flat layout must change.
+- `storage.filename_pattern` is ignored and logs a startup warning when set.
+- `202` now means "durably recorded", not "queued in memory". A restart no longer loses accepted
+  requests, and delivery-ID deduplication survives it.
+- Attachments are now archived: their bytes are stored in the package, limited by
+  `capture.max_attachment_bytes` and `capture.max_package_bytes`.
+- `pdf:signed` now means a complete, sealed and verified revision.
+- New requirements (ADR 0012): the service no longer runs unsealed. `seal.pfx_path`,
+  `verify.trust_anchors_path`, `signing.timestamp.enabled=true` and a TSA URL are required, and so
+  is a retention policy file with a record class on every ticket. A plain filesystem store records
+  `retention_enforced` as false and is suitable for testing only.
+
 ### Fixed
 - `POST /ingest/batch` rejects an empty array with `422 batch_empty` instead of accepting a
   zero-item batch.

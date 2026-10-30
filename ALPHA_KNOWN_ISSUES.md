@@ -5,10 +5,15 @@ it, and how to report problems. Use a disposable Zammad with test data only.
 
 ## Not yet confirmed against a live Zammad
 
-Chronikwerk now follows Zammad's documented webhook signature, ticket format and tag API, and
-the full archive run is tested against those documented formats. It has not yet been run
-against a real Zammad instance. If a tagged ticket does not produce a PDF, please report it
-(see below). Your report is the check we are missing.
+Chronikwerk follows Zammad's documented webhook signature, ticket format, tag API, article list,
+original-message (`ticket_article_plain`) and attachment endpoints, and the capture-to-package
+run is tested against those documented formats. It has not yet been run against a real Zammad
+instance. If a tagged ticket does not produce a sealed package, please report it (see below).
+Your report is the check we are missing.
+
+The reconciliation design searches Zammad tickets by tag with
+`GET /api/v1/tickets/search?query=tags:"<trigger tag>"`. That query syntax and the two response
+shapes it may return are unverified, and no reconciliation job runs yet.
 
 ## What does not work yet, and workarounds
 
@@ -23,16 +28,25 @@ against a real Zammad instance. If a tagged ticket does not produce a PDF, pleas
   again in Zammad, or use `fixed` mode.
 - **The requester is shown by login only.** The PDF shows the customer's Zammad login, which
   is usually but not always their email address.
-- **Attachment files are not archived.** The PDF lists each attachment's name, size and type,
-  but the files themselves are not stored. This is by design for the alpha.
 - **Strict delivery-ID signing does not work with Zammad directly.** Zammad signs webhooks with
   HMAC-SHA1 over the body only. Leave `HARDENING__WEBHOOK__REQUIRE_DELIVERY_ID` unset unless a
   signing proxy sits in front of Chronikwerk.
 - **The `.env.example` comment still says only `sha256=` signatures are accepted.** Zammad's
   native `sha1=` signature is accepted too. No change is needed on your side.
-- **Restarting the service loses queued work and history.** A `202 Accepted` reply means the
-  request was queued, not archived. After a restart, retry tickets that never reached
-  `pdf:signed` or `pdf:error`.
+- **`202 Accepted` means recorded, not archived.** Requests are written to a journal before the
+  reply and survive a restart. A request interrupted before its sealed files reached the store is
+  captured again under a new revision ID. Back up the journal file; it cannot be rebuilt from the
+  archive.
+- **Storage layout changed.** Archives are now one directory per revision. Old
+  `Ticket-<n>_<date>.pdf` pairs are left untouched and not imported.
+- **A plain file share does not enforce retention.** Revisions written there record
+  `retention_enforced` as false. Use such a share for testing only; production needs a share or
+  store that enforces write-once retention itself.
+- **SMB hard links and `flock` are untested.** The filesystem store links objects into place and
+  locks each revision with `flock`. Test both on your target share and mount options.
+- **Validation material is not embedded.** Seal and timestamp validation runs offline against the
+  trust anchors and does not check revocation. Certificates and revocation data are not stored in
+  the package, and `signing.pades.level` `B-LT` does not embed validation information in the PDF.
 - **Keep the archive fields agent-only in Zammad.** Whoever can edit the archive path and user
   fields decides which folder a ticket is archived to. The folder always stays inside the
   archive root.
@@ -42,8 +56,14 @@ against a real Zammad instance. If a tagged ticket does not produce a PDF, pleas
 - **`LOG_LEVEL` overrides the configured log level.** If logging is quieter or louder than you
   configured, check whether a plain `LOG_LEVEL` variable is set in the environment, for example
   in an environment file shared with other services, and remove it.
-- **Signing, timestamping and the admin application are previews.** They are optional for this
-  alpha. Problems there are welcome reports but will not block the release.
+- **Not built yet.** The S3 Object Lock store (`storage.backend=s3` has settings but no
+  implementation); legal holds, expiry listing and disposal; the reconciliation and fixity jobs
+  (including repeating failed Zammad updates and cleaning abandoned staging on a schedule); the
+  alerts webhook; mail evidence; evidence renewal timestamps; catalog commands in
+  `chronikwerk-admin` (a rebuild method exists but has no command); and `verify --revision`. The
+  settings for these exist but have no effect.
+- **The admin application is a preview.** It is optional for this alpha. Problems there are
+  welcome reports but will not block the release.
 
 ## How to report a bug
 

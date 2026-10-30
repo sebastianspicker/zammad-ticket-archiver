@@ -13,7 +13,7 @@ from starlette.responses import Response
 from chronikwerk._version import __version__
 from chronikwerk.configuration.models import Settings
 from chronikwerk.configuration.revisions import ManagedConfigStore
-from chronikwerk.operations.history import JobHistory
+from chronikwerk.operations.history import EmptyHistory, HistoryReader
 from chronikwerk.operations.scheduling import TicketScheduler
 from chronikwerk.web.admin.auth import AdminSessionStore
 from chronikwerk.web.admin.security import AdminSecurityHeadersMiddleware
@@ -33,11 +33,14 @@ from chronikwerk.web.routes.metrics import router as metrics_router
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-    """Drain scheduled jobs on shutdown, then close injected resources."""
+    """Start the scheduler's workers, drain them on shutdown, then close injected resources."""
+    scheduler: TicketScheduler | None = application.state.scheduler
     try:
+        start: Callable[[], Awaitable[None]] | None = getattr(scheduler, "start", None)
+        if start is not None:
+            await start()
         yield
     finally:
-        scheduler: TicketScheduler | None = application.state.scheduler
         cleanup: Callable[[], Awaitable[None]] | None = application.state.cleanup
         try:
             if scheduler is not None:
@@ -65,7 +68,7 @@ def _wire_app(
     *,
     settings: Settings,
     scheduler: TicketScheduler | None,
-    history: JobHistory,
+    history: HistoryReader,
 ) -> None:
     application.state.settings = settings
     application.state.history = history
@@ -101,14 +104,15 @@ def create_app(
     settings: Settings,
     *,
     scheduler: TicketScheduler | None = None,
-    history: JobHistory | None = None,
+    history: HistoryReader | None = None,
     cleanup: Callable[[], Awaitable[None]] | None = None,
 ) -> FastAPI:
     """Create the FastAPI application with middleware, routes, and lifespan.
 
-    With a scheduler, operator views read the history that scheduler records into.
+    With a scheduler, operator views read that scheduler's history; a scheduler with
+    ``start`` is started when the application starts.
     Without one the application is read-only: ingest and retry answer
-    ``503 job_capacity_exhausted`` and ``history`` (or a fresh one) is displayed.
+    ``503 job_capacity_exhausted`` and ``history`` (or an empty one) is displayed.
     """
     if scheduler is not None:
         if history is not None and history is not scheduler.history:
@@ -120,6 +124,6 @@ def create_app(
         application,
         settings=settings,
         scheduler=scheduler,
-        history=history if history is not None else JobHistory(),
+        history=history if history is not None else EmptyHistory(),
     )
     return application

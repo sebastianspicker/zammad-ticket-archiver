@@ -14,14 +14,16 @@ does not widen the scope stated in the README.
 
 - [Architecture](01-architecture.md): runtime flow, state transitions, module boundaries, and
   process constraints.
-- [Data model](03-data-model.md): the ticket snapshot and audit-sidecar fields.
+- [Data model](03-data-model.md): the ticket snapshot, the preservation package layout, the
+  manifest, and revision identity.
 - [Path policy](04-path-policy.md): archive placement, validation, sanitization, and root
   confinement.
 - [PDF rendering](05-pdf-rendering.md): the rendering pipeline, templates, sanitization, limits,
   and document structure.
-- [Signing and timestamping](06-signing-and-timestamp.md): PAdES and RFC 3161 configuration,
-  runtime behavior, and verification.
-- [Storage](07-storage.md): output layout, atomic-write behavior, and filesystem requirements.
+- [Signing and timestamping](06-signing-and-timestamp.md): the manifest seal, RFC 3161 token,
+  trust anchors, optional PAdES signature, and how to verify a package.
+- [Storage](07-storage.md): key layout, write-once behavior, retention modes, and filesystem
+  requirements.
 
 ## Integration and operation
 
@@ -30,7 +32,8 @@ does not widen the scope stated in the README.
   defaults, and validation.
 - [API reference](api.md): endpoints, authentication, payloads, responses, and errors.
 - [Deployment](deploy.md): Docker Compose and the optional systemd wrapper.
-- [Operations](08-operations.md): health, metrics, updates, rollback, retries, and incident checks.
+- [Operations](08-operations.md): health, metrics, journal, restart recovery, retries, error
+  codes, verification, and what is not built yet.
 - [Security](09-security.md): trust boundaries, controls, hardening, and residual risks.
 - [FAQ](faq.md): common runtime and deployment failures.
 
@@ -57,7 +60,10 @@ does not widen the scope stated in the README.
   [0007 deterministic release-assurance scripts](adr/0007-deterministic-release-assurance-scripts.md),
   [0008 modular-monolith boundaries](adr/0008-modular-monolith-boundaries.md),
   [0009 composition-owned runtime state](adr/0009-composition-owned-runtime-state.md),
-  [0010 Zammad native webhook signature](adr/0010-zammad-native-webhook-signature.md).
+  [0010 Zammad native webhook signature](adr/0010-zammad-native-webhook-signature.md),
+  [0011 durable request journal](adr/0011-durable-request-journal.md),
+  [0012 sealed preservation package](adr/0012-sealed-preservation-package.md),
+  [0013 write-once archive store](adr/0013-write-once-archive-store.md).
 - [Product contract](../PRODUCT.md).
 - [Design system](../DESIGN.md).
 - [Release status](../RELEASE_STATUS.md).

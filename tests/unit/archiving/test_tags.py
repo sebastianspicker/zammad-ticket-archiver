@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 
-from chronikwerk.archiving.tags import apply_done, apply_error, apply_processing, should_process
+import pytest
+
+from chronikwerk.archiving.tags import apply_done, apply_error, apply_processing
 
 
 class _TagClient:
@@ -20,7 +22,7 @@ class _TagClient:
         self.events.append(("add", ticket_id, tag))
 
 
-def test_force_reprocess_clears_done_before_processing_tag() -> None:
+def test_processing_tag_is_added_before_terminal_and_trigger_tags_are_cleared() -> None:
     client = _TagClient()
 
     asyncio.run(
@@ -33,11 +35,27 @@ def test_force_reprocess_clears_done_before_processing_tag() -> None:
     )
 
     assert client.events == [
+        ("add", 42, "pdf:processing"),
         ("remove", 42, "pdf:signed"),
         ("remove", 42, "pdf:error"),
         ("remove", 42, "archive:ready"),
-        ("add", 42, "pdf:processing"),
     ]
+
+
+class _CrashingTagClient(_TagClient):
+    """Fail every removal, like a process that dies after the first tag change."""
+
+    async def remove_tag(self, ticket_id: int, tag: str) -> None:
+        raise RuntimeError(f"crashed before removing {tag}")
+
+
+def test_failed_removal_leaves_the_processing_tag_already_set() -> None:
+    client = _CrashingTagClient()
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(apply_processing(client, 42, trigger_tag="archive:ready"))
+
+    assert client.events == [("add", 42, "pdf:processing")]
 
 
 def test_done_and_error_transitions_are_sequential_and_retry_safe() -> None:
@@ -61,11 +79,3 @@ def test_done_and_error_transitions_are_sequential_and_retry_safe() -> None:
         ("remove", 42, "archive:ready"),
         ("add", 42, "pdf:error"),
     ]
-
-
-def test_done_tag_always_blocks_processing_even_without_a_required_trigger() -> None:
-    assert should_process(["archive:ready"], trigger_tag="archive:ready") is True
-    assert (
-        should_process(["pdf:signed"], trigger_tag="archive:ready", require_trigger_tag=False)
-        is False
-    )

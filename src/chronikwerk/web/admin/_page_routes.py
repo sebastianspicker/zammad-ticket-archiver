@@ -17,9 +17,9 @@ from chronikwerk.web.admin._route_support import (
     _admission_status,
     _decorate_history,
     _display_timestamp,
-    _history,
     _html_session,
     _next_history_cursor,
+    _read_history,
     _render,
     _request_id,
     _safe_admin_referer,
@@ -165,7 +165,7 @@ async def overview_page(request: Request) -> Response:
     store = request.app.state.managed_config_store
     current_revision = store.current_revision()
     active_revision = request.app.state.active_config_revision
-    failures = _decorate_history(_history(request).read(10, statuses={"failed"}), locale)
+    failures = _decorate_history(await _read_history(request, 10, statuses={"failed"}), locale)
     return _render(
         "overview.html",
         request=request,
@@ -199,7 +199,7 @@ async def jobs_page(
     if redirect is not None or session is None:
         return redirect or RedirectResponse("/admin/login", status_code=303)
     statuses = {status} if status else None
-    items = _history(request).read(51, ticket_id, before_id=before_id, statuses=statuses)
+    items = await _read_history(request, 51, ticket_id, before_id=before_id, statuses=statuses)
     next_cursor = _next_history_cursor(items, 50)
     return _render(
         "jobs.html",
@@ -232,7 +232,7 @@ async def ticket_history_page(
         session=session,
         current="jobs",
         ticket_id=ticket_id,
-        items=_decorate_history(_history(request).read(100, ticket_id), session.locale),
+        items=_decorate_history(await _read_history(request, 100, ticket_id), session.locale),
         accepted=accepted,
         retry_unavailable=retry_unavailable,
         request_id=request_id,
@@ -250,7 +250,7 @@ async def retry_form(request: Request, ticket_id: int = Path(..., ge=1)) -> Resp
         or data.get("acknowledge_overwrite") != "true"
     ):
         return RedirectResponse(f"/admin/jobs/{ticket_id}", status_code=303)
-    if not _schedule_retry(request, ticket_id=ticket_id):
+    if not await _schedule_retry(request, ticket_id=ticket_id):
         return RedirectResponse(
             f"/admin/jobs/{ticket_id}?retry_unavailable=true",
             status_code=303,

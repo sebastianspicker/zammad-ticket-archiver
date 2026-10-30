@@ -119,6 +119,7 @@ credentials.local.*
 config/config.yaml
 config/*.yaml
 !config/config.example.yaml
+!config/retention.example.yaml
 config/*.yml
 !config/config.example.yml
 config/*.local.yaml

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import uvicorn
 
-from chronikwerk.composition import build_runtime_application
+from chronikwerk.composition import build_runtime_application_or_exit
 
 
 def main() -> int:
-    """Start the configured service through the command-line entry point."""
-    settings, app = build_runtime_application()
+    """Start the configured service through the command-line entry point.
+
+    A refused configuration prints the problem list and exits with status 1.
+    """
+    settings, app = build_runtime_application_or_exit()
     uvicorn.run(
         app,
         host=settings.server.host,

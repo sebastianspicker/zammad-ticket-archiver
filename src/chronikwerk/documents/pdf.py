@@ -10,6 +10,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
+from typing import Literal
 
 from chronikwerk.concurrency import run_sync_cancellation_safe
 from chronikwerk.documents.models import Snapshot
@@ -22,6 +23,8 @@ from chronikwerk.failures import PermanentError
 
 _TEMPLATE_STYLES_MAIN = "styles.css"
 _WEASYPRINT_RENDER_LOCK = threading.Lock()
+
+PdfVariant = Literal["pdf/a-2u", "pdf/ua-1"]
 
 
 @contextmanager
@@ -53,7 +56,13 @@ def _pdf_identifier(html: str, css_paths: tuple[Path, ...]) -> bytes:
     return hashlib.sha256(html.encode("utf-8") + b"\0" + css_bytes).digest()[:16]
 
 
-def _write_pdf_unlocked(html: str, *, template_folder: Path, css_paths: tuple[Path, ...]) -> bytes:
+def _write_pdf_unlocked(
+    html: str,
+    *,
+    template_folder: Path,
+    css_paths: tuple[Path, ...],
+    pdf_variant: PdfVariant,
+) -> bytes:
     from weasyprint import CSS, HTML
 
     stylesheets = [CSS(filename=str(path)) for path in css_paths]
@@ -68,19 +77,32 @@ def _write_pdf_unlocked(html: str, *, template_folder: Path, css_paths: tuple[Pa
             base_url=str(template_folder),
             url_fetcher=_safe_url_fetcher(template_folder),
         )
+        # PDF/A-2u output must be tagged explicitly; the pdf/ua-1 variant already is.
         return html_doc.write_pdf(
             stylesheets=stylesheets,
             pdf_identifier=_pdf_identifier(html, css_paths),
-            pdf_variant="pdf/ua-1",
+            pdf_variant=pdf_variant,
+            **({"pdf_tags": True} if pdf_variant == "pdf/a-2u" else {}),
         )
 
 
-def _write_pdf(html: str, *, template_folder: Path, css_paths: tuple[Path, ...]) -> bytes:
+def _write_pdf(
+    html: str,
+    *,
+    template_folder: Path,
+    css_paths: tuple[Path, ...],
+    pdf_variant: PdfVariant,
+) -> bytes:
     # FontConfig/Pango-backed rendering can crash the interpreter when two
     # worker threads enter WeasyPrint concurrently. Keep the lock off the event
     # loop: this function only runs inside ``run_sync_cancellation_safe``.
     with _WEASYPRINT_RENDER_LOCK:
-        return _write_pdf_unlocked(html, template_folder=template_folder, css_paths=css_paths)
+        return _write_pdf_unlocked(
+            html,
+            template_folder=template_folder,
+            css_paths=css_paths,
+            pdf_variant=pdf_variant,
+        )
 
 
 async def render_pdf(
@@ -89,6 +111,7 @@ async def render_pdf(
     max_articles: int = 250,
     locale: str = "de-DE",
     timezone: str = "Europe/Berlin",
+    pdf_variant: PdfVariant = "pdf/ua-1",
 ) -> bytes:
     """Render one validated snapshot without blocking the ASGI event loop."""
     _validate_article_limit(snapshot, max_articles)
@@ -97,6 +120,7 @@ async def render_pdf(
         snapshot,
         locale=locale,
         timezone=timezone,
+        pdf_variant=pdf_variant,
     )
 
 
@@ -105,6 +129,7 @@ def _render_pdf_sync(
     *,
     locale: str,
     timezone: str,
+    pdf_variant: PdfVariant,
 ) -> bytes:
     """Render inside one worker thread, keeping template resources alive there."""
     with _template_folder_path() as template_folder:
@@ -114,4 +139,9 @@ def _render_pdf_sync(
             timezone=timezone,
         )
         css_paths = _css_file_paths(template_folder)
-        return _write_pdf(html, template_folder=template_folder, css_paths=css_paths)
+        return _write_pdf(
+            html,
+            template_folder=template_folder,
+            css_paths=css_paths,
+            pdf_variant=pdf_variant,
+        )

@@ -1,4 +1,4 @@
-"""Define typed ticket jobs and normalize ticket identifiers for process-local delivery."""
+"""Define typed ticket jobs and normalize ticket identifiers from webhook payloads."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from typing import Any
 
 @dataclass(frozen=True, slots=True)
 class TicketJob:
-    """One admitted archive request; job metadata never travels inside the webhook payload."""
+    """One admitted archive request: the ticket, its delivery, the HTTP request ID and login."""
 
     ticket_id: int
-    payload: dict[str, Any]
     delivery_id: str | None = None
     request_id: str | None = None
     force_reprocess: bool = False
+    trigger_login: str | None = None
 
 
 def _positive_ticket_id(value: int) -> int | None:

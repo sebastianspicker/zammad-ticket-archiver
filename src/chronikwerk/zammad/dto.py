@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 # Zammad's system user (id 1) stands in for "no owner" and expands to this login.
 _UNASSIGNED_LOGIN = "-"
@@ -84,6 +84,14 @@ class AttachmentMeta(_ZammadModel):
     content_type: str | None = None
     preferences: dict[str, Any] | None = None
 
+    @field_validator("size", mode="before")
+    @classmethod
+    def _numeric_size(cls, value: Any) -> Any:
+        # Zammad sends the size as a decimal string.
+        if isinstance(value, str) and value.strip().isdecimal():
+            return int(value.strip())
+        return value
+
 
 class Article(_ZammadModel):
     """Model a raw Zammad article; snapshot assembly sanitizes its body later."""
@@ -93,10 +101,16 @@ class Article(_ZammadModel):
     internal: bool | None = None
     subject: str | None = None
     body: str | None = None
+    updated_at: datetime | None = None
     content_type: str | None = None
+    type: str | None = None
+    sender: str | None = None
 
     from_: str | None = Field(default=None, alias="from")
     to: str | None = None
+    cc: str | None = None
+    message_id: str | None = None
+    in_reply_to: str | None = None
 
     attachments: list[AttachmentMeta] | None = None
 

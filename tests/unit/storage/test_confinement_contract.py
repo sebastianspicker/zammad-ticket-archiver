@@ -1,4 +1,4 @@
-"""Pin archive path confinement, depth limits, collision-safe names, and filename patterns."""
+"""Pin archive path confinement, depth limits, and collision-safe names."""
 
 from __future__ import annotations
 
@@ -11,9 +11,7 @@ from chronikwerk.storage.filesystem import (
     path_entry_exists,
     write_bytes,
 )
-from chronikwerk.storage.layout import build_filename_from_pattern, build_target_dir
-
-_DEFAULT_PATTERN = "Ticket-{ticket_number}_{timestamp_utc}.pdf"
+from chronikwerk.storage.layout import build_target_dir
 
 
 def test_write_rejects_symlink_traversal_under_root(tmp_path: Path) -> None:
@@ -128,25 +126,3 @@ def test_colliding_raw_names_stay_distinct(tmp_path: Path) -> None:
 
     assert underscored.name == "AB_12"
     assert spaced.name == "AB_12-972bc8a6eac1ac13d28b02d997d33c2d"
-
-
-def test_default_filename_pattern_renders_ticket_number_and_date() -> None:
-    name = build_filename_from_pattern(
-        _DEFAULT_PATTERN, ticket_number="123", timestamp_utc="2026-02-07"
-    )
-
-    assert name == "Ticket-123_2026-02-07.pdf"
-
-
-def test_filename_pattern_disambiguates_unsafe_ticket_number() -> None:
-    name = build_filename_from_pattern(
-        _DEFAULT_PATTERN, ticket_number="a|b", timestamp_utc="2026-02-07"
-    )
-
-    assert name == "Ticket-a_b-0eab8a0a3380abf4c7d1fb0b43b66aaf_2026-02-07.pdf"
-
-
-@pytest.mark.parametrize("pattern", ["../{ticket_number}.pdf", "a/{ticket_number}.pdf", "  "])
-def test_filename_pattern_rejects_separators_and_blank(pattern: str) -> None:
-    with pytest.raises(ValueError):
-        build_filename_from_pattern(pattern, ticket_number="1", timestamp_utc="2026-02-07")

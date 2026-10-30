@@ -10,6 +10,7 @@ import pytest
 
 from chronikwerk.cli import main
 from chronikwerk.configuration.revisions import ManagedConfigStore
+from tests.support.preservation_settings import write_runtime_config
 from tests.support.settings_factory import write_test_config
 
 _SECRET = "test-webhook-hmac-secret-0123456789abcdef"
@@ -42,12 +43,33 @@ def _stage(store: ManagedConfigStore, overlay: dict[str, object]) -> str:
 def test_validate_config_accepts_a_valid_file(
     isolated_config_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    config, _store = _config(isolated_config_env)
+    config = isolated_config_env / "config.yaml"
+    write_runtime_config(config, isolated_config_env)
 
     code = _run(monkeypatch, "validate-config", "--config", str(config))
 
     assert code == 0
     assert capsys.readouterr().out == "✓ Configuration valid\n"
+
+
+def test_validate_config_lists_every_unmet_preservation_requirement(
+    isolated_config_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _store = _config(isolated_config_env)
+
+    code = _run(monkeypatch, "validate-config", "--config", str(config))
+
+    error = capsys.readouterr().err
+    assert code == 1
+    assert error.startswith("✗ Configuration invalid:")
+    for problem in (
+        "seal.pfx_path is missing",
+        "verify.trust_anchors_path is missing",
+        "signing.timestamp.enabled must be true",
+        "signing.timestamp.rfc3161.tsa_url is missing",
+        "- retention.policy_path:",
+    ):
+        assert problem in error
 
 
 def test_validate_config_reports_a_missing_file(

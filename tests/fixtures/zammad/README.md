@@ -16,3 +16,11 @@ after the first live verification run.
 - `ticket_articles_by_ticket.json`: `GET /api/v1/ticket_articles/by_ticket/{id}`. Attachment
   `size` is a string and the MIME type lives in `preferences["Content-Type"]`.
 - `tags.json`: `GET /api/v1/tags?object=Ticket&o_id={id}`, an object wrapping `tags`.
+- `article_plain_101.eml`: `GET /api/v1/ticket_article_plain/{id}`, the raw RFC 5322 email of
+  article 101 (same Message-ID as in `ticket_articles_by_ticket.json`) with an
+  `Authentication-Results` and a `DKIM-Signature` (`d=example.com`) header. Documentation-based
+  and synthetic, not recorded; the signature values are placeholders.
+- `tickets_search.json`: `GET /api/v1/tickets/search?query=...`, the object shape with a
+  `tickets` ID list. Documentation-based, not recorded.
+- `tickets_search_list.json`: the same search answered as a list of ticket objects (Zammad
+  returns either shape). Documentation-based, not recorded.

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from chronikwerk.archiving.location import snapshot_custom_fields
 from chronikwerk.archiving.options import ArchiveWorkflowOptions
-from chronikwerk.archiving.workflow import snapshot_custom_fields
 from chronikwerk.documents.models import Snapshot, TicketMeta
 from chronikwerk.documents.templates import render_html
 from chronikwerk.zammad.dto import Ticket

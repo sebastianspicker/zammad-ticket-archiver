@@ -17,7 +17,8 @@ ALLOWED_FEATURE_DEPENDENCIES = {
     "zammad": frozenset({"configuration"}),
     "documents": frozenset(),
     "storage": frozenset({"documents"}),
-    "archiving": frozenset({"documents", "operations", "storage", "zammad"}),
+    "preservation": frozenset({"documents", "storage"}),
+    "archiving": frozenset({"documents", "operations", "preservation", "storage", "zammad"}),
     "web": frozenset({"configuration", "operations"}),
 }
 SHARED_LEAF_MODULES = frozenset(

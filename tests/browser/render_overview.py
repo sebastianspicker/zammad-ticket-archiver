@@ -9,7 +9,8 @@ from tempfile import TemporaryDirectory
 
 from fastapi.testclient import TestClient
 
-from chronikwerk.operations.history import JobHistory
+from chronikwerk.operations.history import JournalHistoryView
+from chronikwerk.operations.journal import JournalOptions, RequestJournal, RequestSource
 from chronikwerk.web.app import create_app
 from tests.support.settings_factory import make_settings
 
@@ -51,6 +52,22 @@ def _render_locale(client: TestClient, locale: str) -> dict[str, str]:
     return pages
 
 
+def _record_history(journal: RequestJournal) -> None:
+    """Journal one failed and one completed synthetic request for the same ticket."""
+    for outcome in ("failed", "processed"):
+        journal.admit(ticket_id=_TICKET_ID, source=RequestSource.WEBHOOK)
+        leased = journal.lease_next()
+        assert leased is not None
+        if outcome == "failed":
+            journal.fail_permanent(
+                leased.request_id,
+                error_code="permanent_error",
+                error_detail="Synthetic archive publication failed",
+            )
+        else:
+            journal.complete(leased.request_id, revision_id="browser-revision")
+
+
 def main() -> None:
     """Write a JSON page bundle without starting workers or contacting live services."""
     with TemporaryDirectory(prefix="chronikwerk-browser-") as directory:
@@ -85,34 +102,22 @@ def main() -> None:
                     },
                 },
             )
-            history = JobHistory()
-            app = create_app(settings, history=history)
+            journal = RequestJournal(JournalOptions(path=root / "journal.sqlite3"))
+            app = create_app(settings, history=JournalHistoryView(journal))
             store = app.state.managed_config_store
             store.stage(
                 {"admission": {"max_pending": 12}},
                 expected_revision=store.current_revision(),
                 request_id="browser-fixture-stage",
             )
-            history.record(
-                "failed",
-                _TICKET_ID,
-                classification="PERMANENT",
-                message="Synthetic archive publication failed",
-                request_id="browser-request-failed",
-            )
-            history.record(
-                "processed",
-                _TICKET_ID,
-                classification="SUCCESS",
-                message="Synthetic archive published",
-                request_id="browser-request-processed",
-            )
+            _record_history(journal)
             with TestClient(app, base_url="http://127.0.0.1:4177") as client:
                 pages = {
                     **_render_locale(client, "en-GB"),
                     **_render_locale(client, "de-DE"),
                 }
             print(json.dumps(pages, ensure_ascii=False))
+            journal.close()
         finally:
             if previous_timeout is None:
                 os.environ.pop("ZAMMAD_TIMEOUT_SECONDS", None)

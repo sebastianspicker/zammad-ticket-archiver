@@ -23,3 +23,11 @@ class RateLimitError(ClientError, TransientError):
 
 class ServerError(ClientError, TransientError):
     """Server-side failure or retry exhaustion (typically HTTP 5xx)."""
+
+
+class ResponseTooLargeError(ClientError):
+    """Response body exceeded its byte limit (permanent; retrying cannot shrink it)."""
+
+    def __init__(self, message: str, *, limit: int) -> None:
+        super().__init__(message)
+        self.limit = limit

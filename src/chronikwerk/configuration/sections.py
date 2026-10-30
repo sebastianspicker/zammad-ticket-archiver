@@ -2,11 +2,40 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic.networks import AnyHttpUrl
 
 from chronikwerk.i18n import normalize_locale
+
+_HOST_LABEL = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
+_MAX_HOST_LENGTH = 253
+
+
+def require_https_url(value: AnyHttpUrl | None, *, key: str) -> AnyHttpUrl | None:
+    """Reject non-HTTPS URLs for settings that carry credentials or alerts."""
+    if value is not None and value.scheme != "https":
+        raise ValueError(f"{key} must be an https URL")
+    return value
+
+
+def normalize_validation_host(value: str) -> str:
+    """Return a lower-case bare host name or raise for schemes, ports, paths and blanks."""
+    host = value.strip().lower()
+    labels = host.split(".")
+    if (
+        not host
+        or len(host) > _MAX_HOST_LENGTH
+        or not all(_HOST_LABEL.fullmatch(label) for label in labels)
+    ):
+        raise ValueError(
+            f"hardening.transport.validation_hosts entry {value!r} must be a bare host name "
+            "(no scheme, port, path or wildcard)"
+        )
+    return host
 
 
 class _BaseSection(BaseModel):
@@ -41,19 +70,68 @@ class FieldsSettings(_BaseSection):
     archive_user_mode: str = "archive_user_mode"
     # Custom field name for archive_user in fixed mode (Bug #1/#6).
     archive_user: str = "archive_user"
+    # Ticket field holding the retention record class.
+    record_class: str = "archive_record_class"
+
+
+class FilesystemStorageSettings(_BaseSection):
+    """Configure the filesystem archive backend."""
+
+    # Operator's assertion that the share enforces WORM semantics.
+    worm_enforced: bool = False
+
+
+class S3StorageSettings(_BaseSection):
+    """Configure the S3-compatible Object Lock archive backend."""
+
+    endpoint_url: AnyHttpUrl | None = None
+    region: str | None = None
+    bucket: str | None = None
+    object_lock_mode: Literal["COMPLIANCE", "GOVERNANCE"] = "COMPLIANCE"
+    staging_retention_days: int = Field(default=7, ge=1, le=365)
+    access_key_id: SecretStr | None = None
+    secret_access_key: SecretStr | None = None
+
+    @field_validator("endpoint_url")
+    @classmethod
+    def _require_https_endpoint(cls, value: AnyHttpUrl | None) -> AnyHttpUrl | None:
+        return require_https_url(value, key="storage.s3.endpoint_url")
 
 
 class StorageSettings(_BaseSection):
-    """Configure durable filesystem storage for produced PDFs."""
+    """Configure durable archive storage."""
 
     root: Path
     fsync: bool = True
+    # Deprecated: ignored since the preservation layout; kept so existing files still load.
     filename_pattern: str = "Ticket-{ticket_number}_{timestamp_utc}.pdf"
+    backend: Literal["filesystem", "s3"] = "filesystem"
+    filesystem: FilesystemStorageSettings = Field(default_factory=FilesystemStorageSettings)
+    s3: S3StorageSettings = Field(default_factory=S3StorageSettings)
+
+    @model_validator(mode="after")
+    def _validate_backend(self) -> StorageSettings:
+        if self.backend == "s3":
+            missing = [
+                f"storage.s3.{name}"
+                for name in ("bucket", "access_key_id", "secret_access_key")
+                if not getattr(self.s3, name)
+            ]
+            if missing:
+                raise ValueError(f"storage.backend is 's3' but {', '.join(missing)} missing")
+        return self
 
     @field_validator("root")
     @classmethod
     def _expand_root(cls, value: Path) -> Path:
         return value.expanduser()
+
+
+ReadingCopy = Literal["pdf/a-2u", "pdf/ua-1"]
+
+
+def _default_reading_copies() -> list[ReadingCopy]:
+    return ["pdf/a-2u", "pdf/ua-1"]
 
 
 class PdfSettings(_BaseSection):
@@ -64,6 +142,17 @@ class PdfSettings(_BaseSection):
     max_articles: int = Field(default=250, ge=0)
     # fail = fail the ticket; cap_and_continue = truncate and warn.
     article_limit_mode: str = "fail"
+    # Reading copies rendered from one snapshot, in order.
+    reading_copies: list[ReadingCopy] = Field(default_factory=_default_reading_copies)
+
+    @field_validator("reading_copies")
+    @classmethod
+    def _validate_reading_copies(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("pdf.reading_copies must not be empty")
+        if len(set(value)) != len(value):
+            raise ValueError("pdf.reading_copies must not contain duplicates")
+        return value
 
     @field_validator("locale")
     @classmethod
@@ -127,7 +216,7 @@ class BodySizeLimitSettings(_BaseSection):
 class AdmissionSettings(_BaseSection):
     """Bounds for process-local background ticket work."""
 
-    max_pending: int = Field(default=100, ge=0, le=10_000)
+    max_pending: int = Field(default=100, ge=1, le=10_000)
     max_running: int = Field(default=4, ge=1, le=1_000)
     shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=300)
 
@@ -174,6 +263,13 @@ class TransportHardeningSettings(_BaseSection):
     trust_env: bool = False
     allow_insecure_http: bool = False
     allow_private_networks: bool = False
+    # OCSP/CRL hosts allowed for validation fetches; the TSA host is always allowed.
+    validation_hosts: list[str] = Field(default_factory=list)
+
+    @field_validator("validation_hosts")
+    @classmethod
+    def _validate_validation_hosts(cls, value: list[str]) -> list[str]:
+        return [normalize_validation_host(host) for host in value]
 
 
 class HardeningSettings(_BaseSection):

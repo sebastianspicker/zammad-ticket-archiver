@@ -8,6 +8,17 @@ from typing import Any
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
+from chronikwerk.configuration.preservation import (
+    AlertsSettings,
+    CaptureSettings,
+    FixitySettings,
+    JournalSettings,
+    ReconcileSettings,
+    RenewalSettings,
+    RetentionSettings,
+    SealSettings,
+    VerifySettings,
+)
 from chronikwerk.configuration.sections import (
     AdminSettings,
     AdmissionSettings,
@@ -50,6 +61,15 @@ class Settings(BaseSettings):
     hardening: HardeningSettings = Field(default_factory=HardeningSettings)
     admission: AdmissionSettings = Field(default_factory=AdmissionSettings)
     admin: AdminSettings = Field(default_factory=AdminSettings)
+    journal: JournalSettings = Field(default_factory=JournalSettings)
+    capture: CaptureSettings = Field(default_factory=CaptureSettings)
+    seal: SealSettings = Field(default_factory=SealSettings)
+    verify: VerifySettings = Field(default_factory=VerifySettings)
+    retention: RetentionSettings = Field(default_factory=RetentionSettings)
+    reconcile: ReconcileSettings = Field(default_factory=ReconcileSettings)
+    fixity: FixitySettings = Field(default_factory=FixitySettings)
+    alerts: AlertsSettings = Field(default_factory=AlertsSettings)
+    renewal: RenewalSettings = Field(default_factory=RenewalSettings)
     retry_bearer_token: SecretStr | None = None
 
     @property

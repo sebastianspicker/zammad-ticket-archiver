@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic.networks import AnyHttpUrl
@@ -15,6 +16,8 @@ class SigningPadesSettings(_BaseSection):
 
     reason: str = "Ticket Archivierung"
     location: str = "Datacenter"
+    # B-T = signature timestamp; B-LT adds embedded validation material.
+    level: Literal["B-T", "B-LT"] = "B-LT"
 
 
 class SigningTimestampRfc3161Settings(_BaseSection):
@@ -53,9 +56,6 @@ class SigningSettings(_BaseSection):
                 "Signing is enabled but signing.pfx_path is missing. "
                 "The current implementation requires a PKCS#12/PFX bundle."
             )
-
-        if self.timestamp.enabled and not self.enabled:
-            raise ValueError("Timestamping requires signing.enabled")
 
         if self.timestamp.enabled and self.timestamp.rfc3161.tsa_url is None:
             raise ValueError(

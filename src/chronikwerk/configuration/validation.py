@@ -233,6 +233,21 @@ def _validate_admin(settings: Settings, issues: list[ConfigValidationIssue]) -> 
     )
 
 
+def preservation_requirements(settings: Settings) -> list[str]:
+    """List unmet preservation requirements (D9) as operator-readable problems."""
+    problems: list[str] = []
+    if settings.seal.pfx_path is None:
+        problems.append("seal.pfx_path is missing")
+    if settings.verify.trust_anchors_path is None:
+        problems.append("verify.trust_anchors_path is missing")
+    timestamp = settings.signing.timestamp
+    if not timestamp.enabled:
+        problems.append("signing.timestamp.enabled must be true")
+    if timestamp.rfc3161.tsa_url is None:
+        problems.append("signing.timestamp.rfc3161.tsa_url is missing")
+    return problems
+
+
 def validate_settings(settings: Settings) -> None:
     """Validate raw configuration and raise safe, structured diagnostics."""
     issues: list[ConfigValidationIssue] = []

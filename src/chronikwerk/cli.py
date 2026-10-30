@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
+import re
 import sys
 import uuid
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from chronikwerk.configuration.load import load_settings
 from chronikwerk.configuration.redaction import redact_settings_dict
 from chronikwerk.configuration.revisions import ManagedConfigStore, validate_candidate
 from chronikwerk.configuration.validation import ConfigValidationError
+from chronikwerk.failures import PermanentError
+
+if TYPE_CHECKING:
+    from chronikwerk.preservation.verify import VerificationReport
+
+EXIT_USAGE = 2
+_FINGERPRINT_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _missing_config_path_from_error(error: ConfigValidationError) -> str | None:
@@ -24,9 +35,15 @@ def _missing_config_path_from_error(error: ConfigValidationError) -> str | None:
 
 
 def cmd_validate_config(args: argparse.Namespace) -> int:
-    """Validate the effective configuration before an operator starts the service."""
+    """Validate the effective configuration and the preservation requirements the service checks."""
+    # Imported here: the startup checks load the seal and archive stack the other commands skip.
+    from chronikwerk.composition_preservation import startup_problems
+
     try:
-        load_settings(config_path=args.config)
+        settings = load_settings(config_path=args.config)
+        problems = startup_problems(settings)
+        if problems:
+            raise ConfigValidationError(problems)
         print("✓ Configuration valid")
         return 0
     except ConfigValidationError as exc:
@@ -85,6 +102,72 @@ def cmd_stage_config_rollback(args: argparse.Namespace) -> int:
         return 1
 
 
+def _verification_directory(args: argparse.Namespace) -> Path:
+    """Return the package directory to verify.
+
+    This is the single place that maps command-line arguments to a package location. A
+    store-based ``--revision ID`` source would resolve its key here and return a local copy.
+    """
+    directory = Path(args.path)
+    if not directory.is_dir():
+        raise NotADirectoryError(f"Package directory not found: {directory}")
+    return directory
+
+
+def _print_verification(report: VerificationReport) -> None:
+    print(f"Revision: {report.revision_id or 'unknown'}")
+    for check in report.checks:
+        print(f"[{'ok' if check.ok else 'FAIL'}] {check.name}: {check.detail}")
+    print("Result: PASSED" if report.passed else "Result: FAILED")
+
+
+def _write_report(path: Path, report: VerificationReport) -> None:
+    with path.open("xb") as handle:
+        handle.write(report.to_json())
+
+
+def _expected_signers(args: argparse.Namespace) -> tuple[str, ...] | None:
+    """Return the normalized ``--expected-signer`` fingerprints, or ``None`` when not given."""
+    if not args.expected_signer:
+        return None
+    signers = tuple(value.replace(":", "").strip().lower() for value in args.expected_signer)
+    for signer in signers:
+        if not _FINGERPRINT_PATTERN.fullmatch(signer):
+            raise PermanentError(f"--expected-signer is not a SHA-256 fingerprint: {signer!r}")
+    return signers
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Verify a package directory offline; needs no configuration, Zammad or network."""
+    # Imported here: verification needs the optional signing extra, the other commands do not.
+    from chronikwerk.preservation.seal import load_trust_anchors
+    from chronikwerk.preservation.verify import verify_package_directory
+
+    report_path = Path(args.report) if args.report else None
+    try:
+        directory = _verification_directory(args)
+        expected_signers = _expected_signers(args)
+        anchors = load_trust_anchors(Path(args.trust_anchors))
+        if report_path is not None and report_path.exists():
+            raise FileExistsError(f"Report file already exists: {report_path}")
+    except (PermanentError, OSError) as exc:
+        print(f"✗ {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    report = asyncio.run(
+        verify_package_directory(
+            directory, trust_anchors=anchors, expected_signer_sha256=expected_signers
+        )
+    )
+    _print_verification(report)
+    if report_path is not None:
+        try:
+            _write_report(report_path, report)
+        except OSError as exc:
+            print(f"✗ Could not write report: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+    return 0 if report.passed else 1
+
+
 def _add_basic_commands(subparsers: argparse._SubParsersAction) -> None:
     validate_parser = subparsers.add_parser("validate-config", help="Validate configuration")
     validate_parser.add_argument("--config", default=None, help="Path to YAML config file")
@@ -107,6 +190,23 @@ def _add_basic_commands(subparsers: argparse._SubParsersAction) -> None:
     rollback_parser.add_argument("revision", help="Full revision hash")
     rollback_parser.add_argument("--config", default=None, help="Path to YAML config file")
     rollback_parser.set_defaults(func=cmd_stage_config_rollback)
+
+    verify_parser = subparsers.add_parser(
+        "verify", help="Verify an archive package offline (no configuration or network)"
+    )
+    verify_parser.add_argument("--path", required=True, help="Package directory to verify")
+    verify_parser.add_argument(
+        "--trust-anchors", required=True, help="PEM bundle with the seal and TSA trust anchors"
+    )
+    verify_parser.add_argument(
+        "--expected-signer",
+        action="append",
+        default=None,
+        metavar="SHA256",
+        help="Accept only a seal signer with this certificate SHA-256 fingerprint (repeatable)",
+    )
+    verify_parser.add_argument("--report", default=None, help="Write the JSON report (new file)")
+    verify_parser.set_defaults(func=cmd_verify)
 
 
 def _build_parser() -> argparse.ArgumentParser:
