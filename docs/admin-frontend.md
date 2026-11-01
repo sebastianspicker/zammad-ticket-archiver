@@ -5,24 +5,26 @@ administration application.
 
 ## Purpose and runtime model
 
-Chronikwerk turns authenticated Zammad webhook events into archival PDFs and JSON audit sidecars,
-with optional PAdES signatures and RFC 3161 timestamps. The administration application is a
+Chronikwerk records authenticated webhook events durably and builds sealed, timestamped
+preservation packages with reading copies; optional PAdES signing applies to the archival copy. The administration application is a
 feature-flagged, single-user operations surface for one running process. It does not replace Zammad
 or archive storage.
 
-Sessions, job history, admission counters, and accepted work are process-local. Managed non-secret
-configuration persists separately and becomes active only after an external restart. The interface
-is responsible for keeping volatile, staged, active, and external state distinct.
+Admin sessions and process counters are volatile; accepted work and request history are stored
+in the durable journal. Managed non-secret configuration persists separately and becomes active
+only after an external restart. Keep journal, session, staged and external state distinct.
+Historical screenshots may retain earlier volatile-history labels; the API and operations
+contracts define the current persistence behavior.
 
 The principal workflows are:
 
 - sign in and end the administration session;
 - inspect process, capacity, storage, and configuration state;
-- review volatile job history and request an acknowledged retry;
+- review journal request history and request an acknowledged retry;
 - review, edit, and stage allowlisted non-secret configuration; and
 - inspect and restore managed configuration revisions.
 
-RBAC, SSO, durable queues, archive browsing, secret management, live reload, and UI-controlled
+RBAC, SSO, archive browsing, secret management, live reload, and UI-controlled
 restarts are out of scope.
 
 ## Who it is for
@@ -30,7 +32,7 @@ restarts are out of scope.
 | Audience | Primary needs |
 | --- | --- |
 | Operations and DevOps administrators | Compact identifiers, keyboard access, current capacity and storage state, and explicit restart boundaries |
-| Zammad administrators and support leads | Recognizable ticket IDs, failure classifications, retry consequences, and volatile-history wording |
+| Zammad administrators and support leads | Recognizable ticket IDs, failure classifications, retry consequences, and clear journal and session persistence wording |
 | Compliance and security reviewers | Semantic tables, readable identifiers, non-color status, revision history, and precise claims |
 | Release maintainers and support personnel | Deterministic validation, stable terminology, error recovery, reflow, and browser-independent controls |
 
@@ -41,7 +43,7 @@ Help-desk staff and requesters stay in Zammad; they are not control-plane users.
 The shell exposes three stable work areas:
 
 1. **Overview** — current process, capacity, storage, revision, and failure state.
-2. **Jobs** — volatile history, ticket detail, and acknowledged retry.
+2. **Jobs** — journal history, ticket detail, and acknowledged retry.
 3. **Configuration** — allowlisted values, staged changes, and revision history.
 
 Revision history stays within the Configuration context. Every page has one primary heading, clear
@@ -50,7 +52,7 @@ route context, and at most one contextual action.
 ## Interaction and state contract
 
 - A `202 Accepted` response and admission counters do not imply archival completion.
-- Process-local history and sessions are identified as volatile.
+- Journal history is persistent; process-local sessions are identified as volatile.
 - Storage state distinguishes unchecked, writable, and unavailable conditions.
 - Staged values stay visible as the current managed overlay until activation.
 - Configuration editing moves through review, acknowledgement for security-sensitive values, then

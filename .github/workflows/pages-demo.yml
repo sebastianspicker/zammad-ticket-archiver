@@ -2,21 +2,6 @@ name: Pages demo
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/pages-demo.yml"
-      - "demo/**"
-      - "docs/screenshots/**"
-      - "frontend/admin/css/**"
-      - "scripts/ci/assemble_admin_css.py"
-      - "scripts/ci/build_pages_demo.py"
-      - "scripts/ci/check_pages_demo.py"
-      - "src/chronikwerk/web/static/admin/admin.css"
-      - "src/chronikwerk/web/static/admin/chronikwerk-mark.svg"
-      - "Makefile"
-      - "package-lock.json"
-      - "package.json"
 
 concurrency:
   group: pages-demo
@@ -27,6 +12,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -62,6 +48,7 @@ jobs:
           path: build/pages-demo
 
   deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: build
     permissions:
       pages: write

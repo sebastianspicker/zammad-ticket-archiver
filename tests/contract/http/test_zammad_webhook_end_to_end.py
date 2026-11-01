@@ -145,12 +145,16 @@ def _journal_row(settings: Settings) -> sqlite3.Row:
         connection.close()
 
 
-def _wait_for_state(settings: Settings, wanted: set[str]) -> sqlite3.Row:
-    """Poll the journal until the request reaches one of ``wanted`` or time runs out."""
+def _wait_for_state(
+    settings: Settings, wanted: set[str], *, require_reported: bool = False
+) -> sqlite3.Row:
+    """Wait for the requested state and, when required, a settled Zammad update."""
     deadline = time.monotonic() + _WAIT_SECONDS
     while True:
         row = _journal_row(settings)
-        if row["state"] in wanted or time.monotonic() > deadline:
+        reported = not require_reported or row["zammad_status"] in {"done", "failed"}
+        ready = row["state"] in wanted and (row["state"] == "failed" or reported)
+        if ready or time.monotonic() > deadline:
             return row
         time.sleep(0.05)
 
@@ -207,7 +211,7 @@ def test_signed_webhook_publishes_a_sealed_verified_revision(
         _settings_used, app = composition.build_runtime_application()
         with TestClient(app) as client:
             _post_webhook(client)
-            row = _wait_for_state(settings, {"complete", "failed"})
+            row = _wait_for_state(settings, {"complete", "failed"}, require_reported=True)
 
     assert row["state"] == "complete", dict(row)
     assert row["zammad_status"] == "done"

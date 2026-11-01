@@ -39,7 +39,7 @@ final tag cleanup.
 
 Do this:
 
-1. Check logs. If process-local history is enabled, query `/jobs/history` using
+1. Check logs. If journal history is enabled, query `/jobs/history` using
    `OBSERVABILITY__HISTORY_BEARER_TOKEN`.
 2. Remove stale `pdf:processing` if the job is no longer running.
 3. Fix the underlying failure.
@@ -70,10 +70,10 @@ Check:
 
 ## Can I run multiple service replicas?
 
-No. The supported alpha deployment is one service process. Dedupe, history,
-admission, and in-flight locks are process-local; multiple replicas can process the
-same ticket concurrently. External coordination would be a different deployment
-contract and is not covered by this release.
+No. The supported alpha deployment is one process per durable journal. The
+journal retains admission, delivery IDs and history across restarts, but this
+is not a multi-replica coordination contract. Do not share one journal between
+service instances; see the operations guide.
 
 ## Where should secrets live?
 

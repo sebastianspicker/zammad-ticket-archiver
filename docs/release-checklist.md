@@ -25,8 +25,9 @@ and a Keep-a-Changelog style `CHANGELOG.md`.
   image verification remains a separate release gate.
 - Security dependency auditing remains a separate required fail-closed workflow
   covering base and signing dependency environments.
-- Prerelease packaging is tag-only (`v*-alpha.*`, `v*-beta.*`, or `v*-rc.*`):
-  reusable CI and security workflows
+- Prerelease preparation is manually dispatched from main with an existing
+  `v*-alpha.*`, `v*-beta.*`, or `v*-rc.*` tag; pushing a tag does not publish.
+  Reusable CI and security workflows
   must pass for the tagged SHA, and the release job downloads their `dist`
   artifact rather than rebuilding. Tag/version normalization and the exact
   nonempty `CHANGELOG.md` section are mandatory checks. The workflow creates a draft

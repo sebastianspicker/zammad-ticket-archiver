@@ -44,13 +44,15 @@ flowchart LR
 
 ### Replay and duplicate delivery
 
-- Best-effort in-memory dedupe keyed by `X-Zammad-Delivery`, with a fail-closed 10,000-entry
-  process-local bound.
+- The durable request journal records `X-Zammad-Delivery` IDs across restarts; the same ID
+  does not create another request. Admission is bounded and repeated work for a ticket is
+  coalesced. See the [API contract](api.md).
 - Optional strict delivery-ID mode authenticates the normalized delivery ID as part of the SHA-256
   HMAC input, so a captured body and signature cannot be replayed under a fresh ID. The canonical
   byte format is documented in [api.md](api.md).
 
-Residual risk: dedupe state is process-local and resets on restart.
+Residual risk: compatibility-mode delivery IDs are not authenticated. Persisting an ID does
+not prevent someone with a valid body/signature from submitting that body under a new ID.
 
 ### Path traversal and unsafe writes
 

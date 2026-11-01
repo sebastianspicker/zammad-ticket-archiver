@@ -4,42 +4,39 @@ The current candidate is `0.3.0a1`, intended for the tag `v0.3.0-alpha.1`. It is
 integration testing, and early operator feedback — not production use, and not a
 compliance-certified archive solution.
 
-When the pre-tag review passes, the tag runs CI, security validation, and a draft GitHub
-prerelease. The release owner publishes that draft only after the remaining external and manual
+After candidate review and publication approval, manually dispatch the Prerelease workflow
+from main with an existing prerelease tag. It runs CI and security on that exact tag commit
+and prepares a draft GitHub prerelease; pushing a tag alone does not publish anything. The release owner publishes that draft only after the remaining external and manual
 [release-checklist](release-checklist.md) gates pass against the tagged artifacts. The candidate
 is still unfrozen and unpublished; see [RELEASE_STATUS.md](../RELEASE_STATUS.md).
 
 ## What to expect
 
-- One FastAPI process accepts authenticated Zammad webhooks and performs bounded, process-local
-  background work.
-- Tickets, articles, tags, and attachment metadata render into one localized PDF layout with an
-  adjacent audit sidecar.
-- PAdES signing and RFC 3161 timestamping are optional and need external signing material and
-  infrastructure.
-- A disabled-by-default German/English administration application exposes health, volatile history,
-  acknowledged retries, and staged non-secret configuration.
-- The production Compose file binds to loopback by default and expects a trusted TLS reverse proxy
-  for anything externally reachable.
+- One FastAPI process records requests in a durable journal and runs bounded background work.
+- Ticket source records, original email where available and attachment bytes are captured with
+  coverage checks, together with PDF/A and PDF/UA reading copies.
+- The manifest is sealed and timestamped; optional PAdES signing applies to the archival copy.
+  Completion requires external signing/trust material, a TSA and a retention policy.
+- The disabled-by-default administration application exposes authenticated journal history,
+  retries and staged non-secret configuration; admin sessions remain process-local.
+- Compose binds to loopback by default; external access needs a trusted TLS reverse proxy.
 
 ## Alpha limitations
 
-- A `202 Accepted` response confirms admission, not archival completion. A process crash can lose
-  accepted work.
-- Compatibility-mode webhook HMAC authenticates the body but not the delivery ID. Strict
-  delivery-ID signing is opt-in and needs sender-side support for the documented canonical form;
-  keep ingest restricted to trusted Zammad sources.
-- Deep health checks are unauthenticated archive-storage writes, and the FastAPI schema and
-  interactive documentation endpoints are unauthenticated in this candidate. Restrict all of these
-  at the network edge.
-- Horizontal scaling, a durable queue, Redis/DLQ behavior, archive browsing, attachment binary
-  export, retention, WORM enforcement, SSO, RBAC, and secret management are out of scope.
-- Admin sessions and displayed job history are process-local. Managed non-secret revisions require
-  an external restart before they take effect.
-- PDF tagging and automated browser checks do not by themselves establish PDF/UA-1 or WCAG 2.2 AA
-  conformance. Independent validation and assistive-technology checks remain release gates.
-- Live Zammad, SMB/CIFS, signing, TSA, reverse-proxy, and recovery behavior still need validation in
-  your target environment.
+- `202 Accepted` confirms durable admission, not completed preservation. Protect and back up the
+  local journal; do not run multiple service instances against it.
+- Compatibility-mode HMAC authenticates the body, not its delivery ID. Strict ID signing needs
+  sender support for the documented canonical format; restrict ingest to trusted sources.
+- Deep health checks write to storage without authentication, and the schema/documentation
+  routes are unauthenticated. Restrict these surfaces at the network edge.
+- The filesystem store is implemented; S3 Object Lock, hold/disposal CLI, scheduled fixity and
+  reconciliation, evidence renewal and validation-material collection remain open. See
+  [operations](08-operations.md#not-built-yet) for the current list.
+- Admin sessions are volatile; journal history is persistent. Managed configuration requires
+  an external restart before taking effect. RBAC, SSO and secret management are not provided.
+- PDF tagging and browser checks alone do not establish PDF/UA or WCAG conformance. Independent
+  validation and assistive-technology checks remain release gates.
+- Live Zammad, SMB/CIFS, signing, TSA, proxy and recovery behavior need target qualification.
 
 ## Administration preview
 
@@ -57,8 +54,8 @@ See [admin-frontend.md](admin-frontend.md) for the demonstration boundary.
 2. Start with signing and the administration application disabled.
 3. Follow the [deployment guide](deploy.md), [Zammad setup](02-zammad-setup.md), and
    [security checklist](09-security.md).
-4. Confirm completion from Zammad tags and notes, the service logs, and the PDF/sidecar pair — do
-   not treat `202` as success.
+4. Confirm completion from the stored revision and manifest, journal history, and Zammad note;
+   do not treat `202` as success.
 5. Report ordinary defects with the GitHub issue template. Do not disclose vulnerabilities
    publicly; [SECURITY.md](../SECURITY.md) records the unresolved private-reporting gate.
 

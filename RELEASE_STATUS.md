@@ -8,28 +8,24 @@
 | Proposed tag | `v0.3.0-alpha.1` |
 | Publication state | Unreleased |
 | Readiness | Not ready for publication |
-| Status reviewed | 2026-09-02 |
+| Status reviewed | 2026-11-01 (local source; publication gates remain open) |
 
-The worktree is an unfrozen development candidate with uncommitted product, demo, documentation,
-and generated-asset changes. It is suitable only for local evaluation with non-production data.
+The source is an unfrozen development candidate intended for local evaluation with
+non-production data. Local commits and passing checks do not themselves constitute a release.
 A source checkout, package, image, screenshot, or Pages artifact counts as release evidence only
 when it is produced from — and verified against — the same reviewed tag.
 
 ## What works today
 
-The candidate can:
+The candidate records authenticated requests durably, captures original records and attachment
+bytes, renders reading copies, seals and timestamps a manifest, and commits verified revisions to
+the filesystem store and catalog. Optional PAdES signing applies to the archival reading copy.
+The authenticated history comes from the journal; interrupted work is recovered after restart.
 
-- accept authenticated Zammad webhooks and run bounded background work in-process;
-- render a localized PDF together with its JSON audit sidecar;
-- optionally apply a PAdES signature and an RFC 3161 timestamp;
-- write under a confined archive root and project the outcome back to Zammad; and
-- expose optional authenticated history and metrics plus a disabled-by-default administration
-  application.
-
-The runtime is single-process. Admission, jobs, history, sessions, replay deduplication, and ticket
-locks are volatile, so `202 Accepted` confirms admission rather than archival completion. The static
-Pages demo uses synthetic browser-local state and is not an operational deployment or release
-validation surface.
+The supported runtime remains one process per journal. Admin sessions and process counters are
+volatile. `202 Accepted` means durable admission, not completed preservation. The static Pages
+demo remains synthetic and is not operational deployment or release-validation evidence. Current
+contracts are in [architecture](docs/01-architecture.md) and [operations](docs/08-operations.md).
 
 ## Repository checks
 
@@ -60,10 +56,13 @@ Publication still requires all of the following against the exact proposed tag:
 
 ## Known release risks
 
-- Python release dependencies are range-based rather than hash-pinned.
-- Docker base images and operating-system packages are not immutable.
+- Supported base, signing, development and tool environments use checked hash-pinned locks;
+  installing arbitrary versions outside those locks does not reproduce the qualified candidate.
+- The Docker Python base is digest-pinned; operating-system package resolution still depends on
+  the upstream repositories.
 - Container registry publication is not configured.
-- Delivery-ID signing is opt-in, while process-local replay state resets on restart.
+- Delivery-ID signing is opt-in; durable ID deduplication does not authenticate an unsigned
+  delivery ID or prevent a valid body from being replayed under a changed ID.
 - Deep storage health and FastAPI documentation routes are unauthenticated and need a trusted
   network boundary.
 - Private vulnerability reporting has not been verified, and no fallback private channel is

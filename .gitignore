@@ -213,3 +213,8 @@ GEMINI.md
 /worklog*
 /devlog*
 /code_review.md
+
+# Private local audit and investigation records
+/ALPHA_AUDIT_REPORT.md
+.private/
+/local-tests/

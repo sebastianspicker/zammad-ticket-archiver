@@ -4,6 +4,10 @@ Documentation renders of the optional administration application. They come from
 server-rendered templates with synthetic local data, so they contain no production endpoint,
 credential, ticket content, or archive data.
 
+These captures are documentation artifacts from an earlier presentation state. Their
+process-local work labels do not supersede the current durable journal contract; see
+[operations](../08-operations.md). They are not runtime acceptance evidence.
+
 ## Tour
 
 **Overview (English)** — process health, capacity, recent failures, and configuration state, with

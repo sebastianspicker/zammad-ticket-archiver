@@ -5,7 +5,7 @@ default installation also contain the third-party Python packages below, unmodif
 under its own licence. The table lists the licence each package declares in its metadata.
 
 It covers exactly the runtime set pinned in `requirements/signing.lock`, which the production
-image installs (`requirements/base.lock` is a subset). It was generated on 2026-10-24 from
+image installs (`requirements/base.lock` is a subset). It was verified on 2026-11-01 from
 those pinned versions with `importlib.metadata`. Regenerate it whenever the locks change.
 
 Notes:
@@ -24,8 +24,8 @@ Notes:
 | annotated-types | 0.8.0 | MIT | https://github.com/annotated-types/annotated-types |
 | anyio | 4.15.1 | MIT | https://github.com/agronholm/anyio |
 | asn1crypto | 1.5.1 | MIT License | https://github.com/wbond/asn1crypto |
-| brotli | 1.2.0 | MIT | https://github.com/google/brotli |
-| certifi | 2026.7.22 | Mozilla Public License 2.0 (MPL 2.0) | https://github.com/certifi/python-certifi |
+| brotli | 1.2.1 | MIT | https://github.com/google/brotli |
+| certifi | 2026.10.23 | Mozilla Public License 2.0 (MPL 2.0) | https://github.com/certifi/python-certifi |
 | cffi | 2.1.1 | MIT-0 | https://github.com/python-cffi/cffi |
 | charset-normalizer | 3.5.1 | MIT | https://github.com/jawah/charset_normalizer |
 | click | 8.5.0 | BSD-3-Clause | https://github.com/pallets/click/ |
@@ -42,7 +42,7 @@ Notes:
 | lxml | 6.1.3 | BSD-3-Clause | https://github.com/lxml/lxml |
 | MarkupSafe | 3.0.3 | BSD-3-Clause | https://github.com/pallets/markupsafe/ |
 | oscrypto | 1.3.0 | MIT License | https://github.com/wbond/oscrypto |
-| pillow | 12.3.0 | MIT-CMU | https://python-pillow.github.io |
+| pillow | 13.0.0 | MIT-CMU | https://python-pillow.github.io |
 | prometheus_client | 0.26.0 | Apache-2.0 AND BSD-2-Clause | https://github.com/prometheus/client_python |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser |
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic |
@@ -63,11 +63,11 @@ Notes:
 | typing_extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions |
 | tzlocal | 5.4.4 | MIT | https://github.com/regebro/tzlocal |
 | uritools | 6.1.3 | MIT | https://github.com/tkem/uritools/ |
-| urllib3 | 2.7.0 | MIT | https://github.com/urllib3/urllib3 |
+| urllib3 | 2.8.0 | MIT | https://github.com/urllib3/urllib3 |
 | uvicorn | 0.52.4 | BSD-3-Clause | https://uvicorn.dev/ |
 | uvloop | 0.22.1 | Apache Software License; MIT License | https://github.com/MagicStack/uvloop |
 | watchfiles | 1.2.0 | MIT License | https://github.com/samuelcolvin/watchfiles |
-| weasyprint | 69.0 | BSD License | https://github.com/Kozea/WeasyPrint |
+| weasyprint | 70.0 | BSD License | https://github.com/Kozea/WeasyPrint |
 | webencodings | 0.6.1 | BSD License | https://github.com/CourtBouillon/webencodings |
 | websockets | 17.1 | BSD-3-Clause | https://github.com/python-websockets/websockets |
 | zopfli | 0.4.3 | Apache Software License | https://github.com/fonttools/py-zopfli |

@@ -131,3 +131,9 @@ codacy-*.json
 RELEASE_EVIDENCE_*.md
 CODEBASE_AUDIT_REPORT_*.md
 REMEDIATION_PLAN_*.md
+
+# Private local investigations and agent reports
+.private
+local-tests
+ALPHA_AUDIT_REPORT.md
+*_LEDGER.md
