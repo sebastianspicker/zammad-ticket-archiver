@@ -31,7 +31,9 @@ binds every file to an inventory, and can be verified without Zammad or Chronikw
   mandatory; there is no unsealed mode.
 - Each capture of changed content receives a new revision (UUIDv7 revision ID, per-ticket
   revision number). A request whose source digest and policy ID match an existing complete
-  revision resolves to that revision.
+  revision resolves to that revision. The digest ignores tags, update timestamps and the
+  internal notes of Chronikwerk's own API account, so Chronikwerk's own changes to a ticket
+  never create a revision.
 - A catalog in the journal database indexes revisions and can be rebuilt from the stored
   manifests.
 - `chronikwerk-admin verify` checks a package offline, from the store or from a copied directory.

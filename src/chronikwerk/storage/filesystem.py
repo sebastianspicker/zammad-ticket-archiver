@@ -6,7 +6,6 @@ import errno
 import os
 import shutil
 import stat
-import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -103,17 +102,6 @@ def _fsync_dir_best_effort(dir_path: Path) -> None:
         return
     finally:
         os.close(fd)
-
-
-def _validate_and_prepare(target_path: Path, storage_root: Path) -> tuple[Path, Path]:
-    """Validate path safety and ensure parent directory exists. Returns (target, parent)."""
-    target = Path(target_path)
-    parent = target.parent
-    # Bug #13/#20: validate path and symlinks before any directory creation.
-    ensure_within_root(storage_root, target)
-    _reject_symlinks_under_root(storage_root, parent)
-    ensure_dir(parent)
-    return target, parent
 
 
 def _relative_to_storage_root(storage_root: Path, path: Path) -> Path:
@@ -331,63 +319,6 @@ def _fsync_fd_best_effort(fd: int) -> None:
         os.fsync(fd)
     except OSError:
         pass
-
-
-def _unlink_temp_best_effort(parent_fd: int, temp_leaf: str) -> None:
-    try:
-        os.unlink(temp_leaf, dir_fd=parent_fd)
-    except OSError:
-        pass
-
-
-def _write_temp_and_replace(
-    parent_fd: int,
-    target_leaf: str,
-    data: bytes,
-    *,
-    fsync: bool,
-) -> None:
-    temp_leaf = f".tmp-{uuid.uuid4().hex}"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    flags |= getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        fd = os.open(temp_leaf, flags, 0o640, dir_fd=parent_fd)
-        with os.fdopen(fd, "wb") as file_obj:
-            file_obj.write(data)
-            file_obj.flush()
-            os.fchmod(file_obj.fileno(), 0o640)
-            if fsync:
-                os.fsync(file_obj.fileno())
-
-        os.replace(
-            temp_leaf,
-            target_leaf,
-            src_dir_fd=parent_fd,
-            dst_dir_fd=parent_fd,
-        )
-    except Exception:
-        _unlink_temp_best_effort(parent_fd, temp_leaf)
-        raise
-
-
-def write_bytes(target_path: Path, data: bytes, *, storage_root: Path, fsync: bool = True) -> None:
-    """Atomically write within storage_root without following any path symlink."""
-    target, parent = _validate_and_prepare(target_path, storage_root)
-
-    with _open_parent_under_root(storage_root, target, create=True) as (parent_fd, leaf):
-        _write_temp_and_replace(
-            parent_fd,
-            leaf,
-            data,
-            fsync=fsync,
-        )
-        if fsync:
-            _fsync_fd_best_effort(parent_fd)
-
-    # Retain the existing best-effort behavior for filesystems that only accept a
-    # path-opened directory descriptor. The security property does not depend on it.
-    if fsync:
-        _fsync_dir_best_effort(parent)
 
 
 def _reject_symlinks_under_root(root: Path, target_dir: Path) -> None:

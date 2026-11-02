@@ -8,10 +8,9 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from chronikwerk.configuration.models import Settings
-from chronikwerk.web.constants import INGEST_PROTECTED_PATHS, route_path
+from chronikwerk.web.constants import ADMIN_AUTH_PATHS, INGEST_PROTECTED_PATHS, route_path
 from chronikwerk.web.responses import api_error
 
-_ADMIN_AUTH_PATHS = frozenset({"/admin/login", "/admin/api/v1/session"})
 _ADMIN_AUTH_MAX_BYTES = 16 * 1024
 _ADMIN_BODY_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _ADMIN_BODY_MAX_BYTES = 256 * 1024
@@ -54,7 +53,7 @@ def _request_body_limit(scope: Scope, ingest_max_bytes: int, *, admin_enabled: b
         return 0
     path = route_path(scope)
     if _is_admin_request(scope, admin_enabled=admin_enabled):
-        return _ADMIN_AUTH_MAX_BYTES if path in _ADMIN_AUTH_PATHS else _ADMIN_BODY_MAX_BYTES
+        return _ADMIN_AUTH_MAX_BYTES if path in ADMIN_AUTH_PATHS else _ADMIN_BODY_MAX_BYTES
     if _is_limited_path(scope, ingest_max_bytes):
         return ingest_max_bytes
     return 0

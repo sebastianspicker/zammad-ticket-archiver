@@ -57,11 +57,13 @@ shapes it may return are unverified, and no reconciliation job runs yet.
   configured, check whether a plain `LOG_LEVEL` variable is set in the environment, for example
   in an environment file shared with other services, and remove it.
 - **Not built yet.** The S3 Object Lock store (`storage.backend=s3` has settings but no
-  implementation); legal holds, expiry listing and disposal; the reconciliation and fixity jobs
-  (including repeating failed Zammad updates and cleaning abandoned staging on a schedule); the
-  alerts webhook; mail evidence; evidence renewal timestamps; catalog commands in
+  implementation); legal holds, expiry listing and disposal; the reconciliation and fixity jobs;
+  the alerts webhook; mail evidence; evidence renewal timestamps; catalog commands in
   `chronikwerk-admin` (a rebuild method exists but has no command); and `verify --revision`. The
-  settings for these exist but have no effect.
+  settings for these exist but have no effect. A few building blocks are already in the code
+  without a caller: the Zammad ticket search for reconciliation, and the catalog's export,
+  verification-result and access-event records. The 15-minute maintenance task already repeats
+  failed Zammad updates and removes abandoned staging and build directories.
 - **The admin application is a preview.** It is optional for this alpha. Problems there are
   welcome reports but will not block the release.
 

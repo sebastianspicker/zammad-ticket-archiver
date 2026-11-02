@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 from chronikwerk.operations.job import TicketJob
 from chronikwerk.operations.journal import (
@@ -372,5 +375,124 @@ def test_maintenance_skips_rows_that_changed_since_its_snapshot(tmp_path: Path) 
             await _service(journal, processor).run_maintenance()
 
             assert processor.published == [1]
+
+    asyncio.run(scenario())
+
+
+async def _orphaned(
+    journal: RequestJournal, processor: Processor, monkeypatch: pytest.MonkeyPatch
+) -> JournaledSchedulingService:
+    """Start a scheduler and leave ticket 1 in flight: processing and its journal write fail."""
+    failed_writes: list[str] = []
+
+    def disk_full(request_id: str, **_kwargs: object) -> JournalRequest:
+        failed_writes.append(request_id)
+        raise sqlite3.OperationalError("database or disk is full")
+
+    service = _service(journal, processor, maintenance_interval_seconds=60.0)
+    await service.start()
+    monkeypatch.setattr(journal, "fail_transient", disk_full)
+    assert await service.schedule(TicketJob(ticket_id=1))
+    await _until(lambda: bool(failed_writes))
+    await asyncio.sleep(0.05)
+    monkeypatch.undo()  # the disk has space again
+    return service
+
+
+def test_maintenance_requeues_a_collecting_row_left_in_flight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        clock = FakeClock()
+        with _journal(tmp_path, clock=clock) as journal:
+
+            async def capture_fails(_request: JournalRequest) -> None:
+                raise RuntimeError("capture failed")
+
+            processor = Processor(journal, process=capture_fails)
+            service = await _orphaned(journal, processor, monkeypatch)
+
+            await service.run_maintenance()  # not older than one interval yet
+            assert journal.count_by_state()[RequestState.COLLECTING] == 1
+
+            clock.value += timedelta(seconds=120)
+            await service.run_maintenance()
+            [row] = journal.list_recent()
+            assert (row.state, row.error_code, row.attempts, row.revision_id) == (
+                RequestState.WAITING,
+                "internal_error",
+                1,
+                None,
+            )
+            await service.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_maintenance_resumes_a_verifying_row_left_in_flight(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        clock = FakeClock()
+        with _journal(tmp_path, clock=clock) as journal:
+            resumed: list[int] = []
+
+            async def commit_then_fail(request: JournalRequest) -> None:
+                journal.mark_verifying(request.request_id, revision_id="rev-o", revision_number=1)
+                raise RuntimeError("store unreachable")
+
+            async def resume(request: JournalRequest) -> None:
+                resumed.append(request.ticket_id)
+                journal.complete(request.request_id, revision_id="rev-o")
+
+            processor = Processor(journal, process=commit_then_fail, resume=resume)
+            service = await _orphaned(journal, processor, monkeypatch)
+            assert journal.count_by_state()[RequestState.VERIFYING] == 1
+
+            clock.value += timedelta(seconds=120)
+            await service.run_maintenance()
+            assert resumed == [1]
+            [row] = journal.list_recent()
+            assert (row.state, row.revision_id) == (RequestState.COMPLETE, "rev-o")
+            await service.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_orphan_recovery_leaves_rows_that_startup_or_a_worker_still_owns(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        clock = FakeClock()
+        with _journal(tmp_path, clock=clock) as journal:
+            for ticket_id in (1, 2):
+                _to_state(journal, ticket_id, RequestState.VERIFYING)
+            release = asyncio.Event()
+            started = asyncio.Event()
+
+            async def wait_for_release(request: JournalRequest) -> None:
+                started.set()
+                await release.wait()
+                journal.complete(request.request_id, revision_id=request.revision_id or "rev")
+
+            processor = Processor(journal, process=wait_for_release, resume=wait_for_release)
+            service = _service(journal, processor, maintenance_interval_seconds=60.0)
+            await service.start()
+            await asyncio.wait_for(started.wait(), timeout=2)
+            clock.value += timedelta(seconds=120)
+            await service.run_maintenance()  # startup still resumes: no row is an orphan
+            assert journal.count_by_state()[RequestState.VERIFYING] == 2
+
+            release.set()
+            await _until(lambda: journal.count_by_state()[RequestState.COMPLETE] == 2)
+            release.clear()
+            started.clear()
+            assert await service.schedule(TicketJob(ticket_id=3))
+            await asyncio.wait_for(started.wait(), timeout=2)
+            clock.value += timedelta(seconds=120)
+            await service.run_maintenance()  # a worker holds the row
+            assert journal.count_by_state()[RequestState.COLLECTING] == 1
+
+            release.set()
+            await _until(lambda: journal.count_by_state()[RequestState.COMPLETE] == 3)
+            await service.aclose()
 
     asyncio.run(scenario())

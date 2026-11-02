@@ -139,7 +139,8 @@ class JournaledSchedulingService:
     ``start`` returns at once: a background task recovers interrupted rows, resumes VERIFYING
     rows, then starts ``max_running`` workers. A maintenance task runs at start and every
     ``maintenance_interval_seconds``: it retries open Zammad updates, reports failures recorded
-    outside the processor, purges terminal rows older than ``journal_retention_seconds`` and
+    outside the processor, recovers rows left in flight without a worker (a failed journal
+    write) like a restart does, purges terminal rows older than ``journal_retention_seconds`` and
     runs ``housekeeping``; each step is isolated and rows being processed are skipped.
     ``aclose`` stops admission and leasing, drains in-flight work for up to
     ``shutdown_timeout_seconds`` and then cancels it; cancelled rows keep their journal state
@@ -325,6 +326,7 @@ class JournaledSchedulingService:
         steps: list[tuple[str, Callable[[], Awaitable[None]]]] = [
             ("publish_pending", self._publish_pending),
             ("report_failures", self._report_failures),
+            ("recover_orphans", self._recover_orphans),
             ("purge_terminal", self._purge_terminal),
         ]
         if self._housekeeping is not None:
@@ -345,6 +347,35 @@ class JournaledSchedulingService:
     async def _report_failures(self) -> None:
         rows = await run_sync_cancellation_safe(self._journal.pending_failure_reports)
         await self._each_idle(rows, self._processor.report_failure, "report_failure")
+
+    async def _recover_orphans(self) -> None:
+        """Recover rows left in flight by a failed journal write, as a restart would.
+
+        Every row a worker or the startup resume handles is in ``_in_flight`` (one process per
+        journal), so an in-flight row older than one maintenance interval that is not there
+        has no owner left.
+        """
+        if not self._workers:
+            return  # startup recovery and resumption still own the in-flight rows
+        rows = await run_sync_cancellation_safe(
+            self._journal.stuck, older_than_seconds=self._maintenance_interval_seconds
+        )
+        await self._each_idle(rows, self._recover_orphan, "recover_orphan")
+
+    async def _recover_orphan(self, request: JournalRequest) -> None:
+        """Resume an orphaned VERIFYING row; send an orphaned COLLECTING row back to WAITING."""
+        log.warning("scheduling.orphan_recovered", state=request.state.value)
+        if request.state is RequestState.VERIFYING:
+            # The processor decides from the store whether the commit can be finished.
+            await self._handle(request, self._processor.resume)
+            return
+        await run_sync_cancellation_safe(
+            self._journal.fail_transient,
+            request.request_id,
+            error_code="internal_error",
+            error_detail="Request was left in flight without a worker",
+        )
+        self._wakeup.set()
 
     async def _purge_terminal(self) -> None:
         purged = await run_sync_cancellation_safe(
@@ -409,9 +440,10 @@ class JournaledSchedulingService:
         request: JournalRequest,
         step: Callable[[JournalRequest], Awaitable[None]],
     ) -> None:
-        await self._refresh_counts()
+        # Claim the row before the first await, so maintenance never sees it without an owner.
         self._in_flight.add(request.request_id)
         try:
+            await self._refresh_counts()
             with structlog.contextvars.bound_contextvars(**_log_context(request)):
                 detail: str | None = None
                 try:

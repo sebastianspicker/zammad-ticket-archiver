@@ -268,7 +268,9 @@ the note is missing. Preserve the revision, clear a stale `pdf:processing` only 
 request is still running, and re-apply the trigger tag or call `POST /retry/{ticket_id}`: when the
 ticket content is unchanged, the new request resolves to the existing revision and repeats the
 Zammad update without creating a new package. The maintenance task also repeats pending or
-failed Zammad updates every 15 minutes.
+failed Zammad updates every 15 minutes. If Zammad answers that the ticket no longer exists, the
+update ends as done (the revision stays stored). Other failing updates are repeated until the
+journal purge removes the request, 90 days after its first failure.
 
 ## Verify a package
 

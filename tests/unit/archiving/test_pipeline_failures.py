@@ -20,7 +20,7 @@ from chronikwerk.operations.journal import (
 )
 from chronikwerk.operations.scheduling import JournaledSchedulingService
 from chronikwerk.timestamps import now_utc
-from chronikwerk.zammad.errors import ServerError
+from chronikwerk.zammad.errors import NotFoundError, ServerError
 from tests.support.fake_capture import FakeCaptureClient, fixture_ticket
 from tests.unit.archiving.test_pipeline import (
     TRIGGER,
@@ -98,6 +98,8 @@ def test_publish_pending_retries_the_zammad_update(
         RequestState.COMPLETE,
         ZammadStatus.FAILED,
     )
+    # The first failure time is kept, so the journal purge ends the retries eventually.
+    assert still_failed.updated_at == failed.updated_at
     assert setup.client.notes == []
 
     setup.client.fail_adding_tag = None
@@ -109,6 +111,26 @@ def test_publish_pending_retries_the_zammad_update(
     [(subject, body)] = setup.client.notes
     assert "Archive revision complete" in subject
     assert revision_of(setup, row).revision_id in body
+
+
+def test_publish_pending_ends_when_zammad_no_longer_knows_the_ticket(
+    setup: PipelineSetup, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pipeline_status, "TAG_BACKOFF_BASE_SECONDS", 0.0)
+    setup.client.fail_adding_tag = "pdf:signed"
+    failed = process(setup)
+    assert failed.zammad_status is ZammadStatus.FAILED
+
+    async def ticket_gone(ticket_id: int, tag: str) -> None:
+        raise NotFoundError(f"Zammad resource not found (status=404) for ticket {ticket_id}")
+
+    monkeypatch.setattr(setup.client, "add_tag", ticket_gone)
+    asyncio.run(setup.pipeline.publish_pending(failed))
+
+    row = _row(setup, failed.request_id)
+    assert (row.state, row.zammad_status) == (RequestState.COMPLETE, ZammadStatus.DONE)
+    assert setup.journal.pending_zammad_updates() == []
+    assert setup.client.notes == []
 
 
 def test_report_failure_notes_a_safety_net_failure_once_zammad_is_reachable(

@@ -89,10 +89,21 @@ class FakeCaptureClient:
         self.tags.discard(tag)
 
     async def create_internal_article(self, ticket_id: int, subject: str, body: str) -> None:
-        """Record an internal note, or fail like an unavailable Zammad."""
+        """Record an internal note and, like Zammad, list it as an article; or fail."""
         if self.fail_notes:
             raise RuntimeError("note endpoint unavailable")
         self.notes.append((subject, body))
+        note = {
+            **ARTICLES[1],
+            "id": 9000 + len(self.notes),
+            "ticket_id": ticket_id,
+            "subject": subject,
+            "body": body,
+            "content_type": "text/html",
+            "created_by": self.current_login,
+            "updated_by": self.current_login,
+        }
+        self._articles = [*self._articles, note]
 
     async def get_current_user_login(self) -> str:
         """Return the login of the API user this client stands for."""
@@ -110,7 +121,9 @@ class FakeCaptureClient:
         """Return the article list as JSON bytes."""
         return self._bounded(json.dumps(self._articles).encode(), max_bytes)
 
-    async def get_article_plain(self, article_id: int, *, max_bytes: int) -> bytes | None:
+    async def get_article_plain(
+        self, article_id: int, *, max_bytes: int, timeout_seconds: float
+    ) -> bytes | None:
         """Return the stored EML, or None like the gateway does on 404."""
         eml = self._emls.get(article_id)
         return None if eml is None else self._bounded(eml, max_bytes)

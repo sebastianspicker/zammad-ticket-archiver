@@ -9,51 +9,8 @@ import pytest
 from chronikwerk.storage.filesystem import (
     move_file_within_root,
     path_entry_exists,
-    write_bytes,
 )
 from chronikwerk.storage.layout import build_target_dir
-
-
-def test_write_rejects_symlink_traversal_under_root(tmp_path: Path) -> None:
-    root = tmp_path / "root"
-    outside = tmp_path / "outside"
-    root.mkdir()
-    outside.mkdir()
-    try:
-        (root / "link").symlink_to(outside, target_is_directory=True)
-    except OSError:
-        pytest.skip("symlinks are not supported in this environment")
-
-    with pytest.raises(ValueError, match="symlink|escapes root"):
-        write_bytes(root / "link" / "payload.bin", b"x", storage_root=root)
-
-    assert list(outside.iterdir()) == []
-
-
-def test_write_rejects_symlinked_intermediate_directory(tmp_path: Path) -> None:
-    root = tmp_path / "root"
-    outside = tmp_path / "outside"
-    (root / "user").mkdir(parents=True)
-    outside.mkdir()
-    try:
-        (root / "user" / "year").symlink_to(outside, target_is_directory=True)
-    except OSError:
-        pytest.skip("symlinks are not supported in this environment")
-
-    with pytest.raises(ValueError):
-        write_bytes(root / "user" / "year" / "file.pdf", b"x", storage_root=root)
-
-    assert list(outside.iterdir()) == []
-
-
-def test_write_rejects_target_outside_root(tmp_path: Path) -> None:
-    root = tmp_path / "root"
-    root.mkdir()
-
-    with pytest.raises(ValueError, match="escapes root"):
-        write_bytes(tmp_path / "outside.bin", b"x", storage_root=root)
-
-    assert not (tmp_path / "outside.bin").exists()
 
 
 def test_move_rejects_destination_outside_root(tmp_path: Path) -> None:

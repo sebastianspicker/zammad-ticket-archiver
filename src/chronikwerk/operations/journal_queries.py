@@ -21,8 +21,8 @@ from chronikwerk.operations.journal_types import (
     RequestState,
     ZammadStatus,
 )
+from chronikwerk.timestamps import format_time
 
-_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _PURGE_VICTIMS = (
     "((state IN ('complete', 'failed') OR (state = 'coalesced' AND coalesced_into IN "
     "(SELECT request_id FROM requests WHERE state IN ('complete', 'failed')))) "
@@ -32,11 +32,6 @@ _PURGE_VICTIMS = (
 
 class JournalStateError(PermanentError):
     """Raised when a journal operation is illegal for the row's current state."""
-
-
-def format_time(value: datetime) -> str:
-    """Format a timezone-aware time the way the journal stores and compares it."""
-    return value.astimezone(UTC).strftime(_TIME_FORMAT)
 
 
 def parse_time(value: str | None) -> datetime | None:

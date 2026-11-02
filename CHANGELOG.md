@@ -89,6 +89,20 @@ tags use the public form `v0.3.0-alpha.1`.
   delivery-ID mode remains SHA-256 only (ADR 0010).
 - Remove Zammad tags with `DELETE /api/v1/tags/remove`, the only verb Zammad routes; the
   previous `POST` failed with 404 on the first tag transition of every run.
+- An unchanged ticket triggered again resolves to its existing revision even with the default
+  success note: the source digest now leaves out internal notes created by Chronikwerk's own API
+  account (they are still archived). Before, every re-trigger or retry sealed a new revision.
+  Revisions sealed before this change keep their digests, so a ticket may get one more revision
+  the next time it is archived.
+- Original emails are bounded by `capture.max_attachment_bytes` and
+  `capture.download_timeout_seconds`, like attachments, instead of a fixed 32 MiB and 120 s; a
+  larger email failed the ticket permanently with no setting to raise the limit.
+- A completed revision whose Zammad update keeps failing is no longer retried forever: a ticket
+  Zammad no longer knows (404) ends the update, and other failures keep the time of the first
+  failure so the 90-day journal purge ends them.
+- The maintenance task recovers a request left in flight after a failed journal write (for
+  example a full disk) the way a restart does, instead of leaving the ticket blocked until the
+  next restart.
 
 ### Changed
 - Zammad error-note hints now name the configured trigger tag, and the permission and field

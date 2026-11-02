@@ -15,7 +15,7 @@ import threading
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -31,14 +31,13 @@ from chronikwerk.preservation.manifest import (
 )
 from chronikwerk.preservation.revision import PackageLayoutError, revision_directory_name
 from chronikwerk.storage.archive_store import ArchiveStore, ArchiveStoreError
-from chronikwerk.timestamps import now_utc
+from chronikwerk.timestamps import format_time, now_utc
 
 __all__ = ["ArchiveCatalog", "CatalogError", "CatalogRevision", "RebuildReport"]
 
 CATALOG_VERSION = 1
 _BUSY_TIMEOUT_MS = 5000
 _FILE_MODE = 0o600
-_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _MANIFEST_SUFFIX = "/" + MANIFEST_NAME
 _TICKET_DIR_PREFIX = "Ticket-"
 _MISSING_IN_STORE = "missing in store"
@@ -177,12 +176,8 @@ class _Skipped(Exception):  # noqa: N818 - internal control flow, not an error t
     """A manifest in the store that cannot be cataloged; carries the reason."""
 
 
-def _format_time(value: datetime) -> str:
-    return value.astimezone(UTC).strftime(_TIME_FORMAT)
-
-
 def _format_optional(value: datetime | None) -> str | None:
-    return None if value is None else _format_time(value)
+    return None if value is None else format_time(value)
 
 
 def _parse_optional(value: str | None) -> datetime | None:
@@ -221,7 +216,7 @@ def _revision_values(revision: CatalogRevision) -> tuple[Any, ...]:
         revision.archive_user,
         json.dumps(list(revision.archive_path)),
         revision.key_prefix,
-        _format_time(revision.captured_at),
+        format_time(revision.captured_at),
         revision.source_digest,
         revision.policy_id,
         revision.manifest_sha256,
@@ -477,7 +472,7 @@ class ArchiveCatalog:
 
     def record_verification(self, revision_id: str, *, result: str, verified_at: datetime) -> None:
         """Store the latest verification result and append a fixity check."""
-        stamp = _format_time(verified_at)
+        stamp = format_time(verified_at)
         with self._transaction() as conn:
             cursor = conn.execute(
                 "UPDATE revisions SET verified_at = ?, verification_result = ? "
@@ -499,7 +494,7 @@ class ArchiveCatalog:
             conn.execute(
                 "INSERT INTO access_events (at, actor, action, revision_id, outcome) "
                 "VALUES (?, ?, ?, ?, ?)",
-                (_format_time(self._clock()), actor, action, revision_id, outcome),
+                (format_time(self._clock()), actor, action, revision_id, outcome),
             )
 
     def export_to(self, target: Path) -> None:

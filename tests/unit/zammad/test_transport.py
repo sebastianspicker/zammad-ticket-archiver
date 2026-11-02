@@ -39,7 +39,7 @@ def test_client_retries_a_server_error_then_preserves_request_identity(monkeypat
             return httpx.Response(503, request=request)
         return httpx.Response(
             200,
-            json={"id": 7, "number": "7", "title": "Archived ticket"},
+            json=["archived"],
             request=request,
         )
 
@@ -57,11 +57,11 @@ def test_client_retries_a_server_error_then_preserves_request_identity(monkeypat
         ),
     )
 
-    ticket = asyncio.run(client.get_ticket(7))
+    tags = asyncio.run(client.list_tags(7))
 
-    assert ticket.id == 7
+    assert tags.root == ["archived"]
     assert len(attempts) == 2
-    assert attempts[-1].url.path == "/api/v1/tickets/7"
+    assert attempts[-1].url.path == "/api/v1/tags"
     assert attempts[-1].headers["authorization"] == "Token token=test-token"
     assert delays == [0.25]
     asyncio.run(client.aclose())
@@ -83,7 +83,7 @@ def test_client_maps_upstream_auth_failure_without_retrying(monkeypatch) -> None
     )
 
     with pytest.raises(AuthError, match="status=401"):
-        asyncio.run(client.get_ticket(9))
+        asyncio.run(client.list_tags(9))
     asyncio.run(client.aclose())
 
 
@@ -123,7 +123,7 @@ def test_exhausted_retries_preserve_bounded_attempts_and_error_class(monkeypatch
             )
             error_type = RateLimitError if failure == 429 else ServerError
             with pytest.raises(error_type, match="after 3 attempts"):
-                await client.get_ticket(7)
+                await client.list_tags(7)
             await client.aclose()
             assert not http.is_closed
         assert len(attempts) == 3

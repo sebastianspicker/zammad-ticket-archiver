@@ -13,12 +13,9 @@ from pydantic import TypeAdapter, ValidationError
 
 from chronikwerk.configuration.zammad import ZammadConnection
 from chronikwerk.zammad import transport
-from chronikwerk.zammad.dto import Article, TagList, Ticket
+from chronikwerk.zammad.dto import Article, TagList
 from chronikwerk.zammad.errors import ClientError, NotFoundError
 from chronikwerk.zammad.transport import ZammadRequest
-
-# Total deadline for one raw-email download; per-read timeouts alone allow a slow drip.
-_RAW_EMAIL_DEADLINE_SECONDS = 120.0
 
 
 def trigger_tag_query(tag: str) -> str:
@@ -80,13 +77,6 @@ class AsyncZammadClient:
         tb: Any,
     ) -> None:
         await self.aclose()
-
-    async def get_ticket(self, ticket_id: int) -> Ticket:
-        """Fetch a single ticket by ID with user relations expanded to logins."""
-        resp = await self._request_json(
-            ZammadRequest("GET", f"api/v1/tickets/{ticket_id}", params={"expand": "true"})
-        )
-        return Ticket.model_validate(resp)
 
     async def get_ticket_raw(self, ticket_id: int, *, max_bytes: int) -> bytes:
         """Fetch the verbatim ``expand=true`` ticket body, bounded by ``max_bytes``."""
@@ -170,28 +160,25 @@ class AsyncZammadClient:
         )
         return Article.model_validate(resp)
 
-    async def list_articles(self, ticket_id: int) -> list[Article]:
-        """List all articles belonging to a ticket."""
-        resp = await self._request_json(
-            ZammadRequest("GET", f"api/v1/ticket_articles/by_ticket/{ticket_id}")
-        )
-        items = TypeAdapter(list[dict[str, Any]]).validate_python(resp)
-        return [Article.model_validate(item) for item in items]
-
     async def list_articles_raw(self, ticket_id: int, *, max_bytes: int) -> bytes:
         """Fetch the verbatim by-ticket article list body, bounded by ``max_bytes``."""
         return await self._transport.request_bytes(
             "GET", f"api/v1/ticket_articles/by_ticket/{ticket_id}", max_bytes=max_bytes
         )
 
-    async def get_article_plain(self, article_id: int, *, max_bytes: int) -> bytes | None:
-        """Fetch an email article's original RFC 5322 message, or ``None`` when absent."""
+    async def get_article_plain(
+        self, article_id: int, *, max_bytes: int, timeout_seconds: float
+    ) -> bytes | None:
+        """Fetch an email article's original RFC 5322 message, or ``None`` when absent.
+
+        ``timeout_seconds`` bounds the whole download; per-read timeouts alone allow a slow drip.
+        """
         try:
             return await self._transport.request_bytes(
                 "GET",
                 f"api/v1/ticket_article_plain/{article_id}",
                 max_bytes=max_bytes,
-                timeout_seconds=_RAW_EMAIL_DEADLINE_SECONDS,
+                timeout_seconds=timeout_seconds,
             )
         except NotFoundError:
             return None

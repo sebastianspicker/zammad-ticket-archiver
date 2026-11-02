@@ -62,23 +62,6 @@ def _only_call(route: respx.Route) -> httpx.Request:
     return route.calls.last.request
 
 
-def test_get_ticket_uses_get_with_token_auth_and_expand_query() -> None:
-    """get_ticket issues GET /api/v1/tickets/{id}?expand=true with token authorization."""
-    with respx.mock(assert_all_called=True) as mock:
-        route = mock.get(f"{_ORIGIN}/api/v1/tickets/123").respond(
-            200, json={"id": 123, "number": "123", "title": "T"}
-        )
-        ticket = _run(lambda c: c.get_ticket(123))
-    request = _only_call(route)
-    assert ticket.id == 123
-    assert request.method == "GET"
-    assert request.url.path == "/api/v1/tickets/123"
-    assert request.url.query == b"expand=true"
-    assert request.headers["authorization"] == _AUTH
-    assert request.headers["accept"] == "application/json"
-    assert request.headers["accept-encoding"] == "identity"
-
-
 def test_list_tags_queries_object_and_id_and_accepts_both_shapes() -> None:
     """list_tags sends object=Ticket&o_id=N and accepts a bare array or a tags wrapper."""
     for body in (["a", "b"], {"tags": ["a", "b"]}):
@@ -121,21 +104,6 @@ def test_tag_mutations_send_item_object_and_id(method_name: str, verb: str, path
     assert json.loads(request.content) == {"item": "archived", "object": "Ticket", "o_id": 123}
     assert request.headers["authorization"] == _AUTH
     assert request.headers["content-type"] == "application/json"
-
-
-def test_list_articles_uses_by_ticket_endpoint() -> None:
-    """list_articles issues GET /api/v1/ticket_articles/by_ticket/{id} and parses each item."""
-    payload = [{"id": 1, "ticket_id": 123}, {"id": 2, "ticket_id": 123}]
-    with respx.mock(assert_all_called=True) as mock:
-        route = mock.get(f"{_ORIGIN}/api/v1/ticket_articles/by_ticket/123").respond(
-            200, json=payload
-        )
-        articles = _run(lambda c: c.list_articles(123))
-    request = _only_call(route)
-    assert [a.id for a in articles] == [1, 2]
-    assert request.method == "GET"
-    assert request.url.query == b""
-    assert request.headers["authorization"] == _AUTH
 
 
 def test_create_internal_article_posts_internal_html_without_retries() -> None:
@@ -183,9 +151,9 @@ def test_non_retryable_statuses_map_to_typed_errors_after_one_call(
 ) -> None:
     """Auth, not-found and other client errors are raised immediately without retries."""
     with respx.mock() as mock:
-        route = mock.get(f"{_ORIGIN}/api/v1/tickets/1").respond(status)
+        route = mock.get(f"{_ORIGIN}/api/v1/tags").respond(status)
         with pytest.raises(error, match=f"status={status}"):
-            _run(lambda c: c.get_ticket(1))
+            _run(lambda c: c.list_tags(1))
     assert route.call_count == 1
 
 
@@ -200,10 +168,10 @@ def test_retryable_statuses_exhaust_default_attempts_then_raise(
 
     async def scenario() -> None:
         async with client:
-            await client.get_ticket(1)
+            await client.list_tags(1)
 
     with respx.mock() as mock:
-        route = mock.get(f"{_ORIGIN}/api/v1/tickets/1").respond(status)
+        route = mock.get(f"{_ORIGIN}/api/v1/tags").respond(status)
         with pytest.raises(error, match="after 4 attempts"):
             asyncio.run(scenario())
     assert route.call_count == 4
@@ -216,17 +184,17 @@ def test_retry_after_header_overrides_backoff_for_rate_limits() -> None:
 
     async def scenario() -> Any:
         async with client:
-            return await client.get_ticket(1)
+            return await client.list_tags(1)
 
     with respx.mock() as mock:
-        mock.get(f"{_ORIGIN}/api/v1/tickets/1").mock(
+        mock.get(f"{_ORIGIN}/api/v1/tags").mock(
             side_effect=[
                 httpx.Response(429, headers={"Retry-After": "2"}),
-                httpx.Response(200, json={"id": 1, "number": "1", "title": "T"}),
+                httpx.Response(200, json=["a"]),
             ]
         )
-        ticket = asyncio.run(scenario())
-    assert ticket.id == 1
+        tags = asyncio.run(scenario())
+    assert tags.root == ["a"]
     assert delays == [2.0]
 
 

@@ -48,9 +48,9 @@ def _install_snapshot_spy(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     """Replace snapshot construction with a minimal snapshot and record each call."""
     calls: list[int] = []
 
-    async def build_snapshot(_client: object, ticket_id: int, **_kwargs: Any) -> Snapshot:
-        calls.append(ticket_id)
-        return Snapshot(ticket=TicketMeta(id=ticket_id, number="T1", title="Copies"), articles=[])
+    async def build_snapshot(**_kwargs: Any) -> Snapshot:
+        calls.append(42)
+        return Snapshot(ticket=TicketMeta(id=42, number="T1", title="Copies"), articles=[])
 
     monkeypatch.setattr(rendering, "build_snapshot", build_snapshot)
     return calls
@@ -60,13 +60,13 @@ def _render(options: DocumentOptions, variants: tuple[Any, ...]) -> ReadingCopie
     """Render the requested reading copies through the public entry point."""
     return asyncio.run(
         render_reading_copies(
-            client=object(),  # type: ignore[arg-type]
             ticket_id=42,
             ticket=object(),  # type: ignore[arg-type]
             tags=object(),  # type: ignore[arg-type]
             custom_fields={},
             options=options,
             variants=variants,
+            articles=[],
         )
     )
 

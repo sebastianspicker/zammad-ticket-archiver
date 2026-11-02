@@ -179,11 +179,16 @@ def test_repeated_delivery_publishes_one_sealed_revision(
     assert row.revision_id in body
 
 
+@pytest.mark.parametrize("acknowledge_on_success", [True, False])
 def test_unchanged_ticket_triggered_again_resolves_to_the_same_revision(
-    runtime_factory: Callable[..., _Runtime],
+    runtime_factory: Callable[..., _Runtime], acknowledge_on_success: bool
 ) -> None:
-    """Acceptance check A04 through the scheduler: no second revision for the same content."""
-    runtime = runtime_factory(acknowledge_on_success=False)
+    """Acceptance check A04 through the scheduler: no second revision for the same content.
+
+    The fake client lists every success note as an article, as Zammad does; the service's own
+    notes must not count as a content change.
+    """
+    runtime = runtime_factory(acknowledge_on_success=acknowledge_on_success)
 
     async def scenario() -> None:
         await runtime.scheduler.start()
@@ -198,7 +203,10 @@ def test_unchanged_ticket_triggered_again_resolves_to_the_same_revision(
 
     first, second = runtime.rows()
     assert (first.state, second.state) == (RequestState.COMPLETE, RequestState.COMPLETE)
+    assert first.revision_id is not None
     assert first.revision_id == second.revision_id
     assert runtime.catalog.next_revision_number(42) == 2
-    assert runtime.client.notes == []
+    notes = runtime.client.notes
+    assert len(notes) == (2 if acknowledge_on_success else 0)
+    assert all(first.revision_id in body for _subject, body in notes)
     assert runtime.client.tags == {"pdf:signed"}

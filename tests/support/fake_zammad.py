@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, cast
 
-from chronikwerk.zammad.dto import Article, TagList, Ticket
+from chronikwerk.zammad.dto import TagList, Ticket
 from chronikwerk.zammad.gateway import AsyncZammadClient
 
 
@@ -31,11 +31,6 @@ class FakeZammad:
         """Return the recorded call names with tag arguments appended."""
         return [":".join(call) for call in self.calls]
 
-    async def get_ticket(self, ticket_id: int) -> Ticket:
-        """Return the configured ticket."""
-        self.calls.append(("get_ticket",))
-        return self.ticket.model_copy(update={"id": ticket_id})
-
     async def get_current_user_login(self) -> str:
         """Return the login of the API user this client authenticates as."""
         self.calls.append(("get_current_user_login",))
@@ -45,11 +40,6 @@ class FakeZammad:
         """Return the current tag set."""
         self.calls.append(("list_tags",))
         return TagList(sorted(self.tags))
-
-    async def list_articles(self, _ticket_id: int) -> list[Article]:
-        """Return one plain-text article."""
-        self.calls.append(("list_articles",))
-        return [Article.model_validate({"id": 1, "subject": "Hello", "body": "Body text"})]
 
     async def add_tag(self, _ticket_id: int, tag: str) -> None:
         """Record and apply a tag addition, running the optional hook first."""

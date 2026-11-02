@@ -8,6 +8,8 @@ log = structlog.get_logger(__name__)
 DELIVERY_ID_HEADER = "X-Zammad-Delivery"
 MAX_DELIVERY_ID_CHARS = 128
 INGEST_PROTECTED_PATHS: frozenset[str] = frozenset({"/ingest", "/ingest/batch"})
+# Unauthenticated admin login paths: both the body-size and the rate limit apply to them.
+ADMIN_AUTH_PATHS: frozenset[str] = frozenset({"/admin/login", "/admin/api/v1/session"})
 
 
 def route_path(scope: Scope) -> str:

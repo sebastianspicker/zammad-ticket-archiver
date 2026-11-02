@@ -76,7 +76,10 @@ A capture whose source digest and policy ID match an existing complete revision 
 resolves to that revision and creates no new one. The source digest covers the ticket and article
 content fields, the SHA-256 of every original email and attachment, and the record class. It
 excludes `updated_at`, tags and statistics, so the tag changes Chronikwerk makes do not create new
-revisions. The policy ID covers the record-class rule, the package format and `pdf.reading_copies`.
+revisions. For the same reason it also leaves out internal notes created by Chronikwerk's own API
+account (`GET /api/v1/users/me`), such as the success note: they are still archived with the next
+revision, but they never cause one. Use an API account that only Chronikwerk uses. The policy ID
+covers the record-class rule, the package format and `pdf.reading_copies`.
 
 ### Layout
 

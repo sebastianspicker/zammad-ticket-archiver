@@ -25,6 +25,7 @@ from chronikwerk.preservation.catalog import CatalogRevision
 from chronikwerk.preservation.manifest import MANIFEST_NAME, Coverage, parse_manifest
 from chronikwerk.storage.archive_store import ArchiveStore
 from chronikwerk.timestamps import format_timestamp_utc
+from chronikwerk.zammad.errors import NotFoundError
 from chronikwerk.zammad.gateway import AsyncZammadClient
 
 __all__ = ["coverage_summary", "publish_revision_status"]
@@ -118,8 +119,11 @@ async def publish_revision_status(
 ) -> None:
     """Apply ``pdf:signed`` and post the success note for a COMPLETE request.
 
-    Success sets ``zammad_status=done``; any failure is logged and sets ``failed``. A
-    cancellation leaves ``pending`` for reconciliation.
+    Success sets ``zammad_status=done``. A ticket Zammad no longer knows (404) also ends as
+    ``done``: nothing is left to update. Any other failure is logged and sets ``failed``; a
+    row that is already ``failed`` is not written again, so it keeps the time of its first
+    failure and the journal purge ends its retries. A cancellation leaves ``pending`` for
+    reconciliation.
     """
     try:
         await _update_zammad(
@@ -130,6 +134,17 @@ async def publish_revision_status(
             revision=revision,
             now=clock(),
         )
+    except NotFoundError:
+        log.warning(
+            "archive_pipeline.zammad_ticket_gone",
+            ticket_id=request.ticket_id,
+            request_id=request.request_id,
+            revision_id=revision.revision_id,
+        )
+        await run_sync_cancellation_safe(
+            journal.set_zammad_status, request.request_id, ZammadStatus.DONE
+        )
+        return
     except Exception:  # pylint: disable=broad-exception-caught
         log.exception(
             "archive_pipeline.zammad_status_failed",
@@ -138,9 +153,10 @@ async def publish_revision_status(
             revision_id=revision.revision_id,
             key_prefix=revision.key_prefix,
         )
-        await run_sync_cancellation_safe(
-            journal.set_zammad_status, request.request_id, ZammadStatus.FAILED
-        )
+        if request.zammad_status is not ZammadStatus.FAILED:
+            await run_sync_cancellation_safe(
+                journal.set_zammad_status, request.request_id, ZammadStatus.FAILED
+            )
         return
     await run_sync_cancellation_safe(
         journal.set_zammad_status, request.request_id, ZammadStatus.DONE

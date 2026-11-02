@@ -90,7 +90,9 @@ class CaptureClient(Protocol):
         """Return the verbatim by-ticket article list body."""
         ...
 
-    async def get_article_plain(self, article_id: int, *, max_bytes: int) -> bytes | None:
+    async def get_article_plain(
+        self, article_id: int, *, max_bytes: int, timeout_seconds: float
+    ) -> bytes | None:
         """Return an email article's original message, or ``None`` when Zammad has none."""
         ...
 
@@ -173,12 +175,15 @@ async def capture_ticket(
     work_dir: Path,
     options: CaptureOptions,
     clock: Callable[[], datetime] = now_utc,
+    service_login: str | None = None,
 ) -> CapturedSource:
     """
     Collect ``ticket_id`` into ``work_dir/attempt-<n>/`` until two inventories agree.
 
     ``work_dir`` is an existing, empty, caller-owned temporary directory. Earlier attempt
     directories stay in place for the caller's cleanup and count against ``max_temp_bytes``.
+    Internal notes created by ``service_login`` (this service's own notes) are archived but
+    left out of the source digest, so posting them never makes the next capture differ.
     """
     started = clock()
     budget = _TempBudget(options.max_temp_bytes)
@@ -187,7 +192,8 @@ async def capture_ticket(
         attempt = await _collect(client, ticket_id, attempt_dir, options, budget)
         after = await _fetch_inventory(client, ticket_id, options)
         if after == attempt.inventory_before:
-            return _result(attempt, after, options, attempt_number, started, clock())
+            digest = _digest(attempt, options, service_login)
+            return _result(attempt, after, digest, attempt_number, started, clock())
     raise InconsistentSourceError(
         f"ticket {ticket_id} changed during each of {options.consistency_attempts} capture attempts"
     )
@@ -268,7 +274,14 @@ async def _capture_email(
     options: CaptureOptions,
     budget: _TempBudget,
 ) -> None:
-    eml = await client.get_article_plain(article.id, max_bytes=options.max_metadata_bytes)
+    """Store the original message of an email article, bounded like an attachment."""
+    limit = _download_limit(options, budget)
+    try:
+        eml = await client.get_article_plain(
+            article.id, max_bytes=limit, timeout_seconds=options.download_timeout_seconds
+        )
+    except ResponseTooLargeError as exc:
+        raise _oversize(limit, options, f"original email of article {article.id}") from exc
     if eml is None:
         attempt.unavailable.append(article.id)
         return
@@ -288,9 +301,7 @@ async def _download(
 ) -> None:
     """Stream one attachment to ``target``, bounded by the attachment and temp limits."""
     article_id, attachment_id = ids
-    limit = min(options.max_attachment_bytes, budget.remaining)
-    if limit < 1:
-        raise TempSpaceExceededError("no temporary space left for attachment downloads")
+    limit = _download_limit(options, budget)
     try:
         written = await client.download_attachment(
             attempt.ticket_id,
@@ -301,15 +312,24 @@ async def _download(
             timeout_seconds=options.download_timeout_seconds,
         )
     except ResponseTooLargeError as exc:
-        if limit < options.max_attachment_bytes:
-            raise TempSpaceExceededError(
-                f"attachment {attachment_id} exceeds the remaining temporary space"
-            ) from exc
-        raise AttachmentTooLargeError(
-            f"attachment {attachment_id} of article {article_id} exceeds "
-            f"{options.max_attachment_bytes} bytes"
-        ) from exc
+        what = f"attachment {attachment_id} of article {article_id}"
+        raise _oversize(limit, options, what) from exc
     budget.reserve(written)
+
+
+def _download_limit(options: CaptureOptions, budget: _TempBudget) -> int:
+    """Return the byte bound of one download: the file limit or the temporary space left."""
+    limit = min(options.max_attachment_bytes, budget.remaining)
+    if limit < 1:
+        raise TempSpaceExceededError("no temporary space left for downloads")
+    return limit
+
+
+def _oversize(limit: int, options: CaptureOptions, what: str) -> Exception:
+    """Return the failure for a download larger than ``limit``: temp space or file size."""
+    if limit < options.max_attachment_bytes:
+        return TempSpaceExceededError(f"{what} exceeds the remaining temporary space")
+    return AttachmentTooLargeError(f"{what} exceeds {options.max_attachment_bytes} bytes")
 
 
 async def _capture_attachment(
@@ -378,7 +398,16 @@ def _coverage(attempt: _Attempt) -> Coverage:
     return Coverage(articles, attachments, emails, complete)
 
 
-def _digest(attempt: _Attempt, options: CaptureOptions) -> str:
+def _own_note(article: Mapping[str, Any], service_login: str | None) -> bool:
+    """Return whether ``article`` is an internal note this service posted itself."""
+    return (
+        service_login is not None
+        and article.get("internal") is True
+        and article.get("created_by") == service_login
+    )
+
+
+def _digest(attempt: _Attempt, options: CaptureOptions, service_login: str | None) -> str:
     raw = attempt.ticket_raw
     ticket_fields = {
         **raw,
@@ -389,7 +418,7 @@ def _digest(attempt: _Attempt, options: CaptureOptions) -> str:
     }
     return source_digest(
         ticket_fields=ticket_fields,
-        articles=attempt.articles_raw,
+        articles=[a for a in attempt.articles_raw if not _own_note(a, service_login)],
         file_hashes=attempt.file_hashes,
     )
 
@@ -397,7 +426,7 @@ def _digest(attempt: _Attempt, options: CaptureOptions) -> str:
 def _result(
     attempt: _Attempt,
     inventory_after: dict[str, Any],
-    options: CaptureOptions,
+    digest: str,
     attempts: int,
     started: datetime,
     finished: datetime,
@@ -408,7 +437,7 @@ def _result(
         ticket_raw=attempt.ticket_raw,
         articles=attempt.articles,
         record_class=attempt.record_class,
-        source_digest=_digest(attempt, options),
+        source_digest=digest,
         coverage=_coverage(attempt),
         mail_auth=attempt.mail_auth,
         inventory_before=attempt.inventory_before,

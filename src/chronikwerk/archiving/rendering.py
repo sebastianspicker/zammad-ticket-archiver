@@ -19,18 +19,8 @@ from chronikwerk.operations.metrics import render_seconds, sign_seconds
 
 if TYPE_CHECKING:
     from chronikwerk.zammad.dto import Article, TagList, Ticket
-    from chronikwerk.zammad.gateway import AsyncZammadClient
 
 log = structlog.get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class RenderedTicket:
-    """Bundle rendered bytes with the normalized snapshot and signing provenance."""
-
-    pdf_bytes: bytes
-    snapshot: Snapshot
-    signing_cert_fingerprint: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,17 +35,14 @@ class ReadingCopies:
 
 async def _build_snapshot_for(
     *,
-    client: AsyncZammadClient,
     ticket_id: int,
     ticket: Ticket,
     tags: TagList,
     custom_fields: dict[str, Any],
     options: DocumentOptions,
-    articles: Sequence[Article] | None = None,
+    articles: Sequence[Article],
 ) -> Snapshot:
     snapshot = await build_snapshot(
-        client,
-        ticket_id,
         ticket=ticket,
         tags=tags,
         custom_fields=custom_fields,
@@ -86,59 +73,18 @@ async def _sign_if_enabled(pdf_bytes: bytes, options: DocumentOptions) -> tuple[
     return signed_pdf.pdf_bytes, signed_pdf.certificate_fingerprint
 
 
-async def build_and_render_pdf(
-    *,
-    client: AsyncZammadClient,
-    ticket_id: int,
-    ticket: Ticket,
-    tags: TagList,
-    custom_fields: dict[str, Any],
-    options: DocumentOptions,
-) -> RenderedTicket:
-    """Fetch render inputs and produce PDF bytes for one ticket."""
-    snapshot = await _build_snapshot_for(
-        client=client,
-        ticket_id=ticket_id,
-        ticket=ticket,
-        tags=tags,
-        custom_fields=custom_fields,
-        options=options,
-    )
-
-    render_started = perf_counter()
-    pdf_bytes = await render_pdf(
-        snapshot,
-        max_articles=options.max_articles,
-        locale=options.locale,
-        timezone=options.timezone,
-    )
-    render_seconds.observe(perf_counter() - render_started)
-
-    pdf_bytes, signing_cert_fingerprint = await _sign_if_enabled(pdf_bytes, options)
-    return RenderedTicket(
-        pdf_bytes=pdf_bytes,
-        snapshot=snapshot,
-        signing_cert_fingerprint=signing_cert_fingerprint,
-    )
-
-
 async def render_reading_copies(
     *,
-    client: AsyncZammadClient,
     ticket_id: int,
     ticket: Ticket,
     tags: TagList,
     custom_fields: dict[str, Any],
     options: DocumentOptions,
     variants: Sequence[Literal["pdf/a-2u", "pdf/ua-1"]],
-    articles: Sequence[Article] | None = None,
+    articles: Sequence[Article],
 ) -> ReadingCopies:
-    """Render the requested reading copies from one snapshot; sign only the archival copy.
-
-    Given ``articles`` (for example the captured ones) are rendered without fetching again.
-    """
+    """Render the requested reading copies from one snapshot; sign only the archival copy."""
     snapshot = await _build_snapshot_for(
-        client=client,
         ticket_id=ticket_id,
         ticket=ticket,
         tags=tags,

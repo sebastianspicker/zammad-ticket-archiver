@@ -219,7 +219,8 @@ def test_signed_webhook_publishes_a_sealed_verified_revision(
     _assert_reported(zammad, row["revision_id"])
     assert routes["plain"].call_count >= 1
     assert routes["attachment"].call_count >= 1
-    assert routes["me"].call_count == 0  # owner mode never needs the service login
+    # Capture needs the service login once, to keep its own notes out of the source digest.
+    assert routes["me"].call_count == 1
     assert tsa.call_count >= 1
     assert list(settings.capture.temp_dir.iterdir()) == []
 

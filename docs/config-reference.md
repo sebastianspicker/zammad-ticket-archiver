@@ -137,7 +137,7 @@ application. The non-secret keys are owned by the environment or the YAML file.
 | --- | --- | --- | --- |
 | `journal.path` | `/var/lib/chronikwerk/journal.sqlite3` | `JOURNAL__PATH` | Journal and catalog database on local disk. |
 | `capture.consistency_attempts` | `3` | `CAPTURE__CONSISTENCY_ATTEMPTS` | Collection attempts before the source counts as inconsistent; at least 1. |
-| `capture.max_attachment_bytes` | `104857600` | `CAPTURE__MAX_ATTACHMENT_BYTES` | Largest single file (100 MiB); positive. |
+| `capture.max_attachment_bytes` | `104857600` | `CAPTURE__MAX_ATTACHMENT_BYTES` | Largest single attachment or original email (100 MiB); positive. |
 | `capture.max_package_bytes` | `1073741824` | `CAPTURE__MAX_PACKAGE_BYTES` | Largest package (1 GiB); positive and not smaller than `capture.max_attachment_bytes`. |
 | `capture.download_timeout_seconds` | `300` | `CAPTURE__DOWNLOAD_TIMEOUT_SECONDS` | Longest download of one object; positive. |
 | `capture.temp_dir` | `/var/lib/chronikwerk/tmp` | `CAPTURE__TEMP_DIR` | Local build area; must be on local disk. |

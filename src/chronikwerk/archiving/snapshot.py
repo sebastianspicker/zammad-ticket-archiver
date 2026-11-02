@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from html import escape
 from html.parser import HTMLParser
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from chronikwerk.concurrency import run_sync_cancellation_safe
 from chronikwerk.documents.models import (
@@ -21,9 +21,6 @@ from chronikwerk.documents.sanitize import sanitize_html_fragment
 from chronikwerk.zammad.dto import Article as ZammadArticle
 from chronikwerk.zammad.dto import TagList
 from chronikwerk.zammad.dto import Ticket as ZammadTicket
-
-if TYPE_CHECKING:
-    from chronikwerk.zammad.gateway import AsyncZammadClient
 
 
 def _party_from_zammad_ref(ref: Any) -> PartyRef | None:
@@ -151,27 +148,15 @@ def _normalize_articles(
 
 
 async def build_snapshot(
-    client: AsyncZammadClient,
-    ticket_id: int,
     *,
-    ticket: ZammadTicket | None = None,
-    tags: TagList | None = None,
+    ticket: ZammadTicket,
+    tags: TagList,
+    articles: Sequence[ZammadArticle],
     custom_fields: dict[str, Any] | None = None,
     max_articles: int | None = None,
     article_limit_mode: str = "fail",
-    articles: Sequence[ZammadArticle] | None = None,
 ) -> Snapshot:
-    """Normalize fetched Zammad resources into the immutable rendering input.
-
-    ``ticket``, ``tags`` and ``articles`` that the caller already holds (for example from a
-    source capture) are used as given; only the missing ones are fetched.
-    """
-    if ticket is None:
-        ticket = await client.get_ticket(ticket_id)
-    if tags is None:
-        tags = await client.list_tags(ticket_id)
-    if articles is None:
-        articles = await client.list_articles(ticket_id)
+    """Normalize captured Zammad resources into the immutable rendering input."""
     articles_total = len(articles)
     oversized = max_articles is not None and max_articles > 0 and articles_total > max_articles
     if oversized and article_limit_mode != "cap_and_continue":

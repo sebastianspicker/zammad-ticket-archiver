@@ -31,7 +31,7 @@ def test_shared_client_bounds_simultaneous_upstream_connections(monkeypatch) -> 
                 if active == 10:
                     full.set()
                 await release.wait()
-                body = b'{"id":7,"number":"7","title":"Synthetic"}'
+                body = b'["synthetic"]'
                 writer.write(
                     b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
                     + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode()
@@ -60,7 +60,7 @@ def test_shared_client_bounds_simultaneous_upstream_connections(monkeypatch) -> 
             allow_insecure_http=True,
         )
         async with server, AsyncZammadClient(connection=connection) as client:
-            tasks = [asyncio.create_task(client.get_ticket(7)) for _ in range(15)]
+            tasks = [asyncio.create_task(client.list_tags(7)) for _ in range(15)]
             try:
                 await asyncio.wait_for(full.wait(), 5)
                 await asyncio.sleep(0.02)

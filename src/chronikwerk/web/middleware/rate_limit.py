@@ -10,11 +10,10 @@ from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from chronikwerk.configuration.models import Settings
-from chronikwerk.web.constants import INGEST_PROTECTED_PATHS, route_path
+from chronikwerk.web.constants import ADMIN_AUTH_PATHS, INGEST_PROTECTED_PATHS, route_path
 from chronikwerk.web.responses import api_error
 
 _METRICS_PATH = "/metrics"
-_ADMIN_AUTH_PATHS = frozenset({"/admin/login", "/admin/api/v1/session"})
 
 # Eviction tuning for the in-memory token-bucket store (Bug #P2-1).
 _EVICTION_HEADROOM = 200  # extra entries to evict below max_entries
@@ -146,7 +145,7 @@ class RateLimitMiddleware:
         self.app = app
         config = settings.hardening.rate_limit
         self._enabled = bool(config.enabled)
-        self._admin_auth_paths = _ADMIN_AUTH_PATHS if settings.admin.enabled else frozenset()
+        self._admin_auth_paths = ADMIN_AUTH_PATHS if settings.admin.enabled else frozenset()
         self._paths = frozenset(
             set(INGEST_PROTECTED_PATHS)
             | ({_METRICS_PATH} if config.include_metrics else set())

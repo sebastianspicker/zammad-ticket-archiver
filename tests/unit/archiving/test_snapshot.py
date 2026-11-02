@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -14,21 +14,16 @@ from chronikwerk.zammad.dto import TagList, Ticket
 from tests.support.zammad_fixtures import load_zammad_fixture
 
 
-class SnapshotClient:
-    """Return controlled Zammad resources through the snapshot gateway shape."""
-
-    def __init__(self, *, ticket: Ticket, articles: list[ZammadArticle]) -> None:
-        self.ticket = ticket
-        self.articles = articles
-
-    async def get_ticket(self, _ticket_id: int) -> Ticket:
-        return self.ticket
-
-    async def list_tags(self, _ticket_id: int) -> TagList:
-        return TagList(["pdf:sign"])
-
-    async def list_articles(self, _ticket_id: int) -> list[ZammadArticle]:
-        return self.articles
+def _build(articles: list[ZammadArticle], *, ticket: Ticket | None = None, **kwargs: Any) -> Any:
+    """Build a snapshot from captured resources."""
+    return asyncio.run(
+        build_snapshot(
+            ticket=ticket or Ticket(id=1, number="T1"),
+            tags=TagList(["pdf:sign"]),
+            articles=articles,
+            **kwargs,
+        )
+    )
 
 
 def test_snapshot_sanitizes_sorts_and_retains_attachment_metadata() -> None:
@@ -56,9 +51,8 @@ def test_snapshot_sanitizes_sorts_and_retains_attachment_metadata() -> None:
             }
         ),
     ]
-    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=articles)
 
-    snapshot = asyncio.run(build_snapshot(cast(Any, client), 1))
+    snapshot = _build(articles)
 
     assert [article.id for article in snapshot.articles] == [1, 2]
     assert snapshot.articles[0].body_html == "<b>earlier</b>"
@@ -85,16 +79,8 @@ def test_snapshot_cap_keeps_the_earliest_articles_and_reports_omissions() -> Non
         )
         for number in (5, 2, 4, 1, 3)
     ]
-    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=articles)
 
-    snapshot = asyncio.run(
-        build_snapshot(
-            cast(Any, client),
-            1,
-            max_articles=2,
-            article_limit_mode="cap_and_continue",
-        )
-    )
+    snapshot = _build(articles, max_articles=2, article_limit_mode="cap_and_continue")
 
     assert [article.id for article in snapshot.articles] == [1, 2]
     assert snapshot.articles[0].body_html == "<b>body-1</b>"
@@ -107,13 +93,12 @@ def test_snapshot_cap_keeps_the_earliest_articles_and_reports_omissions() -> Non
 def test_snapshot_rejects_oversized_article_list_in_fail_mode() -> None:
     """The default fail mode refuses a ticket with more articles than the configured maximum."""
     articles = [ZammadArticle(id=2), ZammadArticle(id=1)]
-    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=articles)
 
     with pytest.raises(
         ValueError,
         match=r"too many articles: ticket has 2 articles; maximum allowed is 1",
     ):
-        asyncio.run(build_snapshot(cast(Any, client), 1, max_articles=1))
+        _build(articles, max_articles=1)
 
 
 @pytest.mark.parametrize("limit", [None, 0, 4, 2])
@@ -124,12 +109,7 @@ def test_snapshot_limits_preserve_naive_missing_and_tied_timestamp_order(limit) 
         ZammadArticle(id=3, created_at=datetime(2024, 1, 1, tzinfo=UTC), body="aware"),
         ZammadArticle(id=2, body="missing second"),
     ]
-    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=articles)
-    snapshot = asyncio.run(
-        build_snapshot(
-            cast(Any, client), 1, max_articles=limit, article_limit_mode="cap_and_continue"
-        )
-    )
+    snapshot = _build(articles, max_articles=limit, article_limit_mode="cap_and_continue")
     expected = [3, 4] if limit == 2 else [3, 4, 1, 2]
     assert [article.id for article in snapshot.articles] == expected
     assert snapshot.articles_total == 4
@@ -138,8 +118,7 @@ def test_snapshot_limits_preserve_naive_missing_and_tied_timestamp_order(limit) 
 
 def test_exact_article_limit_in_fail_mode_includes_every_article() -> None:
     articles = [ZammadArticle(id=2), ZammadArticle(id=1)]
-    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=articles)
-    snapshot = asyncio.run(build_snapshot(cast(Any, client), 1, max_articles=2))
+    snapshot = _build(articles, max_articles=2)
     assert [article.id for article in snapshot.articles] == [1, 2]
     assert snapshot.articles_total == 2
     assert snapshot.articles_omitted == 0
@@ -150,9 +129,8 @@ def test_snapshot_reads_attachment_mime_type_from_zammad_preferences() -> None:
         ZammadArticle.model_validate(article)
         for article in load_zammad_fixture("ticket_articles_by_ticket.json")
     ]
-    client = SnapshotClient(ticket=Ticket(id=42, number="31042"), articles=articles)
 
-    snapshot = asyncio.run(build_snapshot(cast(Any, client), 42))
+    snapshot = _build(articles, ticket=Ticket(id=42, number="31042"))
 
     (attachment,) = snapshot.articles[0].attachments
     assert (attachment.filename, attachment.size, attachment.content_type) == (
@@ -174,8 +152,7 @@ def test_snapshot_normalizes_attachment_mime_type_sources(
     attachment: dict[str, Any], expected: str | None
 ) -> None:
     article = ZammadArticle.model_validate({"id": 1, "body": "x", "attachments": [attachment]})
-    client = SnapshotClient(ticket=Ticket(id=1, number="T1"), articles=[article])
 
-    snapshot = asyncio.run(build_snapshot(cast(Any, client), 1))
+    snapshot = _build([article])
 
     assert snapshot.articles[0].attachments[0].content_type == expected

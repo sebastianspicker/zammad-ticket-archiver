@@ -36,6 +36,7 @@ def _capture(
     client: FakeCaptureClient | None = None,
     options: CaptureOptions = _OPTIONS,
     name: str = "work",
+    service_login: str | None = None,
 ) -> CapturedSource:
     """Run capture_ticket for ticket 42 into a fresh work directory below ``tmp_path``."""
     work_dir = tmp_path / name
@@ -47,6 +48,7 @@ def _capture(
             work_dir=work_dir,
             options=options,
             clock=lambda: _CLOCK_VALUE,
+            service_login=service_login,
         )
     )
 
@@ -126,6 +128,24 @@ def test_source_digest_uses_the_configured_archive_field_names(tmp_path: Path) -
     )
 
 
+def test_source_digest_leaves_out_this_services_own_internal_notes(tmp_path: Path) -> None:
+    def with_note(**changes: Any) -> FakeCaptureClient:
+        note = {**_ARTICLES[1], "id": 900, "body": "Archive revision complete", **changes}
+        return FakeCaptureClient(articles=[*_ARTICLES, note])
+
+    def digest(client: FakeCaptureClient, name: str) -> str:
+        return _capture(tmp_path, client, name=name, service_login="chronikwerk").source_digest
+
+    baseline = digest(FakeCaptureClient(), "base")
+    own_note = _capture(
+        tmp_path, with_note(created_by="chronikwerk"), name="own", service_login="chronikwerk"
+    )
+    assert own_note.source_digest == baseline
+    assert len(own_note.articles) == len(_ARTICLES) + 1  # still archived, only not digested
+    assert digest(with_note(created_by="carol"), "agent") != baseline
+    assert digest(with_note(created_by="chronikwerk", internal=False), "public") != baseline
+
+
 def test_missing_original_email_is_listed_as_unavailable(tmp_path: Path) -> None:
     captured = _capture(tmp_path, FakeCaptureClient(emls={}))
     emails = captured.coverage.original_emails
@@ -143,6 +163,19 @@ def test_attachment_over_limit_is_permanent_and_leaves_nothing(tmp_path: Path) -
     assert isinstance(caught.value, PermanentError)
     left = _files_on_disk(tmp_path / "work" / "attempt-1")
     assert left == ["source/articles.json", "source/articles/101.eml", "source/ticket.json"]
+
+
+def test_original_email_is_bounded_by_the_attachment_limit(tmp_path: Path) -> None:
+    """An email may exceed the metadata limit; only the attachment limit bounds it."""
+    big_eml = _EML + b"\n" + b"x" * 8192
+    small_metadata = replace(_OPTIONS, max_metadata_bytes=4096)
+    fits = _capture(tmp_path, FakeCaptureClient(emls={101: big_eml}), small_metadata, name="fits")
+    assert (fits.build_dir / "source/articles/101.eml").read_bytes() == big_eml
+
+    too_small = replace(_OPTIONS, max_attachment_bytes=len(big_eml) - 1)
+    with pytest.raises(AttachmentTooLargeError, match="original email of article 101") as caught:
+        _capture(tmp_path, FakeCaptureClient(emls={101: big_eml}), too_small, name="over")
+    assert caught.value.code == "attachment_too_large"
 
 
 def test_package_over_limit_raises_and_removes_the_download(tmp_path: Path) -> None:

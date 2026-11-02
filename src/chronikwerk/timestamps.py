@@ -22,6 +22,11 @@ def format_timestamp_utc(dt: datetime) -> str:
     return dt_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def format_time(value: datetime) -> str:
+    """Format an aware time as the journal and catalog store and compare it (UTC, microseconds)."""
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def parse_iso8601_date_duration(duration: str) -> tuple[int, int, int]:
     """Parse a positive ISO 8601 duration with only Y, M and D parts into (years, months, days)."""
     match = _DATE_DURATION.fullmatch(duration)

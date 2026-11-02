@@ -8,6 +8,7 @@ from typing import Any
 import respx
 from pydantic import SecretStr
 
+from chronikwerk.archiving.capture_inventory import parse_articles_body, parse_ticket_body
 from chronikwerk.configuration.zammad import ZammadConnection
 from chronikwerk.zammad.dto import Ticket
 from chronikwerk.zammad.gateway import AsyncZammadClient
@@ -29,7 +30,8 @@ def _get_ticket(body: dict[str, Any]) -> tuple[Ticket, respx.Route]:
 
     async def scenario() -> Ticket:
         async with AsyncZammadClient(connection=connection) as client:
-            return await client.get_ticket(42)
+            data = await client.get_ticket_raw(42, max_bytes=1_000_000)
+        return parse_ticket_body(data, ticket_id=42)[1]
 
     with respx.mock(assert_all_called=True) as mock:
         route = mock.get(f"{_ORIGIN}/api/v1/tickets/42").respond(200, json=body)
@@ -101,11 +103,12 @@ def test_documented_tags_response_parses() -> None:
 
 
 def test_documented_articles_response_parses() -> None:
-    articles = _fetch(
+    data = _fetch(
         "/api/v1/ticket_articles/by_ticket/42",
         load_zammad_fixture("ticket_articles_by_ticket.json"),
-        lambda c: c.list_articles(42),
+        lambda c: c.list_articles_raw(42, max_bytes=1_000_000),
     )
+    articles = parse_articles_body(data)[1]
 
     assert [article.id for article in articles] == [101, 102]
     assert articles[0].from_ == "Nicole Braun <nicole.braun@zammad.org>"

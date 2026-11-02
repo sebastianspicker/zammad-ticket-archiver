@@ -69,19 +69,20 @@ def test_rendering_only_signs_when_enabled(monkeypatch: pytest.MonkeyPatch, enab
     monkeypatch.setattr(rendering, "sign_pdf_with_provenance", sign)
 
     rendered = asyncio.run(
-        rendering.build_and_render_pdf(
-            client=object(),  # type: ignore[arg-type]
+        rendering.render_reading_copies(
             ticket_id=42,
             ticket=object(),  # type: ignore[arg-type]
             tags=object(),  # type: ignore[arg-type]
             custom_fields={},
             options=options,
+            variants=("pdf/a-2u",),
+            articles=[],
         )
     )
 
     assert signed_inputs == ([b"unsigned-pdf"] if enabled else [])
     assert snapshot_options == [(0, "render_all")]
-    assert rendered.pdf_bytes == (b"signed-pdf" if enabled else b"unsigned-pdf")
+    assert rendered.archival == (b"signed-pdf" if enabled else b"unsigned-pdf")
     assert rendered.signing_cert_fingerprint == ("fingerprint" if enabled else None)
 
 

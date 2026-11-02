@@ -95,7 +95,7 @@ def test_get_article_plain_returns_the_raw_email_bytes() -> None:
     raw = (_FIXTURES / "article_plain_101.eml").read_bytes()
     with respx.mock(assert_all_called=True) as mock:
         route = mock.get(f"{_ORIGIN}/api/v1/ticket_article_plain/101").respond(200, content=raw)
-        body = _run(lambda c: c.get_article_plain(101, max_bytes=65536))
+        body = _run(lambda c: c.get_article_plain(101, max_bytes=65536, timeout_seconds=5.0))
     request = route.calls.last.request
     assert body == raw
     assert b"<20261020075841.1@example.com>" in raw
@@ -109,7 +109,7 @@ def test_get_article_plain_returns_none_on_404() -> None:
     """A missing plain message is None, not an error, and is not retried."""
     with respx.mock() as mock:
         route = mock.get(f"{_ORIGIN}/api/v1/ticket_article_plain/7").respond(404)
-        assert _run(lambda c: c.get_article_plain(7, max_bytes=1024)) is None
+        assert _run(lambda c: c.get_article_plain(7, max_bytes=1024, timeout_seconds=5.0)) is None
     assert route.call_count == 1
 
 
@@ -118,7 +118,7 @@ def test_get_article_plain_enforces_the_byte_limit() -> None:
     with respx.mock() as mock:
         mock.get(f"{_ORIGIN}/api/v1/ticket_article_plain/7").respond(200, content=b"x" * 50)
         with pytest.raises(ResponseTooLargeError) as caught:
-            _run(lambda c: c.get_article_plain(7, max_bytes=10))
+            _run(lambda c: c.get_article_plain(7, max_bytes=10, timeout_seconds=5.0))
     assert caught.value.limit == 10
     assert isinstance(caught.value, ClientError)
 

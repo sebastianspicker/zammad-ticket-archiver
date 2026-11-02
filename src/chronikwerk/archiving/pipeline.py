@@ -283,6 +283,7 @@ class ArchivePipeline:
             work_dir=work_dir,
             options=self._capture_options,
             clock=self._clock,
+            service_login=await self._client.get_current_user_login(),
         )
         rule = self._options.retention_rules[captured.record_class]
         policy = policy_id(
@@ -309,7 +310,6 @@ class ArchivePipeline:
     ) -> CatalogRevision:
         location = await self._archive_location(captured.ticket, request.trigger_login)
         copies = await render_reading_copies(
-            client=self._client,
             ticket_id=request.ticket_id,
             ticket=captured.ticket,
             tags=tags,
