@@ -2,6 +2,8 @@
 
 Auditable Zammad ticket archives in PDF and JSON.
 
+> _Claude was used to polish and proof-read the code and documentation of this repository._
+
 <p>
   <img src="docs/assets/brand/chronikwerk-lockup.svg" alt="Chronikwerk" width="360">
 </p>
@@ -38,6 +40,8 @@ non-production data and read [release status](RELEASE_STATUS.md) before deployme
 It runs as one service beside Zammad. A bounded background worker captures the ticket, assembles
 and verifies a revision in the filesystem store, records it in the catalog, and reports the
 outcome back to Zammad. Interrupted requests are recovered from the journal after restart.
+New to the code? [Architecture](docs/01-architecture.md) shows what runs where, traces one webhook
+to a published revision, and links each step to its source file.
 
 Chronikwerk is an independent open-source project. It is not affiliated with, or endorsed by,
 Zammad GmbH.

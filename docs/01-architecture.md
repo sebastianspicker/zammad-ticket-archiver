@@ -5,28 +5,126 @@ operator retries, records every request in a durable journal, runs bounded backg
 writes one sealed, timestamped package per ticket revision into a write-once archive store, and
 projects the outcome back to Zammad.
 
-## Runtime flow
+## System overview
+
+What runs where, and what does the process talk to?
 
 ```mermaid
 flowchart LR
-  Z[Zammad webhook] --> W[web]
-  O[operator retry] --> W
-  W --> J[(request journal)]
-  J --> Q[operations scheduler]
-  Q --> A[archiving pipeline]
-  A --> ZG[Zammad gateway]
-  A --> D[documents]
-  A --> P[preservation]
-  A --> S[storage]
-  P --> K[(catalog)]
-  C[configuration] --> X[composition root]
-  X --> W
-  X --> Q
-  X --> A
+  zammad[Zammad]
+  operator((Operator))
+  subgraph proc [Chronikwerk process]
+    web[web: FastAPI]
+    sched[JournaledSchedulingService]
+    pipe[ArchivePipeline]
+  end
+  db[("SQLite<br/>journal + catalog")]
+  store[("Archive store<br/>filesystem")]
+  tsa[RFC 3161 TSA]
+  zammad -->|"POST /ingest (HMAC)"| web
+  operator -->|"/retry, /admin, /jobs"| web
+  web -->|admit request| db
+  web -.->|wake worker| sched
+  sched -->|lease_next| db
+  sched -->|"process(request)"| pipe
+  pipe -->|"GET ticket, articles, files"| zammad
+  pipe -->|timestamp seal| tsa
+  pipe -->|write-once objects| store
+  pipe -->|"state, catalog row"| db
+  pipe -->|"tags + note"| zammad
+  classDef focus fill:#fde68a,stroke:#b45309,color:#1f2937
+  class pipe focus
 ```
 
-`POST /ingest` and the retry endpoints return `202` only after the request is committed to the
-journal. A worker then leases the oldest due request and the pipeline runs these steps:
+Everything inside the box is one Python process started by `chronikwerk` (uvicorn) or imported
+as `chronikwerk.asgi:app`. The web layer only writes to the journal and wakes the scheduler; all
+Zammad reads, rendering, sealing and storage writes happen in `ArchivePipeline`, called by one
+of `admission.max_running` worker tasks. The SQLite file lives on local disk; the archive store is
+the configured `storage.root`, typically a host-mounted share. In production a TLS proxy sits in
+front of the loopback bind ([deploy.md](deploy.md)); it is not part of this repository.
+
+Where in the code:
+
+- Entry points: [runtime.py](../src/chronikwerk/runtime.py) (`chronikwerk`),
+  [asgi.py](../src/chronikwerk/asgi.py), [cli.py](../src/chronikwerk/cli.py) (`chronikwerk-admin`).
+- Wiring: [composition.py](../src/chronikwerk/composition.py) and
+  [composition_preservation.py](../src/chronikwerk/composition_preservation.py)
+  (`build_preservation_services`).
+- Web: [web/app.py](../src/chronikwerk/web/app.py) (`create_app`),
+  [web/routes/ingest.py](../src/chronikwerk/web/routes/ingest.py),
+  [web/middleware/hmac_verify.py](../src/chronikwerk/web/middleware/hmac_verify.py).
+- Workers and maintenance: [operations/scheduling.py](../src/chronikwerk/operations/scheduling.py).
+- Pipeline: [archiving/pipeline.py](../src/chronikwerk/archiving/pipeline.py).
+
+## What happens when a ticket is tagged for archiving
+
+A Zammad trigger sends a signed webhook when an agent adds the trigger tag. This is the path
+from that webhook to a published revision.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant z as Zammad
+  participant web as web (ingest.py)
+  participant db as SQLite journal
+  participant w as Scheduler worker
+  participant p as ArchivePipeline
+  participant s as Archive store
+  z->>web: POST /ingest (X-Hub-Signature)
+  web->>db: admit(ticket_id, delivery_id)
+  web-->>z: 202 Accepted
+  web-)w: wake up
+  w->>db: lease_next() sets collecting
+  w->>p: process(request)
+  p->>z: check trigger tag, add pdf:processing
+  p->>z: capture ticket, articles, attachments
+  p->>db: find_matching(source digest, policy)
+  alt same capture already archived
+    p->>db: complete(existing revision)
+  else new revision
+    Note over p: render PDF/A + PDF/UA, write manifest
+    p->>db: mark_verifying(commit context)
+    Note over p: seal manifest, timestamp at TSA, check both
+    p->>s: write objects, read back, publish
+    p->>db: catalog row, complete
+  end
+  p->>z: pdf:signed + success note
+```
+
+Steps 1–3 are the whole HTTP request: the HMAC middleware has already checked the signature, and
+`202` means only that step 2 committed. Everything from step 5 on runs in a background worker and
+can be interrupted; the commit context written in step 11 is what lets a restart finish a
+half-written revision instead of starting over. Step 14 is best effort: if it fails, the revision
+stays complete and the maintenance task retries the Zammad update. Operator retries (`POST /retry/{ticket_id}`) enter at
+step 2 with source `retry` and skip the trigger-tag check.
+
+Where in the code:
+
+- Steps 1–3: `ingest_webhook` in [web/routes/ingest.py](../src/chronikwerk/web/routes/ingest.py),
+  `JournaledSchedulingService.schedule` in
+  [operations/scheduling.py](../src/chronikwerk/operations/scheduling.py),
+  `RequestJournal.admit` in [operations/journal.py](../src/chronikwerk/operations/journal.py).
+- Steps 4–6: `_work` / `_lease` in [operations/scheduling.py](../src/chronikwerk/operations/scheduling.py),
+  `RequestJournal.lease_next`.
+- Step 7: `ArchivePipeline.process` in [archiving/pipeline.py](../src/chronikwerk/archiving/pipeline.py),
+  `apply_processing` in [archiving/tags.py](../src/chronikwerk/archiving/tags.py).
+- Step 8: `capture_ticket` in [archiving/capture.py](../src/chronikwerk/archiving/capture.py), using
+  [zammad/gateway.py](../src/chronikwerk/zammad/gateway.py).
+- Steps 9–10: `ArchiveCatalog.find_matching` in
+  [preservation/catalog.py](../src/chronikwerk/preservation/catalog.py), `RequestJournal.complete`.
+- Rendering and manifest: `render_reading_copies` in
+  [archiving/rendering.py](../src/chronikwerk/archiving/rendering.py), `assemble_package` in
+  [archiving/assemble.py](../src/chronikwerk/archiving/assemble.py).
+- Steps 11–13: `commit_revision` in [archiving/commit.py](../src/chronikwerk/archiving/commit.py),
+  `check_seal_and_token` and `read_back` in
+  [archiving/commit_checks.py](../src/chronikwerk/archiving/commit_checks.py), the store in
+  [storage/archive_fs.py](../src/chronikwerk/storage/archive_fs.py).
+- Step 14: `publish_revision_status` in
+  [archiving/pipeline_status.py](../src/chronikwerk/archiving/pipeline_status.py).
+
+## Pipeline steps
+
+The same path in pipeline terms, including the failure handling:
 
 1. Check that the ticket still carries the trigger tag (a forced retry skips this check) and apply
    `pdf:processing`.
@@ -126,6 +224,33 @@ active (`waiting`, `collecting` or `verifying`), enforced by a partial unique in
 arrives for a ticket with an active request is stored as `coalesced` and is later merged into, or
 promoted behind, the active one; a repeated `X-Zammad-Delivery` ID adds no row.
 
+How a request moves through those states:
+
+```mermaid
+stateDiagram-v2
+  [*] --> waiting: admit
+  [*] --> coalesced: ticket already active
+  coalesced --> waiting: promoted
+  coalesced --> complete: merged duplicate
+  waiting --> collecting: lease_next
+  collecting --> verifying: mark_verifying
+  collecting --> complete: capture unchanged
+  collecting --> waiting: transient failure, back-off
+  collecting --> failed: permanent or exhausted
+  verifying --> complete: published and cataloged
+  verifying --> waiting: commit_interrupted
+  complete --> [*]
+  failed --> [*]
+```
+
+`coalesced` rows wait for the active row to finish: the oldest is promoted to `waiting`, and plain
+duplicates that already existed are completed with the promoted row's revision. A restart sends
+`collecting` rows back to `waiting` and resumes `verifying` rows in place (rules below). The
+transitions are implemented in [operations/journal.py](../src/chronikwerk/operations/journal.py)
+(`admit`, `lease_next`, `mark_verifying`, `complete`, `fail_transient`, `fail_permanent`,
+`recover_after_restart`); the state names are in
+[operations/journal_types.py](../src/chronikwerk/operations/journal_types.py).
+
 Resume rules after a restart, applied by `JournaledSchedulingService.start` before workers begin:
 
 - `collecting` requests return to `waiting`. The interrupted attempt counts as a failure; a request
@@ -141,8 +266,9 @@ Resume rules after a restart, applied by `JournaledSchedulingService.start` befo
 
 Archive publication and Zammad finalization are not one distributed transaction. If the revision is
 complete but `pdf:signed` or the note could not be written, the request stays `complete` with
-`zammad_status` `failed`; the revision remains authoritative and the Zammad update is not repeated
-automatically yet (see [08 - Operations](08-operations.md)).
+`zammad_status` `failed`; the revision remains authoritative. The maintenance task
+(`JournaledSchedulingService.run_maintenance`, at start and every 15 minutes) repeats pending or
+failed Zammad updates and reports final failures (see [08 - Operations](08-operations.md)).
 
 Admission counters, running tasks and admin sessions are process-local. Chronikwerk stays a single
 process: SQLite is not shared between instances, and multiple instances can race. Job history reads
