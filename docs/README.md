@@ -12,8 +12,8 @@ does not widen the scope stated in the README.
 
 ## Architecture and data
 
-- [Architecture](01-architecture.md): runtime flow, state transitions, module boundaries, and
-  process constraints.
+- [Architecture](01-architecture.md): system overview, the webhook-to-revision sequence, request
+  states, module boundaries, and process constraints.
 - [Data model](03-data-model.md): the ticket snapshot, the preservation package layout, the
   manifest, and revision identity.
 - [Path policy](04-path-policy.md): archive placement, validation, sanitization, and root
