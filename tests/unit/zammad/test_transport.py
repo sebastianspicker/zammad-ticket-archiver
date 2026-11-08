@@ -130,3 +130,34 @@ def test_exhausted_retries_preserve_bounded_attempts_and_error_class(monkeypatch
         assert delays == ([0.5, 0.5] if failure == 429 else [0.2, 0.4])
 
     asyncio.run(scenario())
+
+
+def test_retry_after_a_connect_error_tries_the_next_resolved_address(monkeypatch) -> None:
+    hosts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hosts.append(request.url.host)
+        if request.url.host == "8.8.8.8":
+            raise httpx.ConnectError("unreachable", request=request)
+        return httpx.Response(200, json=["archived"], request=request)
+
+    async def no_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "chronikwerk.outbound._resolved_addresses", lambda _host, _port: ("8.8.8.8", "1.1.1.1")
+    )
+    client = AsyncZammadClient(
+        connection=ZammadConnection(
+            origin="https://zammad.example.test", api_token=SecretStr("test-token")
+        ),
+        runtime=transport.ZammadRuntimeOptions(
+            retry_policy=transport.RetryPolicy(max_retries=1, backoff_base_seconds=0.0),
+            sleep=no_sleep,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        ),
+    )
+
+    assert asyncio.run(client.list_tags(7)).root == ["archived"]
+    assert hosts == ["8.8.8.8", "1.1.1.1"]
+    asyncio.run(client.aclose())

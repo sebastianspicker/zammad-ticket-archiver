@@ -68,6 +68,19 @@ tags use the public form `v0.3.0-alpha.1`.
   `retention_enforced` as false and is suitable for testing only.
 
 ### Fixed
+- An HTML article that contains a `<meta>`, `<link>`, `<base>` or `<input>` tag (common at the
+  start of Outlook and Apple Mail bodies) no longer renders empty from that tag on in the reading
+  copies.
+- A ticket that gets its trigger tag again while it is being archived keeps that tag, so the
+  coalesced follow-up request is archived instead of skipped as `not_triggered`.
+- Maintenance no longer reports an older request when a newer `complete` or `failed` request of
+  the same ticket exists, so an old failure cannot turn a signed ticket into `pdf:error`. Local
+  maintenance steps now run before the Zammad steps.
+- Zammad API retries try the next resolved address of the Zammad host.
+- A processor failure after a revision was published keeps that revision for resumption.
+- `chronikwerk-admin dump-config` accepts `--config` like the other configuration commands.
+- A failing `flock` (for example on a share without lock support) no longer leaks a descriptor.
+- Ticket and row IDs beyond the SQLite integer range are rejected with `422` instead of `500`.
 - `POST /ingest/batch` rejects an empty array with `422 batch_empty` instead of accepting a
   zero-item batch.
 - The PDF metadata box shows the archive path and mode when `fields.*` renames the Zammad

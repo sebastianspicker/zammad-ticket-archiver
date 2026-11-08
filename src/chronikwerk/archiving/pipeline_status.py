@@ -94,7 +94,7 @@ async def _update_zammad(
     now: datetime,
 ) -> None:
     await async_retry(
-        lambda: apply_done(client, request.ticket_id, trigger_tag=workflow.trigger_tag),
+        lambda: apply_done(client, request.ticket_id),
         max_retries=TAG_RETRIES,
         backoff_base=TAG_BACKOFF_BASE_SECONDS,
         backoff_factor=TAG_BACKOFF_FACTOR,

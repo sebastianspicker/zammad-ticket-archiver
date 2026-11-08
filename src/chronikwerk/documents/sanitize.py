@@ -49,17 +49,15 @@ _DROP_WITH_CONTENT: Final[frozenset[str]] = frozenset(
         "iframe",
         "object",
         "embed",
-        "link",
-        "meta",
-        "base",
         "form",
-        "input",
         "button",
         "textarea",
         "select",
         "option",
     }
 )
+# Void elements never get an end tag, so they are dropped without opening a skip scope.
+_DROP_VOID: Final[frozenset[str]] = frozenset({"link", "meta", "base", "input"})
 _VOID_TAGS: Final[frozenset[str]] = frozenset({"br", "hr"})
 _ALLOWED_ATTRS: Final[dict[str, frozenset[str]]] = {
     "a": frozenset({"href", "title"}),
@@ -115,7 +113,7 @@ class _AllowlistHTMLSanitizer(HTMLParser):
         if tag in _DROP_WITH_CONTENT:
             self._skip_stack.append(tag)
             return
-        if self._skip_stack or tag not in _ALLOWED_TAGS:
+        if self._skip_stack or tag in _DROP_VOID or tag not in _ALLOWED_TAGS:
             return
         cleaned = self._clean_attrs(tag, attrs)
         attr_text = "".join(f' {key}="{escape(value, quote=True)}"' for key, value in cleaned)

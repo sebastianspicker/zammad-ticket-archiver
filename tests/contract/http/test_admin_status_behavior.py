@@ -129,7 +129,7 @@ def test_retry_api_rejects_invalid_ticket_ids(tmp_path: Path) -> None:
     spy = SchedulingSpy()
     client, csrf = _client(tmp_path, spy)
 
-    for ticket in ("0", "-1", "abc"):
+    for ticket in ("0", "-1", "abc", str(2**63)):
         response = client.post(
             f"/admin/api/v1/jobs/{ticket}/retry",
             headers={"X-CSRF-Token": csrf},

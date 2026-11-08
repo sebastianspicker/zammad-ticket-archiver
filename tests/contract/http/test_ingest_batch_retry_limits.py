@@ -131,7 +131,7 @@ def test_retry_without_configured_token_is_service_unavailable(tmp_path) -> None
     assert spy.retries == []
 
 
-@pytest.mark.parametrize("ticket_id", ["0", "-3"])
+@pytest.mark.parametrize("ticket_id", ["0", "-3", str(2**63)])
 def test_retry_rejects_non_positive_ticket_id(tmp_path, ticket_id) -> None:
     client, spy = _client(tmp_path, retry_token="retry-token")
 

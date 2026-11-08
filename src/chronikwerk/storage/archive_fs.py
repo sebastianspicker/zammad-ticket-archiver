@@ -233,12 +233,14 @@ class _PrefixLock:
         self._fd: int | None = None
         self._layout = layout
         self._path = layout.staging_root / f"{name}{LOCK_SUFFIX}"
-        root = layout.root
-        with open_parent_within_root(self._path, storage_root=root) as (parent_fd, leaf):
+        with open_parent_within_root(self._path, storage_root=layout.root) as (parent_fd, leaf):
             fd = _open_lock_file(parent_fd, leaf)
-            if not _holds_lock(fd, parent_fd, leaf):
+            try:
+                if not _holds_lock(fd, parent_fd, leaf):
+                    raise ArchiveStoreError(f"revision {label} is being written by another writer")
+            except BaseException:
                 os.close(fd)
-                raise ArchiveStoreError(f"revision {label} is being written by another writer")
+                raise
         self._fd = fd
 
     def release(self) -> None:

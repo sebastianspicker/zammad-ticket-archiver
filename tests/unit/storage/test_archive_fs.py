@@ -455,6 +455,21 @@ def test_lock_prevents_a_second_writer(store: FilesystemArchiveStore, tmp_path: 
     assert not lock.exists()
 
 
+def test_a_failing_flock_does_not_leak_the_lock_descriptor(
+    store: FilesystemArchiveStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_locks(_fd: int, _operation: int) -> None:
+        raise OSError(errno.ENOLCK, "no locks available")
+
+    monkeypatch.setattr(archive_fs.fcntl, "flock", no_locks)
+    before = len(os.listdir("/dev/fd"))
+    for _ in range(3):
+        with pytest.raises(OSError, match="no locks"):
+            store.begin_revision(PREFIX)
+
+    assert len(os.listdir("/dev/fd")) == before
+
+
 def test_cleanup_uses_newest_nested_mtime_and_respects_locks(
     store: FilesystemArchiveStore, tmp_path: Path
 ) -> None:

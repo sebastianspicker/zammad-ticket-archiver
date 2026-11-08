@@ -155,20 +155,6 @@ def preservation_hint(code: str, *, trigger_tag: str) -> tuple[str, str] | None:
 
 
 @dataclass(frozen=True)
-class SuccessNotePayload:
-    """Values rendered into one successful archival acknowledgement."""
-
-    storage_dir: str
-    filename: str
-    sidecar_path: str
-    size_bytes: int
-    sha256_hex: str
-    request_id: str | None
-    delivery_id: str | None
-    timestamp_utc: str
-
-
-@dataclass(frozen=True)
 class ErrorNotePayload:
     """Values rendered into one archival failure acknowledgement."""
 
@@ -188,23 +174,6 @@ def _html_field_list(heading: str, fields: list[tuple[str, str]]) -> str:
         f"<li>{label}: <code>{escape(str(value))}</code></li>" for label, value in fields
     )
     return f"<p><strong>{escape(heading)}</strong></p><ul>{items}</ul>"
-
-
-def success_note_html(payload: SuccessNotePayload) -> str:
-    """Return an HTML note body summarising a successful PDF archival operation."""
-    return _html_field_list(
-        f"PDF archived ({VERSION})",
-        [
-            ("path", payload.storage_dir),
-            ("filename", payload.filename),
-            ("audit_sidecar", payload.sidecar_path),
-            ("size_bytes", str(payload.size_bytes)),
-            ("sha256", payload.sha256_hex),
-            ("request_id", payload.request_id or "unknown"),
-            ("delivery_id", payload.delivery_id or "none"),
-            ("time_utc", payload.timestamp_utc),
-        ],
-    )
 
 
 @dataclass(frozen=True)
@@ -293,11 +262,6 @@ def bounded_note_text(text: str) -> str:
     """Return ``text`` without absolute paths or secrets, at most 500 characters long."""
     text = scrub_secrets_in_text(redact_paths(text.strip()))
     return text[:_MAX_NOTE_TEXT_CHARS]
-
-
-def concise_exc_message(exc: BaseException) -> str:
-    """Return a bounded, non-secret failure summary suitable for ticket notes."""
-    return bounded_note_text(f"{exc.__class__.__name__}: {exc}")
 
 
 def _is_permission_denied(exc: BaseException) -> bool:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from chronikwerk.archiving.notes import concise_exc_message
+from chronikwerk.archiving.notes import bounded_note_text
 
 
 @pytest.mark.parametrize(
@@ -18,4 +18,4 @@ from chronikwerk.archiving.notes import concise_exc_message
 )
 def test_error_note_text_redacts_secrets(message: str, secret: str) -> None:
     """Error-note text must not disclose secrets in any supported credential shape."""
-    assert secret not in concise_exc_message(RuntimeError(message))
+    assert secret not in bounded_note_text(f"RuntimeError: {message}")

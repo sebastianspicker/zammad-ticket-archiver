@@ -49,14 +49,13 @@ async def apply_processing(
         await client.remove_tag(ticket_id, tag)
 
 
-async def apply_done(client: TagClient, ticket_id: int, *, trigger_tag: str) -> None:
-    """Mutate Zammad tags to record success and clear trigger or error state."""
-    await _apply_tag_transition(
-        client,
-        ticket_id,
-        (PROCESSING_TAG, ERROR_TAG, trigger_tag),
-        DONE_TAG,
-    )
+async def apply_done(client: TagClient, ticket_id: int) -> None:
+    """Mutate Zammad tags to record success and clear processing or error state.
+
+    The trigger tag is left alone: ``apply_processing`` already removed it, so a trigger tag
+    present now was set again during the run and belongs to the next, coalesced request.
+    """
+    await _apply_tag_transition(client, ticket_id, (PROCESSING_TAG, ERROR_TAG), DONE_TAG)
 
 
 async def apply_error(

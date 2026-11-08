@@ -58,10 +58,10 @@ def cmd_validate_config(args: argparse.Namespace) -> int:
         return 1
 
 
-def cmd_dump_config(_args: argparse.Namespace) -> int:
+def cmd_dump_config(args: argparse.Namespace) -> int:
     """Dump current configuration JSON with secrets redacted."""
     try:
-        settings = load_settings()
+        settings = load_settings(config_path=args.config)
         data = settings.model_dump(mode="json")
         redacted = redact_settings_dict(data)
         print(json.dumps(redacted, indent=2, default=str))
@@ -174,6 +174,7 @@ def _add_basic_commands(subparsers: argparse._SubParsersAction) -> None:
     validate_parser.set_defaults(func=cmd_validate_config)
 
     dump_parser = subparsers.add_parser("dump-config", help="Dump redacted config JSON")
+    dump_parser.add_argument("--config", default=None, help="Path to YAML config file")
     dump_parser.set_defaults(func=cmd_dump_config)
 
     list_parser = subparsers.add_parser(

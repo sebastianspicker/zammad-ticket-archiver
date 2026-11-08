@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 
 from chronikwerk._version import __version__
 from chronikwerk.i18n import normalize_locale
+from chronikwerk.operations.job import MAX_TICKET_ID
 from chronikwerk.web.admin._route_support import (
     _admission_status,
     _api_error,
@@ -116,8 +117,8 @@ async def storage_check_api(request: Request) -> Response:
 async def jobs_api(
     request: Request,
     limit: int = Query(default=50, ge=1, le=100),
-    before_id: int | None = Query(default=None, ge=1),
-    ticket_id: int | None = Query(default=None, ge=1),
+    before_id: int | None = Query(default=None, ge=1, le=MAX_TICKET_ID),
+    ticket_id: int | None = Query(default=None, ge=1, le=MAX_TICKET_ID),
     status: Annotated[list[str] | None, Query()] = None,
 ) -> Response:
     """Return the protected background-job status view for the admin UI."""
@@ -146,7 +147,7 @@ async def jobs_api(
 async def retry_api(
     request: Request,
     payload: RetryRequest,
-    ticket_id: int = Path(..., ge=1),
+    ticket_id: int = Path(..., ge=1, le=MAX_TICKET_ID),
 ) -> Response:
     """Schedule an authorized retry without bypassing job admission limits."""
     session, error = _api_session(request, csrf=True)

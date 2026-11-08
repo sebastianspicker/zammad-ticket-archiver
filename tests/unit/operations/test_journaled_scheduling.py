@@ -261,6 +261,34 @@ def test_processor_leaving_row_in_flight_records_internal_error(tmp_path: Path) 
     asyncio.run(scenario())
 
 
+def test_processor_failure_after_publication_keeps_the_revision(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        with _journal(tmp_path) as journal:
+
+            async def publish_then_explode(request: JournalRequest) -> None:
+                journal.mark_verifying(
+                    request.request_id, revision_id="r1", revision_number=1, context_json="{}"
+                )
+                journal.record_commit_step(request.request_id, "retention_set")
+                raise RuntimeError("bug after publication")
+
+            service = _service(journal, FakeProcessor(journal, process=publish_then_explode))
+            await service.start()
+            assert await service.schedule(_job(1))
+
+            await _until(lambda: journal.list_recent()[0].attempts == 1)
+            await service.aclose()
+            row = journal.list_recent()[0]
+            assert (row.state, row.revision_id, row.commit_step, row.context_json) == (
+                RequestState.WAITING,
+                "r1",
+                "retention_set",
+                "{}",
+            )
+
+    asyncio.run(scenario())
+
+
 def test_restart_resumes_verifying_rows_before_leasing(tmp_path: Path) -> None:
     async def scenario() -> None:
         with _journal(tmp_path) as journal:

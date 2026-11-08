@@ -17,8 +17,12 @@ class TicketJob:
     trigger_login: str | None = None
 
 
+# Ticket and row ids are SQLite INTEGERs; a larger value would crash the journal query.
+MAX_TICKET_ID = 2**63 - 1
+
+
 def _positive_ticket_id(value: int) -> int | None:
-    return value if value > 0 else None
+    return value if 0 < value <= MAX_TICKET_ID else None
 
 
 def _coerce_ticket_id_string(value: str) -> int | None:

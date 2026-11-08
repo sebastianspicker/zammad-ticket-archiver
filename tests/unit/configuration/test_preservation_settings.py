@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from pathlib import Path
@@ -174,7 +175,7 @@ def test_secrets_are_redacted_in_dump_config_and_not_managed(
     monkeypatch.setenv("STORAGE__S3__ACCESS_KEY_ID", "AKIA-key-id-secret")
     monkeypatch.setenv("STORAGE__S3__SECRET_ACCESS_KEY", "s3-secret-value")
 
-    assert cmd_dump_config(None) == 0  # type: ignore[arg-type]
+    assert cmd_dump_config(argparse.Namespace(config=None)) == 0
     output = capsys.readouterr().out
 
     for secret in ("seal-pw-secret", "AKIA-key-id-secret", "s3-secret-value"):

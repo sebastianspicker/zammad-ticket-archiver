@@ -19,10 +19,6 @@ def _scrub_event_dict(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, 
     return redact_settings_dict(event_dict)
 
 
-def _resolve_log_format() -> str:
-    return "human"
-
-
 def _resolve_log_level(log_level_default: str) -> str:
     raw = (os.environ.get("LOG_LEVEL") or "").strip()
     if raw:
@@ -95,7 +91,7 @@ def configure_logging(
     """
     resolved_level = _resolve_log_level(log_level).upper()
     configured_format = _coerce_log_format(log_format)
-    resolved_format = configured_format or _resolve_log_format()
+    resolved_format = configured_format or "human"
 
     shared_processors = _shared_processors(resolved_format)
     formatter = ProcessorFormatter(

@@ -120,6 +120,19 @@ def test_dump_config_redacts_secrets(
     assert dumped["signing"]["timestamp"]["rfc3161"]["user"] != "synthetic-tsa-user"
 
 
+def test_dump_config_reads_the_config_file_it_is_given(
+    isolated_config_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config, _store = _config(isolated_config_env)
+
+    code = _run(monkeypatch, "dump-config", "--config", str(config))
+
+    assert code == 0
+    assert json.loads(capsys.readouterr().out)["zammad"]["base_url"] == (
+        "https://zammad.example.local/"
+    )
+
+
 def test_dump_config_without_any_configuration_fails(
     isolated_config_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -17,6 +17,9 @@ from chronikwerk.documents.sanitize import sanitize_html_fragment
         ("<script><p>x</p></script>after", "after"),
         ("<form><input><button>go</button></form>t", "t"),
         ("<img src=x onerror=alert(1)>t", "t"),
+        ('<meta charset="utf-8"><p>Hello</p>', "<p>Hello</p>"),
+        ("<p>a</p><link rel=x><base href=y><p>b</p>", "<p>a</p><p>b</p>"),
+        ("<p>a</p><input><p>b</p>", "<p>a</p><p>b</p>"),
     ],
 )
 def test_dangerous_elements_are_removed_with_their_content(markup: str, expected: str) -> None:

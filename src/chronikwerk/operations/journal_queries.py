@@ -28,6 +28,13 @@ _PURGE_VICTIMS = (
     "(SELECT request_id FROM requests WHERE state IN ('complete', 'failed')))) "
     "AND updated_at < ?)"
 )
+# A newer finished request of the same ticket projects its own outcome; reporting an older
+# one afterwards would overwrite it (an old failure turning a signed ticket into pdf:error).
+_NOT_SUPERSEDED = (
+    "NOT EXISTS (SELECT 1 FROM requests AS newer WHERE newer.ticket_id = requests.ticket_id "
+    "AND newer.rowid > requests.rowid AND newer.state IN ('complete', 'failed') "
+    "AND COALESCE(newer.error_code, '') != 'not_triggered')"
+)
 
 
 class JournalStateError(PermanentError):
@@ -172,17 +179,18 @@ class JournalQueries:
         return max(0.0, (self._now() - oldest).total_seconds())
 
     def pending_zammad_updates(self) -> list[JournalRequest]:
-        """Return COMPLETE rows whose Zammad note is still pending or failed."""
+        """Return COMPLETE rows whose Zammad note is still pending or failed, newest per ticket."""
         return self._query(
-            "SELECT * FROM requests WHERE state = 'complete' "
-            "AND zammad_status IN ('pending', 'failed') ORDER BY received_at, rowid"
+            "SELECT * FROM requests WHERE state = 'complete' "  # noqa: S608
+            f"AND zammad_status IN ('pending', 'failed') AND {_NOT_SUPERSEDED} "
+            "ORDER BY received_at, rowid"
         )
 
     def pending_failure_reports(self) -> list[JournalRequest]:
-        """Return FAILED rows whose failure has not been reported to Zammad yet."""
+        """Return unreported FAILED rows that no newer finished request of the ticket replaced."""
         return self._query(
-            "SELECT * FROM requests WHERE state = 'failed' "
-            "AND zammad_status = 'pending' ORDER BY received_at, rowid"
+            "SELECT * FROM requests WHERE state = 'failed' "  # noqa: S608
+            f"AND zammad_status = 'pending' AND {_NOT_SUPERSEDED} ORDER BY received_at, rowid"
         )
 
     def stuck(self, *, older_than_seconds: float) -> list[JournalRequest]:

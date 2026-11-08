@@ -213,6 +213,24 @@ def test_complete_and_zammad_status_flow(tmp_path: Path) -> None:
         assert journal.pending_zammad_updates() == []
 
 
+def test_a_newer_finished_request_supersedes_older_pending_reports(tmp_path: Path) -> None:
+    with _journal(tmp_path) as journal:
+        _admit(journal)
+        old = journal.lease_next()
+        assert old is not None
+        journal.fail_permanent(old.request_id, error_code="bad", error_detail="zammad down")
+        old_done = _to_verifying(journal)
+        journal.complete(old_done, revision_id="r1")
+        assert [r.request_id for r in journal.pending_failure_reports()] == []
+        assert [r.request_id for r in journal.pending_zammad_updates()] == [old_done]
+
+        _admit(journal)
+        skipped = journal.lease_next()
+        assert skipped is not None
+        journal.fail_permanent(skipped.request_id, error_code="not_triggered", error_detail="-")
+        assert [r.request_id for r in journal.pending_zammad_updates()] == [old_done]
+
+
 def test_fail_permanent_marks_failed(tmp_path: Path) -> None:
     with _journal(tmp_path) as journal:
         _admit(journal)

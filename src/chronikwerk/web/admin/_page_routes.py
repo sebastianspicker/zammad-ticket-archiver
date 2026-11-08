@@ -13,6 +13,7 @@ from starlette.responses import RedirectResponse, Response
 
 from chronikwerk._version import __version__
 from chronikwerk.i18n import normalize_locale
+from chronikwerk.operations.job import MAX_TICKET_ID
 from chronikwerk.web.admin._route_support import (
     _admission_status,
     _decorate_history,
@@ -190,9 +191,9 @@ async def overview_page(request: Request) -> Response:
 @router.get("/jobs")
 async def jobs_page(
     request: Request,
-    ticket_id: int | None = Query(default=None, ge=1),
+    ticket_id: int | None = Query(default=None, ge=1, le=MAX_TICKET_ID),
     status: str | None = None,
-    before_id: int | None = Query(default=None, ge=1),
+    before_id: int | None = Query(default=None, ge=1, le=MAX_TICKET_ID),
 ) -> Response:
     """Render the operator-facing background-job status page."""
     session, redirect = _html_session(request)
@@ -217,7 +218,7 @@ async def jobs_page(
 @router.get("/jobs/{ticket_id}")
 async def ticket_history_page(
     request: Request,
-    ticket_id: int = Path(..., ge=1),
+    ticket_id: int = Path(..., ge=1, le=MAX_TICKET_ID),
     accepted: bool = False,
     retry_unavailable: bool = False,
     request_id: str | None = None,
@@ -240,7 +241,9 @@ async def ticket_history_page(
 
 
 @router.post("/jobs/{ticket_id}/retry")
-async def retry_form(request: Request, ticket_id: int = Path(..., ge=1)) -> Response:
+async def retry_form(
+    request: Request, ticket_id: int = Path(..., ge=1, le=MAX_TICKET_ID)
+) -> Response:
     """Submit a CSRF-protected operator retry request for one ticket."""
     data = await _urlencoded(request)
     session = session_from_request(request)

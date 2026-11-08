@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from starlette.responses import JSONResponse
 
 from chronikwerk.configuration.models import Settings
-from chronikwerk.operations.job import TicketJob, extract_ticket_id
+from chronikwerk.operations.job import MAX_TICKET_ID, TicketJob, extract_ticket_id
 from chronikwerk.operations.scheduling import TicketScheduler
 from chronikwerk.web.constants import DELIVERY_ID_HEADER, normalized_delivery_id
 from chronikwerk.web.responses import api_error, verify_bearer_token
@@ -28,7 +28,7 @@ class IngestPayload(BaseModel):
 
     ticket: dict[str, Any] | None = None
     # Security: reject non-positive ticket IDs at the schema level (defense-in-depth).
-    ticket_id: int | None = Field(default=None, ge=1)
+    ticket_id: int | None = Field(default=None, ge=1, le=MAX_TICKET_ID)
 
     @field_validator("ticket_id", mode="before")
     @classmethod
@@ -212,7 +212,7 @@ async def batch_ingest(
 async def retry_ticket(
     request: Request,
     # Security: reject non-positive ticket IDs at the parameter level.
-    ticket_id: int = Path(..., ge=1),
+    ticket_id: int = Path(..., ge=1, le=MAX_TICKET_ID),
 ) -> JSONResponse:
     """Force reprocessing of a ticket by ID, bypassing idempotency checks."""
     settings: Settings = request.app.state.settings

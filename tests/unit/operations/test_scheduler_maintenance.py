@@ -225,9 +225,10 @@ def test_maintenance_at_start_publishes_reports_purges_and_runs_housekeeping(
             processor = Processor(journal)
             service = _service(journal, processor, housekeeping=sweep)
             await service.start()
-            await _until(lambda: housekeeping == ["swept"])
+            await _until(lambda: processor.reported == [4])
             await service.aclose()
 
+            assert housekeeping == ["swept"]
             assert processor.published == [2, 3]
             assert processor.reported == [4]
             assert journal.get(old) is None
@@ -273,6 +274,28 @@ def test_each_maintenance_step_and_row_is_isolated(tmp_path: Path) -> None:
             assert [row.ticket_id for row in journal.pending_zammad_updates()] == [1]
             assert processor.reported == [3]
             assert calls == ["swept", "swept"]
+
+    asyncio.run(scenario())
+
+
+def test_local_maintenance_steps_do_not_wait_for_zammad(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        with _journal(tmp_path) as journal:
+            _to_state(journal, 1, RequestState.COMPLETE)
+            zammad_hangs = asyncio.Event()
+            housekeeping: list[str] = []
+
+            async def hang(_request: JournalRequest) -> None:
+                await zammad_hangs.wait()
+
+            async def sweep() -> None:
+                housekeeping.append("swept")
+
+            service = _service(journal, Processor(journal, publish=hang), housekeeping=sweep)
+            maintenance = asyncio.create_task(service.run_maintenance())
+            await _until(lambda: housekeeping == ["swept"])
+            zammad_hangs.set()
+            await maintenance
 
     asyncio.run(scenario())
 

@@ -322,15 +322,20 @@ class JournaledSchedulingService:
             await asyncio.sleep(self._maintenance_interval_seconds)
 
     async def run_maintenance(self) -> None:
-        """Run every maintenance step once; a failing step is logged and the rest continue."""
+        """Run every maintenance step once; a failing step is logged and the rest continue.
+
+        Local steps run first, so a slow or unreachable Zammad cannot hold them back.
+        """
         steps: list[tuple[str, Callable[[], Awaitable[None]]]] = [
-            ("publish_pending", self._publish_pending),
-            ("report_failures", self._report_failures),
             ("recover_orphans", self._recover_orphans),
             ("purge_terminal", self._purge_terminal),
         ]
         if self._housekeeping is not None:
             steps.append(("housekeeping", self._housekeeping))
+        steps += [
+            ("publish_pending", self._publish_pending),
+            ("report_failures", self._report_failures),
+        ]
         async with self._maintenance_lock:
             for name, step in steps:
                 if self._stopping:
@@ -470,6 +475,8 @@ class JournaledSchedulingService:
                 request.request_id,
                 error_code="internal_error",
                 error_detail=scrub_secrets_in_text(detail),
+                # A revision the store already holds must be resumed, never captured anew.
+                keep_revision=True,
             )
         except Exception:  # pylint: disable=broad-exception-caught
             log.exception("scheduling.settle_failed")

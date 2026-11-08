@@ -187,16 +187,21 @@ The scheduler runs a maintenance pass at start and then every 15 minutes. Each s
 failing step is logged and the others still run), a pass never overlaps with itself, and rows a
 worker is still handling are skipped:
 
-- **Zammad updates.** `complete` requests with Zammad status `pending` or `failed` get their
-  `pdf:signed` tag and success note again.
-- **Failure reports.** `failed` requests with Zammad status `pending` get their error note and
-  `pdf:error` tag, then Zammad status `done`.
 - **Journal retention.** `complete` and `failed` rows (and the coalesced rows that point at them)
   not updated for 90 days are deleted.
 - **Housekeeping.** Abandoned staging directories in the archive store and capture build areas
   (`chronikwerk-capture-*` directories directly in `capture.temp_dir`) untouched for one day are
   removed. Only real directories with that name pattern are removed, never symbolic links or other
   entries.
+- **Zammad updates.** `complete` requests with Zammad status `pending` or `failed` get their
+  `pdf:signed` tag and success note again.
+- **Failure reports.** `failed` requests with Zammad status `pending` get their error note and
+  `pdf:error` tag, then Zammad status `done`.
+
+The local steps (orphan recovery, journal retention, housekeeping) run before the two Zammad
+steps, so an unreachable Zammad does not delay them. A pending Zammad update or failure report is
+skipped when a newer `complete` or `failed` request of the same ticket exists (a `not_triggered`
+skip does not count): the newer request reports its own outcome.
 
 ## Restart recovery
 

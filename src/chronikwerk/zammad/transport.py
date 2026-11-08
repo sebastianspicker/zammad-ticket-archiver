@@ -337,6 +337,7 @@ class ZammadTransport:
                 allow_insecure_http=self._allow_insecure_http,
                 allow_private_networks=self._allow_private_networks,
                 timeout_seconds=self._dns_timeout_seconds,
+                attempt=attempt.retry_count,
             )
         except OutboundPolicyPermanentError as exc:
             raise ClientError(str(exc)) from exc

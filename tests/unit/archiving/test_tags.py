@@ -61,14 +61,13 @@ def test_failed_removal_leaves_the_processing_tag_already_set() -> None:
 def test_done_and_error_transitions_are_sequential_and_retry_safe() -> None:
     client = _TagClient()
 
-    asyncio.run(apply_done(client, 42, trigger_tag="archive:ready"))
+    asyncio.run(apply_done(client, 42))
     asyncio.run(apply_error(client, 42, keep_trigger=True, trigger_tag="archive:ready"))
     asyncio.run(apply_error(client, 42, keep_trigger=False, trigger_tag="archive:ready"))
 
     assert client.events == [
         ("remove", 42, "pdf:processing"),
         ("remove", 42, "pdf:error"),
-        ("remove", 42, "archive:ready"),
         ("add", 42, "pdf:signed"),
         ("remove", 42, "pdf:processing"),
         ("remove", 42, "pdf:signed"),

@@ -324,6 +324,22 @@ def test_repeated_request_resolves_to_the_same_revision(setup: PipelineSetup) ->
     assert str(first.revision_id) in setup.client.notes[1][1]
 
 
+def test_trigger_set_again_during_a_run_survives_for_the_next_request(tmp_path: Path) -> None:
+    def capture_while_the_agent_retriggers(_call: int) -> dict[str, Any]:
+        client.tags.add(TRIGGER)
+        return fixture_ticket()
+
+    client = FakeCaptureClient(tags=[TRIGGER], tickets=capture_while_the_agent_retriggers)
+    built = build_setup(tmp_path, client)
+    try:
+        process(built)
+
+        assert client.tags == {"pdf:signed", TRIGGER}
+        assert process(built).state is RequestState.COMPLETE
+    finally:
+        built.close()
+
+
 def test_changed_content_creates_the_next_revision(tmp_path: Path) -> None:
     versions = {"title": "Printer broken"}
     client = FakeCaptureClient(tags=[TRIGGER], tickets=lambda _call: fixture_ticket(**versions))

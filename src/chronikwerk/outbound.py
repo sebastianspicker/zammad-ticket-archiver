@@ -145,8 +145,13 @@ async def validate_url_policy_async(
     allow_insecure_http: bool = False,
     allow_private_networks: bool = False,
     timeout_seconds: float = 5.0,
+    attempt: int = 0,
 ) -> str | None:
-    """Validate and return one safe address that callers can pin for connection."""
+    """Validate and return one safe address that callers can pin for connection.
+
+    ``attempt`` rotates through the resolved addresses, so a retry reaches the next one when
+    the first is down.
+    """
     try:
         addresses = await asyncio.wait_for(
             asyncio.to_thread(
@@ -160,7 +165,7 @@ async def validate_url_policy_async(
         )
     except TimeoutError as exc:
         raise OutboundPolicyTransientError("Outbound DNS resolution timed out") from exc
-    return addresses[0] if addresses else None
+    return addresses[attempt % len(addresses)] if addresses else None
 
 
 class ResponseBodyTooLargeError(ValueError):

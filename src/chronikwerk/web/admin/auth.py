@@ -55,8 +55,8 @@ class AdminSessionStore:
         self._sessions[session.session_id] = session
         return session
 
-    def get(self, session_id: str | None, *, touch: bool = True) -> AdminSession | None:
-        """Return a live session and optionally refresh its idle-expiry timestamp."""
+    def get(self, session_id: str | None) -> AdminSession | None:
+        """Return a live session and refresh its idle-expiry timestamp."""
         if not session_id:
             return None
         session = self._sessions.get(session_id)
@@ -66,8 +66,7 @@ class AdminSessionStore:
         if self._expired(session, now=now):
             self._sessions.pop(session_id, None)
             return None
-        if touch:
-            session.last_seen_at = now
+        session.last_seen_at = now
         return session
 
     def delete(self, session_id: str | None) -> None:
@@ -100,10 +99,10 @@ def access_token_matches(provided: str, expected: SecretStr | None) -> bool:
     return secret_matches(provided, expected)
 
 
-def session_from_request(request: Request, *, touch: bool = True) -> AdminSession | None:
+def session_from_request(request: Request) -> AdminSession | None:
     """Resolve the current server-side session from its signed browser cookie."""
     store: AdminSessionStore = request.app.state.admin_sessions
-    return store.get(request.cookies.get(SESSION_COOKIE), touch=touch)
+    return store.get(request.cookies.get(SESSION_COOKIE))
 
 
 def csrf_matches(request: Request, session: AdminSession) -> bool:
