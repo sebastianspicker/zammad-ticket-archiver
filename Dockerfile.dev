@@ -7,6 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # System deps (WeasyPrint + basic tooling)
+# Unpinned on purpose: the base image is pinned by digest, and Debian drops old package
+# versions on security updates, so version pins would break rebuilds.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     bash \

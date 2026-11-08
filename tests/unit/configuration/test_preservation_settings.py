@@ -55,6 +55,7 @@ def test_defaults_match_the_published_contract(tmp_path: Path) -> None:
     assert settings.capture.max_temp_bytes == 4_294_967_296
     assert settings.capture.retry.max_attempts == 5
     assert settings.capture.retry.max_delay_seconds == 3600
+    assert settings.admission.max_pending == 1000
     assert settings.fields.record_class == "archive_record_class"
     assert settings.pdf.reading_copies == ["pdf/a-2u", "pdf/ua-1"]
     assert settings.signing.pades.level == "B-LT"
@@ -106,6 +107,10 @@ def test_nested_environment_keys_map_to_the_new_settings(
             "storage.s3.access_key_id, storage.s3.secret_access_key",
         ),
         ({"capture": {"max_package_bytes": 10, "max_attachment_bytes": 11}}, "max_package_bytes"),
+        (
+            {"capture": {"max_temp_bytes": 10, "max_package_bytes": 11, "max_attachment_bytes": 1}},
+            "max_temp_bytes",
+        ),
         ({"capture": {"consistency_attempts": 0}}, "greater than or equal to 1"),
         ({"pdf": {"reading_copies": ["pdf/x-9"]}}, "pdf/a-2u"),
         ({"pdf": {"reading_copies": []}}, "must not be empty"),

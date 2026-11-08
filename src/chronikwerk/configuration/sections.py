@@ -200,7 +200,7 @@ class RateLimitSettings(_BaseSection):
     burst: int = Field(default=10, ge=1, le=10_000)
     include_metrics: bool = False
     # When set (e.g. "X-Forwarded-For"), rate limit key is taken from this header (first value).
-    # Trust proxy to set it; use with care.
+    # The proxy must overwrite the header; an appending proxy lets clients pick their bucket.
     client_key_header: str | None = None
 
 
@@ -216,7 +216,7 @@ class BodySizeLimitSettings(_BaseSection):
 class AdmissionSettings(_BaseSection):
     """Bounds for process-local background ticket work."""
 
-    max_pending: int = Field(default=100, ge=1, le=10_000)
+    max_pending: int = Field(default=1000, ge=1, le=10_000)
     max_running: int = Field(default=4, ge=1, le=1_000)
     shutdown_timeout_seconds: float = Field(default=5.0, gt=0, le=300)
 

@@ -84,7 +84,12 @@ tree.
 ### Request flooding and oversized payloads
 
 - Request body size limit middleware.
-- Token-bucket rate limiting.
+- Token-bucket rate limiting. On `/ingest` and `/ingest/batch` only refused requests (`400`,
+  `401`, `403`, `408`, `413`: bad or missing signature, missing delivery ID, body read timeout,
+  oversized body) use up
+  tokens, so a correctly signed webhook burst from a bulk macro is never answered with `429`; a
+  client that has used up its tokens gets `429` for every request until the bucket refills.
+  Admission is still capped by `admission.max_pending`.
 - Deep storage health probes are single-flight; concurrent deep requests fail with `503` instead of
   queueing more filesystem work.
 

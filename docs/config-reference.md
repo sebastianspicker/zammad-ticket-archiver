@@ -141,7 +141,7 @@ application. The non-secret keys are owned by the environment or the YAML file.
 | `capture.max_package_bytes` | `1073741824` | `CAPTURE__MAX_PACKAGE_BYTES` | Largest package (1 GiB); positive and not smaller than `capture.max_attachment_bytes`. |
 | `capture.download_timeout_seconds` | `300` | `CAPTURE__DOWNLOAD_TIMEOUT_SECONDS` | Longest download of one object; positive. |
 | `capture.temp_dir` | `/var/lib/chronikwerk/tmp` | `CAPTURE__TEMP_DIR` | Local build area; must be on local disk. |
-| `capture.max_temp_bytes` | `4294967296` | `CAPTURE__MAX_TEMP_BYTES` | Cap on the build area (4 GiB); positive. |
+| `capture.max_temp_bytes` | `4294967296` | `CAPTURE__MAX_TEMP_BYTES` | Cap on the build area (4 GiB); positive and at least `capture.max_package_bytes`. |
 | `capture.retry.max_attempts` | `5` | `CAPTURE__RETRY__MAX_ATTEMPTS` | Automatic retries of a transient failure; at least 1. |
 | `capture.retry.max_delay_seconds` | `3600` | `CAPTURE__RETRY__MAX_DELAY_SECONDS` | Upper bound of the exponential back-off; positive. |
 | `seal.pfx_path` | `null` | `SEAL__PFX_PATH` | PKCS#12 sealing identity; may be the same file as `signing.pfx_path`. |
@@ -201,10 +201,10 @@ application does not mark the log level as environment-owned. Prefer
 | Key | Default | Env key | Description |
 | --- | --- | --- | --- |
 | `hardening.rate_limit.enabled` | `true` | `HARDENING__RATE_LIMIT__ENABLED` | Enable token-bucket rate limiting. |
-| `hardening.rate_limit.rps` | `5.0` | `HARDENING__RATE_LIMIT__RPS` | Refill rate. |
-| `hardening.rate_limit.burst` | `10` | `HARDENING__RATE_LIMIT__BURST` | Burst capacity. |
+| `hardening.rate_limit.rps` | `5.0` | `HARDENING__RATE_LIMIT__RPS` | Refill rate. `0` never refills: after `burst` requests every limited path answers `429` until restart. |
+| `hardening.rate_limit.burst` | `10` | `HARDENING__RATE_LIMIT__BURST` | Burst capacity. On the ingest paths only refused requests (bad signature, oversized body) use up tokens; signed webhooks are not limited. |
 | `hardening.rate_limit.include_metrics` | `false` | `HARDENING__RATE_LIMIT__INCLUDE_METRICS` | Include `/metrics` in rate limiting. |
-| `hardening.rate_limit.client_key_header` | `null` | `HARDENING__RATE_LIMIT__CLIENT_KEY_HEADER` | Trusted header for client key behind a proxy. |
+| `hardening.rate_limit.client_key_header` | `null` | `HARDENING__RATE_LIMIT__CLIENT_KEY_HEADER` | Trusted header for client key behind a proxy; the first comma-separated value is used. The proxy must overwrite the header, not append to it (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`), or clients choose their own rate-limit bucket. |
 | `hardening.body_size_limit.max_bytes` | `1048576` | `HARDENING__BODY_SIZE_LIMIT__MAX_BYTES` | Request body limit; `0` selects the non-disableable 32 MiB safety cap. Values above 32 MiB are capped. |
 | `hardening.body_size_limit.timeout_seconds` | `10.0` | `HARDENING__BODY_SIZE_LIMIT__TIMEOUT_SECONDS` | Whole-body deadline for ingest and every body-bearing admin request. |
 | `hardening.webhook.require_delivery_id` | `false` | `HARDENING__WEBHOOK__REQUIRE_DELIVERY_ID` | Require `X-Zammad-Delivery`. |
@@ -217,7 +217,7 @@ application does not mark the log level as environment-owned. Prefer
 
 | Key | Default | Env key | Description |
 | --- | --- | --- | --- |
-| `admission.max_pending` | `100` | `ADMISSION__MAX_PENDING` | Maximum requests in the journal's WAITING state, including transient failures waiting for their back-off retry; further admissions are rejected. Minimum `1`. |
+| `admission.max_pending` | `1000` | `ADMISSION__MAX_PENDING` | Maximum requests in the journal's WAITING state, including transient failures waiting for their back-off retry; further admissions are rejected. Minimum `1`. |
 | `admission.max_running` | `4` | `ADMISSION__MAX_RUNNING` | Maximum ticket pipelines running concurrently. |
 | `admission.shutdown_timeout_seconds` | `5.0` | `ADMISSION__SHUTDOWN_TIMEOUT_SECONDS` | Grace period before async cancellation. In-flight PDF, signing, and filesystem worker threads are awaited after cancellation and can extend total shutdown time. |
 

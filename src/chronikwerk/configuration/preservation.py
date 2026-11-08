@@ -50,6 +50,10 @@ class CaptureSettings(_BaseSection):
             raise ValueError(
                 "capture.max_package_bytes must not be smaller than capture.max_attachment_bytes"
             )
+        if self.max_temp_bytes < self.max_package_bytes:
+            raise ValueError(
+                "capture.max_temp_bytes must not be smaller than capture.max_package_bytes"
+            )
         return self
 
 

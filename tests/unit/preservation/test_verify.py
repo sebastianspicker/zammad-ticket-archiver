@@ -5,14 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes
+from pyhanko.sign import signers
+from pyhanko.sign.timestamps.dummy_client import DummyTimeStamper
+from pyhanko_certvalidator.registry import SimpleCertificateStore
 
 from chronikwerk.preservation.manifest import MANIFEST_NAME, SEAL_NAME, TOKEN_NAME
 from chronikwerk.preservation.seal import seal_manifest, timestamp_seal
 from chronikwerk.preservation.verify import VerificationReport, verify_package_directory
-from tests.support.pki import build_pki
+from tests.support.pki import asn1_certificate, asn1_private_key, build_pki
 from tests.support.sealed_package import (
     blank_pdf,
     build_sealed_package,
@@ -227,3 +231,46 @@ def test_altered_signed_reading_copy_fails_files_and_pdf_signature(tmp_path: Pat
     report = _verify(package, tmp_path)
 
     assert {"files", "pdf_signature"} <= _failed(report)
+
+
+def _reseal_with_expired_signer(package: Path) -> datetime:
+    """Seal the manifest with the expired identity, timestamped inside its validity window."""
+    pki = build_pki()
+    signer = signers.SimpleSigner(
+        signing_cert=asn1_certificate(pki.expired_seal.certificate),
+        signing_key=asn1_private_key(pki.expired_seal.key),
+        cert_registry=SimpleCertificateStore.from_certs([asn1_certificate(pki.root.certificate)]),
+    )
+    manifest = (package / MANIFEST_NAME).read_bytes()
+    seal = asyncio.run(
+        signer.async_sign_general_data(manifest, "sha256", detached=True, use_cades=True)
+    ).dump()
+    sealed_at = pki.expired_seal.certificate.not_valid_after_utc - timedelta(days=1)
+    stamper = DummyTimeStamper(
+        tsa_cert=asn1_certificate(pki.tsa.certificate),
+        tsa_key=asn1_private_key(pki.tsa.key),
+        certs_to_embed=SimpleCertificateStore.from_certs([asn1_certificate(pki.root.certificate)]),
+        fixed_dt=sealed_at,
+    )
+    (package / SEAL_NAME).write_bytes(seal)
+    (package / TOKEN_NAME).write_bytes(asyncio.run(timestamp_seal(seal, stamper)))
+    return sealed_at
+
+
+def test_seal_expired_since_is_checked_as_of_its_trusted_timestamp(tmp_path: Path) -> None:
+    package = _copy(build_sealed_package(tmp_path), tmp_path)
+    _reseal_with_expired_signer(package)
+
+    report = _verify(package, tmp_path)
+
+    assert report.passed, report.checks
+
+
+def test_seal_expired_without_a_valid_timestamp_is_checked_as_of_now(tmp_path: Path) -> None:
+    package = _copy(build_sealed_package(tmp_path), tmp_path)
+    _reseal_with_expired_signer(package)
+    (package / TOKEN_NAME).write_bytes(asyncio.run(timestamp_seal(b"other", timestamper())))
+
+    report = _verify(package, tmp_path)
+
+    assert _failed(report) == {"seal", "timestamp"}

@@ -53,23 +53,49 @@ def _signed_post(client: TestClient, **extra: str):
     return client.post("/ingest", content=_BODY, headers=headers)
 
 
-def test_third_request_from_same_client_is_rate_limited(tmp_path) -> None:
+def _forged_post(client: TestClient, **extra: str):
+    """Post an ingest request with a wrong signature and optional extra headers."""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Hub-Signature": "sha256=" + "00" * 32,
+        **extra,
+    }
+    return client.post("/ingest", content=_BODY, headers=headers)
+
+
+def test_signed_webhook_bursts_are_never_rate_limited(tmp_path) -> None:
     client = _rate_limited_client(tmp_path)
 
-    statuses = [_signed_post(client).status_code for _ in range(2)]
-    third = _signed_post(client)
+    statuses = {_signed_post(client).status_code for _ in range(20)}
 
-    assert statuses == [202, 202]
+    assert statuses == {202}
+
+
+def test_refused_requests_drain_the_bucket_and_then_get_429(tmp_path) -> None:
+    client = _rate_limited_client(tmp_path)
+
+    statuses = [_forged_post(client).status_code for _ in range(2)]
+    third = _forged_post(client)
+
+    assert statuses == [403, 403]
     assert_json_error(third, status_code=429, code="rate_limited")
     assert third.headers["Connection"] == "close"
+
+
+def test_an_exhausted_bucket_also_holds_back_its_signed_requests(tmp_path) -> None:
+    client = _rate_limited_client(tmp_path)
+    for _ in range(2):
+        _forged_post(client)
+
+    assert _signed_post(client).status_code == 429
 
 
 def test_client_key_header_buckets_clients_separately(tmp_path) -> None:
     client = _rate_limited_client(tmp_path, header="X-Forwarded-For")
 
     for _ in range(2):
-        assert _signed_post(client, **{"X-Forwarded-For": "198.51.100.1"}).status_code == 202
-    limited = _signed_post(client, **{"X-Forwarded-For": "198.51.100.1"})
+        assert _forged_post(client, **{"X-Forwarded-For": "198.51.100.1"}).status_code == 403
+    limited = _forged_post(client, **{"X-Forwarded-For": "198.51.100.1"})
     other = _signed_post(client, **{"X-Forwarded-For": "198.51.100.2"})
 
     assert limited.status_code == 429
@@ -80,8 +106,8 @@ def test_client_key_header_uses_first_forwarded_address(tmp_path) -> None:
     client = _rate_limited_client(tmp_path, header="X-Forwarded-For")
 
     for hop in ("10.0.0.1", "10.0.0.2"):
-        _signed_post(client, **{"X-Forwarded-For": f"198.51.100.1, {hop}"})
-    third = _signed_post(client, **{"X-Forwarded-For": "198.51.100.1, 10.0.0.3"})
+        _forged_post(client, **{"X-Forwarded-For": f"198.51.100.1, {hop}"})
+    third = _forged_post(client, **{"X-Forwarded-For": "198.51.100.1, 10.0.0.3"})
 
     assert third.status_code == 429
 
@@ -89,9 +115,9 @@ def test_client_key_header_uses_first_forwarded_address(tmp_path) -> None:
 def test_missing_client_key_header_falls_back_to_connection_address(tmp_path) -> None:
     client = _rate_limited_client(tmp_path, header="X-Forwarded-For")
 
-    statuses = [_signed_post(client).status_code for _ in range(3)]
+    statuses = [_forged_post(client).status_code for _ in range(3)]
 
-    assert statuses == [202, 202, 429]
+    assert statuses == [403, 403, 429]
 
 
 def test_rate_limit_applies_before_signature_check(tmp_path) -> None:
@@ -169,13 +195,10 @@ def test_root_path_request_still_has_the_ingest_rate_limit(tmp_path) -> None:
         create_app(settings, scheduler=SchedulingSpy()),
         root_path="/archive",
     )
-    headers = {
-        "Content-Type": "application/json",
-        "X-Hub-Signature": sign_body(_BODY, _SECRET),
-    }
+    headers = {"Content-Type": "application/json", "X-Hub-Signature": "sha256=" + "00" * 32}
 
     statuses = [
         client.post("/archive/ingest", content=_BODY, headers=headers).status_code for _ in range(3)
     ]
 
-    assert statuses == [202, 202, 429]
+    assert statuses == [403, 403, 429]

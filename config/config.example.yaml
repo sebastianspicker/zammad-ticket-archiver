@@ -94,7 +94,7 @@ hardening:
     validation_hosts: [] # OCSP/CRL host names; the TSA host is always allowed
 
 admission:
-  max_pending: 100
+  max_pending: 1000
   max_running: 4
   shutdown_timeout_seconds: 5.0
 

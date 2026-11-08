@@ -7,13 +7,17 @@ from dataclasses import dataclass
 from time import monotonic
 
 from starlette.datastructures import Headers
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from chronikwerk.configuration.models import Settings
 from chronikwerk.web.constants import ADMIN_AUTH_PATHS, INGEST_PROTECTED_PATHS, route_path
 from chronikwerk.web.responses import api_error
 
 _METRICS_PATH = "/metrics"
+# Ingest responses that mean the request was refused before admission (bad or missing
+# signature, missing delivery ID, body read timeout, oversized body). Only these use up an
+# ingest token.
+_REFUSED_INGEST_STATUSES = frozenset({400, 401, 403, 408, 413})
 
 # Eviction tuning for the in-memory token-bucket store (Bug #P2-1).
 _EVICTION_HEADROOM = 200  # extra entries to evict below max_entries
@@ -42,8 +46,11 @@ class _InMemoryTokenBucketLimiter:
         self._lock = asyncio.Lock()
         self._buckets: dict[str, _Bucket] = {}
 
-    async def allow(self, key: str) -> bool:
-        """Return True if the request for key is within the rate limit, False otherwise."""
+    async def allow(self, key: str, *, spend: bool = True) -> bool:
+        """Return True if the request for key is within the rate limit, False otherwise.
+
+        With ``spend=False`` the token is only checked, not used up.
+        """
         now = float(self._now())
         async with self._lock:
             self._evict_excess_buckets()
@@ -59,7 +66,8 @@ class _InMemoryTokenBucketLimiter:
             bucket.updated_at = now
 
             if bucket.tokens >= 1.0:
-                bucket.tokens -= 1.0
+                if spend:
+                    bucket.tokens -= 1.0
                 return True
 
             return False
@@ -164,11 +172,32 @@ class RateLimitMiddleware:
             return
 
         key = _client_key(scope, self._client_key_header)
+        if route_path(scope) in INGEST_PROTECTED_PATHS:
+            await self._limit_refused_ingest(key, scope, receive, send)
+            return
         if not await self._limiter.allow(key):
             await _rate_limited()(scope, receive, send)
             return
 
         await self.app(scope, receive, send)
+
+    async def _limit_refused_ingest(
+        self, key: str, scope: Scope, receive: Receive, send: Send
+    ) -> None:
+        """Let signed webhook bursts through; only refused requests drain the client's bucket."""
+        if not await self._limiter.allow(key, spend=False):
+            await _rate_limited()(scope, receive, send)
+            return
+
+        async def send_and_count_refusal(message: Message) -> None:
+            if (
+                message["type"] == "http.response.start"
+                and message["status"] in _REFUSED_INGEST_STATUSES
+            ):
+                await self._limiter.allow(key)
+            await send(message)
+
+        await self.app(scope, receive, send_and_count_refusal)
 
     def _should_limit(self, scope: Scope) -> bool:
         """Return whether this request belongs to a protected admission path."""

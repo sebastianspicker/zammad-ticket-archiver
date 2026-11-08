@@ -67,6 +67,11 @@ by the certificate in `seal.pfx_path`, identified by its SHA-256 fingerprint, in
 chaining to an anchor. `chronikwerk-admin verify` can apply the same check to a package with
 `--expected-signer <sha256 fingerprint>`, which may be repeated for several accepted signers.
 
+When the timestamp token is intact, trusted and covers the seal, the seal signer's chain is
+checked as of the token's time: a seal certificate that expired after the package was sealed does
+not fail the package. Without such a token the seal is checked as of now. The TSA chain and the PDF
+signature are always checked as of now.
+
 ### What validation does not cover
 
 Validation runs offline with the supplied trust anchors only. It does not fetch OCSP responses or

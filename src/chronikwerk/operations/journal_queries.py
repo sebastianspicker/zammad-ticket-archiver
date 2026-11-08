@@ -181,7 +181,7 @@ class JournalQueries:
     def pending_zammad_updates(self) -> list[JournalRequest]:
         """Return COMPLETE rows whose Zammad note is still pending or failed, newest per ticket."""
         return self._query(
-            "SELECT * FROM requests WHERE state = 'complete' "  # noqa: S608
+            "SELECT * FROM requests WHERE state = 'complete' "  # noqa: S608  # nosec B608
             f"AND zammad_status IN ('pending', 'failed') AND {_NOT_SUPERSEDED} "
             "ORDER BY received_at, rowid"
         )
@@ -189,7 +189,7 @@ class JournalQueries:
     def pending_failure_reports(self) -> list[JournalRequest]:
         """Return unreported FAILED rows that no newer finished request of the ticket replaced."""
         return self._query(
-            "SELECT * FROM requests WHERE state = 'failed' "  # noqa: S608
+            "SELECT * FROM requests WHERE state = 'failed' "  # noqa: S608  # nosec B608
             f"AND zammad_status = 'pending' AND {_NOT_SUPERSEDED} ORDER BY received_at, rowid"
         )
 

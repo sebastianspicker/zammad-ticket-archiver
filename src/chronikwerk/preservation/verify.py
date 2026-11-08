@@ -138,18 +138,20 @@ async def _check_timestamp(
     token_bytes: bytes | None,
     anchors: _Anchors,
     validation_time: datetime | None,
-) -> VerificationCheck:
+) -> tuple[VerificationCheck, datetime | None]:
+    """Check the token; also return its time when it is trusted and covers the seal."""
     if seal_bytes is None:
-        return _skipped("timestamp", f"{SEAL_NAME} is missing")
+        return _skipped("timestamp", f"{SEAL_NAME} is missing"), None
     if token_bytes is None:
-        return VerificationCheck("timestamp", False, f"{TOKEN_NAME} is missing")
+        return VerificationCheck("timestamp", False, f"{TOKEN_NAME} is missing"), None
     token = await check_timestamp(
         seal_bytes, token_bytes, trust_anchors=anchors, validation_time=validation_time
     )
     detail = "; ".join(token.problems)
-    if token.ok and token.gen_time is not None:
-        detail = f"timestamped {token.gen_time.astimezone(UTC).strftime(_TIME_FORMAT)}; {detail}"
-    return VerificationCheck("timestamp", token.ok, detail)
+    proven_time = token.gen_time if token.ok else None
+    if proven_time is not None:
+        detail = f"timestamped {proven_time.astimezone(UTC).strftime(_TIME_FORMAT)}; {detail}"
+    return VerificationCheck("timestamp", token.ok, detail), proven_time
 
 
 async def _validate_embedded(reading_copy: Path, context: ValidationContext) -> list[Any]:
@@ -203,18 +205,29 @@ async def verify_package_directory(
     """Run every offline check on a package directory; never raises for a defective package.
 
     ``expected_signer_sha256`` pins the seal signer certificate by SHA-256 fingerprint.
+    Without ``validation_time`` the seal is validated as of its trusted timestamp, and the
+    timestamp and PDF signature as of now.
     """
     manifest_bytes = _read_regular(directory, MANIFEST_NAME)
     seal_bytes = _read_regular(directory, SEAL_NAME)
     token_bytes = _read_regular(directory, TOKEN_NAME)
     manifest_check, manifest = _check_manifest(manifest_bytes)
+    timestamp_check, sealed_at = await _check_timestamp(
+        seal_bytes, token_bytes, trust_anchors, validation_time
+    )
     checks = (
         manifest_check,
         _check_files(directory, manifest),
+        # A trusted token proves the seal existed at its time, so the seal signer's chain is
+        # checked as of then: a seal certificate that expired later does not fail the package.
         await _check_seal(
-            manifest_bytes, seal_bytes, trust_anchors, validation_time, expected_signer_sha256
+            manifest_bytes,
+            seal_bytes,
+            trust_anchors,
+            validation_time or sealed_at,
+            expected_signer_sha256,
         ),
-        await _check_timestamp(seal_bytes, token_bytes, trust_anchors, validation_time),
+        timestamp_check,
         await _check_pdf_signature(directory, trust_anchors, validation_time),
     )
     return VerificationReport(

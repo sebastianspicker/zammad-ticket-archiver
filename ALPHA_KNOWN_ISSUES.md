@@ -42,8 +42,14 @@ shapes it may return are unverified, and no reconciliation job runs yet.
 - **A plain file share does not enforce retention.** Revisions written there record
   `retention_enforced` as false. Use such a share for testing only; production needs a share or
   store that enforces write-once retention itself.
-- **SMB hard links and `flock` are untested.** The filesystem store links objects into place and
-  locks each revision with `flock`. Test both on your target share and mount options.
+- **SMB hard links, `flock` and read-only modes are untested.** The filesystem store links
+  objects into place, locks each revision with `flock` and makes a published revision read-only
+  with `chmod`. Test all three on your target share and mount options: a share that refuses
+  `chmod` (for example CIFS without Unix extensions) leaves the revision published but its
+  request never completes.
+- **A success note can appear twice.** If Zammad stores the note but its reply is lost, the
+  maintenance task posts the same "Archive revision complete" note again. The archive itself is
+  not affected.
 - **Validation material is not embedded.** Seal and timestamp validation runs offline against the
   trust anchors and does not check revocation. Certificates and revocation data are not stored in
   the package, and `signing.pades.level` `B-LT` does not embed validation information in the PDF.

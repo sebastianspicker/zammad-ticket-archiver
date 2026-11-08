@@ -51,6 +51,7 @@ tags use the public form `v0.3.0-alpha.1`.
   settings and `storage.backend=s3` have no effect yet (see ALPHA_KNOWN_ISSUES.md).
 
 ### Changed
+- `admission.max_pending` defaults to `1000` (was `100`).
 - **Breaking: storage layout.** Archives are no longer a PDF with a JSON sidecar named by
   `storage.filename_pattern`. Each revision is a directory
   `<record_class>/<archive_user>/<archive_path...>/Ticket-<number>/r<NNNN>_<revision_id>/`, written
@@ -81,6 +82,12 @@ tags use the public form `v0.3.0-alpha.1`.
 - `chronikwerk-admin dump-config` accepts `--config` like the other configuration commands.
 - A failing `flock` (for example on a share without lock support) no longer leaks a descriptor.
 - Ticket and row IDs beyond the SQLite integer range are rejected with `422` instead of `500`.
+- Correctly signed webhooks are no longer rate-limited: on `/ingest` and `/ingest/batch` only
+  refused requests (bad signature, missing delivery ID, body timeout, oversized body) use up
+  tokens, so a bulk macro over many tickets is not answered with `429`.
+- `chronikwerk-admin verify` checks the seal certificate as of the package's trusted timestamp, so
+  packages keep verifying after the seal certificate expires.
+- `capture.max_temp_bytes` smaller than `capture.max_package_bytes` is rejected at startup.
 - `POST /ingest/batch` rejects an empty array with `422 batch_empty` instead of accepting a
   zero-item batch.
 - The PDF metadata box shows the archive path and mode when `fields.*` renames the Zammad
