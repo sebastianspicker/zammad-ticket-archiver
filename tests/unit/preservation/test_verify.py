@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -103,6 +104,9 @@ def test_report_json_has_stable_keys(tmp_path: Path) -> None:
     assert document["result"] == "passed"
     assert set(document["checks"][0]) == {"name", "ok", "detail"}
     assert set(document["tool"]) == {"name", "version"}
+    utc_seconds = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
+    assert re.fullmatch(utc_seconds, document["verified_at"])
+    assert re.match(rf"timestamped {utc_seconds}; ", _detail(report, "timestamp"))
 
 
 def test_changed_listed_file_fails_files(tmp_path: Path) -> None:

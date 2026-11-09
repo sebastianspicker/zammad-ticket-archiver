@@ -25,6 +25,7 @@ from chronikwerk.preservation.manifest import (
 )
 from chronikwerk.preservation.package import verify_package_files
 from chronikwerk.preservation.seal import check_seal, check_timestamp
+from chronikwerk.timestamps import format_timestamp_utc
 
 __all__ = [
     "READING_COPY_NAME",
@@ -35,7 +36,6 @@ __all__ = [
 
 READING_COPY_NAME = "reading-copy.pdf"
 _TOOL_NAME = "chronikwerk-admin verify"
-_TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 _Anchors = tuple[asn1_x509.Certificate, ...] | list[asn1_x509.Certificate]
 
 
@@ -67,7 +67,7 @@ class VerificationReport:
                 {"name": check.name, "ok": check.ok, "detail": check.detail}
                 for check in self.checks
             ],
-            "verified_at": self.verified_at.astimezone(UTC).strftime(_TIME_FORMAT),
+            "verified_at": format_timestamp_utc(self.verified_at),
             "tool": {"name": _TOOL_NAME, "version": self.tool_version},
         }
         return (json.dumps(document, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
@@ -150,7 +150,7 @@ async def _check_timestamp(
     detail = "; ".join(token.problems)
     proven_time = token.gen_time if token.ok else None
     if proven_time is not None:
-        detail = f"timestamped {proven_time.astimezone(UTC).strftime(_TIME_FORMAT)}; {detail}"
+        detail = f"timestamped {format_timestamp_utc(proven_time)}; {detail}"
     return VerificationCheck("timestamp", token.ok, detail), proven_time
 
 
